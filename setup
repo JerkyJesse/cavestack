@@ -478,15 +478,7 @@ create_agents_sidecar() {
     fi
   done
 
-  # Sidecar files that skills reference at runtime
-  for file in ETHOS.md; do
-    local src="$SOURCE_CAVESTACK_DIR/$file"
-    local dst="$agents_cavestack/$file"
-    if [ -f "$src" ]; then
-      if [ -L "$dst" ] || [ ! -e "$dst" ]; then
-        ln -snf "$src" "$dst"
-      fi
-    fi
+  # (ETHOS.md sidecar removed)
   done
 }
 
@@ -530,10 +522,6 @@ create_codex_runtime_root() {
       ln -snf "$cavestack_dir/review/$f" "$codex_cavestack/review/$f"
     fi
   done
-  # ETHOS.md — referenced by "Search Before Building" in all skill preambles
-  if [ -f "$cavestack_dir/ETHOS.md" ]; then
-    ln -snf "$cavestack_dir/ETHOS.md" "$codex_cavestack/ETHOS.md"
-  fi
 }
 
 create_factory_runtime_root() {
@@ -569,9 +557,6 @@ create_factory_runtime_root() {
       ln -snf "$cavestack_dir/review/$f" "$factory_cavestack/review/$f"
     fi
   done
-  if [ -f "$cavestack_dir/ETHOS.md" ]; then
-    ln -snf "$cavestack_dir/ETHOS.md" "$factory_cavestack/ETHOS.md"
-  fi
 }
 
 link_factory_skill_dirs() {
@@ -716,10 +701,6 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
   ln -snf "$SOURCE_CAVESTACK_DIR/bin" "$KIRO_CAVESTACK/bin"
   ln -snf "$SOURCE_CAVESTACK_DIR/browse/dist" "$KIRO_CAVESTACK/browse/dist"
   ln -snf "$SOURCE_CAVESTACK_DIR/browse/bin" "$KIRO_CAVESTACK/browse/bin"
-  # ETHOS.md — referenced by "Search Before Building" in all skill preambles
-  if [ -f "$SOURCE_CAVESTACK_DIR/ETHOS.md" ]; then
-    ln -snf "$SOURCE_CAVESTACK_DIR/ETHOS.md" "$KIRO_CAVESTACK/ETHOS.md"
-  fi
   # cavestack-upgrade skill
   if [ -f "$AGENTS_DIR/cavestack-upgrade/SKILL.md" ]; then
     ln -snf "$AGENTS_DIR/cavestack-upgrade/SKILL.md" "$KIRO_CAVESTACK/cavestack-upgrade/SKILL.md"

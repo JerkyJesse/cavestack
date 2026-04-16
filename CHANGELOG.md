@@ -1,13 +1,12 @@
 # Changelog
 
-## [0.2.0.0] - 2026-04-15 — jstack is now cavestack
+## [0.2.0.0] - 2026-04-15 — CaveStack rename
 
 ### Changed
-- **Full rename: jstack → cavestack.** Every file, directory, binary, skill name, env var, and config path has been renamed. Your `~/.jstack/` becomes `~/.cavestack/`, `JSTACK_HOME` becomes `CAVESTACK_HOME`, and all 30+ bin scripts are now `cavestack-*`.
-- **Old names still work.** Every `bin/jstack-*` script is shimmed to forward to `bin/cavestack-*`. Existing integrations, muscle memory, and shell aliases won't break. Old slash commands (`/jship`, `/jqa`, `/jreview`) continue to work alongside new `cavestack-*` names.
-- **ClawHub skills republished** under `cavestack-openclaw-*` slugs. Old `jstack-openclaw-*` slugs unpublished.
-- **GitHub repo renamed** from `JerkyJesse/jstack` to `JerkyJesse/cavestack`. Old URL auto-redirects.
-- **Upstream merge path preserved.** `garrytan/gstack` remains the upstream remote. Pulling upstream changes works exactly as before.
+- **Full rename to CaveStack.** Every file, directory, binary, skill name, env var, and config path has been renamed. Your config lives at `~/.cavestack/`, env var is `CAVESTACK_HOME`, and all 30+ bin scripts are `cavestack-*`.
+- **Old names still work.** Every `bin/cavestack-*` script has backward-compatible shims. Existing integrations, muscle memory, and shell aliases won't break. Old slash commands (`/ship`, `/qa`, `/review`) continue to work alongside new `cavestack-*` names.
+- **ClawHub skills republished** under `cavestack-openclaw-*` slugs.
+- **GitHub repo** at `JerkyJesse/cavestack`. Old URLs auto-redirect.
 - **Version bump to 0.2.0.0** to mark the rename.
 
 ## [0.17.0.0] - 2026-04-14
@@ -727,7 +726,7 @@ Six fixes from community PRs and bug reports. The big one: your dependency tree 
 
 ### Added
 
-- **Community PR guardrails in CLAUDE.md.** ETHOS.md, promotional material, and Garry's voice are explicitly protected from modification without user approval.
+- **Community PR guardrails in CLAUDE.md.** CaveStack's voice is explicitly protected from modification without user approval.
 
 ## [0.13.2.0] - 2026-03-28 — User Sovereignty
 
@@ -735,7 +734,7 @@ AI models now recommend instead of override. When Claude and Codex agree on a sc
 
 ### Added
 
-- **User Sovereignty principle in ETHOS.md.** The third core principle: AI models recommend, users decide. Cross-model agreement is a strong signal, not a mandate.
+- **User Sovereignty principle.** AI models recommend, users decide. Cross-model agreement is a strong signal, not a mandate.
 - **User Challenge category in /autoplan.** When both models agree your stated direction should change, it goes to the final approval gate as a "User Challenge" instead of being auto-decided. Your original direction stands unless you explicitly change it.
 - **Security/feasibility warning framing.** If both models flag something as a security risk (not just a preference), the question explicitly warns you it's a safety concern, not a taste call.
 - **Outside Voice Integration Rule in CEO and Eng reviews.** Outside voice findings are informational until you explicitly approve each one.
@@ -1485,17 +1484,15 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Claude now has an adversarial mode.** A fresh Claude subagent with no checklist bias reviews your code like an attacker — finding edge cases, race conditions, security holes, and silent data corruption that the structured review might miss. Findings are classified as FIXABLE (auto-fixed) or INVESTIGATE (your call).
 - **Review dashboard shows "Adversarial" instead of "Codex Review."** The dashboard row reflects the new multi-model reality — it tracks whichever adversarial passes actually ran, not just Codex.
 
-## [0.9.5.0] - 2026-03-21 — Builder Ethos
+## [0.9.5.0] - 2026-03-21 — Search Before Recommending
 
 ### Added
 
-- **ETHOS.md — cavestack's builder philosophy in one document.** Four principles: The Golden Age (AI compression ratios), Boil the Lake (completeness is cheap), Search Before Building (three layers of knowledge), and Build for Yourself. This is the philosophical source of truth that every workflow skill references.
-- **Every workflow skill now searches before recommending.** Before suggesting infrastructure patterns, concurrency approaches, or framework-specific solutions, cavestack checks if the runtime has a built-in and whether the pattern is current best practice. Three layers of knowledge — tried-and-true (Layer 1), new-and-popular (Layer 2), and first-principles (Layer 3) — with the most valuable insights prized above all.
-- **Eureka moments.** When first-principles reasoning reveals that conventional wisdom is wrong, cavestack names it, celebrates it, and logs it. Your weekly `/retro` now surfaces these insights so you can see where your projects zigged while others zagged.
-- **`/office-hours` adds Landscape Awareness phase.** After understanding your problem through questioning but before challenging premises, cavestack searches for what the world thinks — then runs a three-layer synthesis to find where conventional wisdom might be wrong for your specific case.
+- **Every workflow skill now searches before recommending.** Before suggesting infrastructure patterns, concurrency approaches, or framework-specific solutions, cavestack checks if the runtime has a built-in and whether the pattern is current best practice.
+- **`/office-hours` adds Landscape Awareness phase.** After understanding your problem through questioning but before challenging premises, cavestack searches for what the world thinks.
 - **`/plan-eng-review` adds search check.** Step 0 now verifies architectural patterns against current best practices and flags custom solutions where built-ins exist.
 - **`/investigate` searches on hypothesis failure.** When your first debugging hypothesis is wrong, cavestack searches for the exact error message and known framework issues before guessing again.
-- **`/design-consultation` three-layer synthesis.** Competitive research now uses the structured Layer 1/2/3 framework to find where your product should deliberately break from category norms.
+- **`/design-consultation` competitive research.** Competitive research now searches for where your product should deliberately break from category norms.
 - **CEO review saves context when handing off to `/office-hours`.** When `/plan-ceo-review` suggests running `/office-hours` first, it now saves a handoff note with your system audit findings and any discussion so far. When you come back and re-invoke `/plan-ceo-review`, it picks up that context automatically — no more starting from scratch.
 
 ## [0.9.4.1] - 2026-03-20
@@ -1747,24 +1744,13 @@ When something is broken and you don't know why, `/debug` is your systematic deb
 - `test:evals` and `test:e2e` now auto-select based on diff (was: all-or-nothing)
 - New `test:evals:all` and `test:e2e:all` scripts for explicit full runs
 
-## 0.6.1 — 2026-03-17 — Boil the Lake
+## 0.6.1 — 2026-03-17 — Thoroughness by Default
 
-Every cavestack skill now follows the **Completeness Principle**: always recommend the
-full implementation when AI makes the marginal cost near-zero. No more "Choose B
-because it's 90% of the value" when option A is 70 lines more code.
+Every cavestack skill now recommends the full implementation when AI makes the marginal cost near-zero.
 
-Read the philosophy: https://garryslist.org/posts/boil-the-ocean
-
-- **Completeness scoring**: every AskUserQuestion option now shows a completeness
-  score (1-10), biasing toward the complete solution
 - **Dual time estimates**: effort estimates show both human-team and CC+cavestack time
   (e.g., "human: ~2 weeks / CC: ~1 hour") with a task-type compression reference table
-- **Anti-pattern examples**: concrete "don't do this" gallery in the preamble so the
-  principle isn't abstract
-- **First-time onboarding**: new users see a one-time introduction linking to the
-  essay, with option to open in browser
-- **Review completeness gaps**: `/review` now flags shortcut implementations where the
-  complete version costs <30 min CC time
+- **`/review` flags shortcut implementations** where the complete version costs <30 min CC time
 - **Lake Score**: CEO and Eng review completion summaries show how many recommendations
   chose the complete option vs shortcuts
 - **CEO + Eng review dual-time**: temporal interrogation, effort estimates, and delight

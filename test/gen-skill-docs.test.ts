@@ -252,7 +252,6 @@ describe('gen-skill-docs', () => {
     // Use benchmark (tier 1) instead of root — root SKILL.md gets overwritten by Codex test setup
     const content = fs.readFileSync(path.join(ROOT, 'benchmark', 'SKILL.md'), 'utf-8');
     expect(content).not.toContain('## AskUserQuestion Format');
-    expect(content).not.toContain('## Completeness Principle');
   });
 
   test('generated SKILL.md contains telemetry line', () => {

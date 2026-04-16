@@ -350,7 +350,6 @@ describe('host-config-export.ts CLI', () => {
     expect(exitCode).toBe(0);
     const lines = stdout.split('\n');
     expect(lines).toContain('bin');
-    expect(lines).toContain('ETHOS.md');
     expect(lines).toContain('review/checklist.md');
   });
 
@@ -518,7 +517,6 @@ describe('host config correctness', () => {
     for (const config of ALL_HOST_CONFIGS) {
       expect(config.runtimeRoot.globalSymlinks.length).toBeGreaterThan(0);
       expect(config.runtimeRoot.globalSymlinks).toContain('bin');
-      expect(config.runtimeRoot.globalSymlinks).toContain('ETHOS.md');
     }
   });
 });

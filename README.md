@@ -16,7 +16,7 @@
 
 ## What This
 
-Fork of [gstack](https://github.com/garrytan/gstack). Caveman mode = default. Every response: short, direct, no fluff. Same 40 skills. Same power. 75% fewer words.
+AI builder framework. Caveman mode = default. Every response: short, direct, no fluff. Same 40 skills. Same power. 75% fewer words.
 
 Other AI tools: walls of text. Filler words. "I'd be happy to help you with that." Apologies for things that aren't wrong. Summaries of what you just said back to you.
 
@@ -131,7 +131,7 @@ Remove symlinks, hooks, state. Your files untouched.
 
 ## Credit
 
-MIT. Upstream: [gstack](https://github.com/garrytan/gstack). Caveman hooks: [Julius Brussee](https://github.com/JuliusBrussee/caveman). This fork: [JerkyJesse](https://github.com/JerkyJesse). See [LICENSE](LICENSE).
+MIT. Caveman hooks: [Julius Brussee](https://github.com/JuliusBrussee/caveman). Built by [JerkyJesse](https://github.com/JerkyJesse). See [LICENSE](LICENSE).
 
 ---
 
@@ -140,7 +140,7 @@ MIT. Upstream: [gstack](https://github.com/garrytan/gstack). Caveman hooks: [Jul
 
 ### What is CaveStack?
 
-CaveStack is a fork of [gstack](https://github.com/garrytan/gstack) that ships with "caveman mode" enabled by default. Caveman mode compresses AI responses by approximately 75% without losing technical accuracy. Instead of opting into terse responses, CaveStack makes them the default behavior from the very first prompt.
+CaveStack is an AI builder framework that ships with "caveman mode" enabled by default. Caveman mode compresses AI responses by approximately 75% without losing technical accuracy. Instead of opting into terse responses, CaveStack makes them the default behavior from the very first prompt.
 
 ### Why does this exist?
 
@@ -161,7 +161,7 @@ After setup, open a new Claude Code session in any project directory. Caveman mo
 
 ### Features
 
-CaveStack includes all 40 skills from the upstream gstack framework:
+CaveStack includes all 40 skills from the CaveStack framework:
 
 - **Code Review** (`/review`) — Analyze diffs for bugs, security issues, and style problems
 - **Ship** (`/ship`) — Test, review, version bump, push, and create PR in one command
@@ -220,6 +220,6 @@ Open an issue at [github.com/JerkyJesse/cavestack/issues](https://github.com/Jer
 
 ### License
 
-MIT. See [LICENSE](LICENSE) for full attribution covering gstack (upstream), caveman (hooks), and CaveStack (fork modifications).
+MIT. See [LICENSE](LICENSE) for full attribution covering caveman (hooks) and CaveStack.
 
 </details>

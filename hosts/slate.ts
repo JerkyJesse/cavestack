@@ -29,7 +29,7 @@ const slate: HostConfig = {
   ],
 
   runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade', 'ETHOS.md'],
+    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade'],
     globalFiles: {
       'review': ['checklist.md', 'TODOS-format.md'],
     },

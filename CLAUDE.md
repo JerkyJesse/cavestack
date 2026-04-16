@@ -2,17 +2,13 @@
 
 ## About this fork
 
-**cavestack** is a personal fork of [garrytan/gstack](https://github.com/garrytan/gstack) by JerkyJesse, with [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) integrated as always-on terse-response behavior. Upstream remote is configured as `upstream` so `git fetch upstream && git merge upstream/main` pulls in gstack changes (expect conflicts on every branding string).
+**CaveStack** is an AI builder framework by JerkyJesse, with [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) integrated as always-on terse-response behavior.
 
 **Caveman integration:** on every SessionStart, `hooks/caveman-activate.js` injects the caveman ruleset (drop articles, fragments OK, short synonyms). `hooks/caveman-mode-tracker.js` handles `/caveman lite|full|ultra` and `stop caveman` toggles. Default mode is `full`. Code/commits/PRs are exempt from caveman compression and are written normally.
 
-**Command prefix:** `cavestack-config` persists the `prefix` flag; setup enables `j-` prefix by default so skills surface as `/jqa`, `/jship`, `/jreview`, etc. Disable with `bin/cavestack-config prefix false && bin/cavestack-relink`.
+**Command prefix:** `cavestack-config` persists the `prefix` flag; setup enables prefix by default so skills surface as `/cavestack-qa`, `/cavestack-ship`, etc. Disable with `bin/cavestack-config prefix false && bin/cavestack-relink`.
 
-**Preserving upstream content:** ETHOS.md is upstream intellectual content and must not be altered — it is the canonical source referenced by the preamble resolver.
-
-**Caveman voice overhaul:** Skill template (.tmpl) prose has been compressed to caveman voice as part of this fork's identity. The **caveman floor** defines what stays verbose even in compressed templates: AskUserQuestion prompts, diagnostic tables, conditional logic ("if X do Y"), stop/abort conditions, and directional instructions ("merge base into feature"). These are safety-critical and must stay explicit.
-
-**Upstream merge strategy:** After pulling upstream template changes, read the upstream diff for semantic changes, then re-apply in caveman voice. Do not accept either side mechanically — upstream text is verbose English, fork text is caveman fragments. Resolve by understanding what changed and expressing it in caveman.
+**Caveman voice overhaul:** Skill template (.tmpl) prose has been compressed to caveman voice as part of CaveStack's identity. The **caveman floor** defines what stays verbose even in compressed templates: AskUserQuestion prompts, diagnostic tables, conditional logic ("if X do Y"), stop/abort conditions, and directional instructions ("merge base into feature"). These are safety-critical and must stay explicit.
 
 ## Commands
 
@@ -137,7 +133,6 @@ cavestack/
 ├── setup            # One-time setup: build binary + symlink skills
 ├── SKILL.md         # Generated from SKILL.md.tmpl (don't edit directly)
 ├── SKILL.md.tmpl    # Template: edit this, run gen:skill-docs
-├── ETHOS.md         # Builder philosophy (Boil the Lake, Search Before Building)
 └── package.json     # Build scripts for browse
 ```
 
@@ -332,9 +327,7 @@ Accept findings where the "sloppy" pattern is the correct engineering choice.
 When reviewing or merging community PRs, **always AskUserQuestion** before accepting
 any commit that:
 
-1. **Touches ETHOS.md** — this file is upstream canonical philosophy, referenced by
-   the preamble resolver. No edits from external contributors or AI agents, period.
-2. **Changes CaveStack's voice** — the caveman tone, humor, directness, and personality
+1. **Changes CaveStack's voice** — the caveman tone, humor, directness, and personality
    in skill templates, CHANGELOG, and docs are intentional. PRs that rewrite voice to be
    more "neutral" or "professional" must be rejected.
 
@@ -402,22 +395,8 @@ When estimating or discussing effort, always show both human-team and CC+cavesta
 | Architecture / design | 2 days | 4 hours | ~5x |
 | Research / exploration | 1 day | 3 hours | ~3x |
 
-Completeness is cheap. Don't recommend shortcuts when the complete implementation
-is a "lake" (achievable) not an "ocean" (multi-quarter migration). See the
-Completeness Principle in the skill preamble for the full philosophy.
-
-## Search before building
-
-Before designing any solution that involves concurrency, unfamiliar patterns,
-infrastructure, or anything where the runtime/framework might have a built-in:
-
-1. Search for "{runtime} {thing} built-in"
-2. Search for "{thing} best practice {current year}"
-3. Check official runtime/framework docs
-
-Three layers of knowledge: tried-and-true (Layer 1), new-and-popular (Layer 2),
-first-principles (Layer 3). Prize Layer 3 above all. See ETHOS.md for the full
-builder philosophy.
+Don't recommend shortcuts when the complete implementation is achievable in a
+reasonable timeframe.
 
 ## Local plans
 

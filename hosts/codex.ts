@@ -40,14 +40,14 @@ const codex: HostConfig = {
   ],
 
   runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade', 'ETHOS.md'],
+    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade'],
     globalFiles: {
       'review': ['checklist.md', 'TODOS-format.md'],
     },
   },
   sidecar: {
     path: '.agents/skills/cavestack',
-    symlinks: ['bin', 'browse', 'review', 'qa', 'ETHOS.md'],
+    symlinks: ['bin', 'browse', 'review', 'qa'],
   },
 
   install: {

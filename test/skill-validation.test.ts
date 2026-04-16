@@ -778,38 +778,6 @@ describe('Enum & Value Completeness in review checklist', () => {
   });
 });
 
-// --- Completeness Principle spot-check ---
-
-describe('Completeness Principle in generated SKILL.md files', () => {
-  const skillsWithPreamble = [
-    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
-    'qa-only/SKILL.md',
-    'setup-browser-cookies/SKILL.md',
-    'ship/SKILL.md', 'review/SKILL.md',
-    'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
-    'retro/SKILL.md',
-    'plan-design-review/SKILL.md',
-    'design-review/SKILL.md',
-    'design-consultation/SKILL.md',
-    'document-release/SKILL.md',
-    'cso/SKILL.md',  ];
-
-  for (const skill of skillsWithPreamble) {
-    test(`${skill} contains Completeness Principle section`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      expect(content).toContain('Completeness Principle');
-      expect(content).toContain('Boil the Lake');
-    });
-  }
-
-  test('Completeness Principle includes compression table in tier 2+ skills', () => {
-    // Root is tier 1 (no completeness). Check tier 2+ skill.
-    const content = fs.readFileSync(path.join(ROOT, 'cso', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('CC+cavestack');
-    expect(content).toContain('Compression');
-  });
-});
-
 // --- Part 7: Planted-bug fixture validation (A4) ---
 
 describe('Planted-bug fixture validation', () => {

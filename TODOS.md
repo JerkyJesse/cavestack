@@ -14,20 +14,6 @@
 **Priority:** P0
 **Depends on:** Sidebar security fix PR (command allowlist + XML framing + arg fix) landing first
 
-## Builder Ethos
-
-### First-time Search Before Building intro
-
-**What:** Add a `generateSearchIntro()` function (like `generateLakeIntro()`) that introduces the Search Before Building principle on first use, with a link to the blog essay.
-
-**Why:** Boil the Lake has an intro flow that links to the essay and marks `.completeness-intro-seen`. Search Before Building should have the same pattern for discoverability.
-
-**Context:** Blocked on a blog post to link to. When the essay exists, add the intro flow with a `.search-intro-seen` marker file. Pattern: `generateLakeIntro()` at gen-skill-docs.ts:176.
-
-**Effort:** S
-**Priority:** P2
-**Depends on:** Blog post about Search Before Building
-
 ## Chrome DevTools MCP Integration
 
 ### Real Chrome session access
@@ -481,15 +467,6 @@ Shipped: Default model changed to Sonnet for structure tests (~30), Opus retaine
 **Priority:** P2
 **Depends on:** None
 
-### Cross-platform URL open helper
-
-**What:** `cavestack-open-url` helper script — detect platform, use `open` (macOS) or `xdg-open` (Linux).
-
-**Why:** The first-time Completeness Principle intro uses macOS `open` to launch the essay. If cavestack ever supports Linux, this silently fails.
-
-**Effort:** S (human: ~30 min / CC: ~2 min)
-**Priority:** P4
-**Depends on:** Nothing
 
 ### CDP-based DOM mutation detection for ref staleness
 
@@ -603,20 +580,6 @@ Shipped in v0.8.3. Step 8.5 added to `/ship` — after creating the PR, `/ship` 
 **Effort:** M (human: ~2 weeks / CC: ~30 min)
 **Priority:** P1
 **Depends on:** None
-
-## Completeness
-
-### Completeness metrics dashboard
-
-**What:** Track how often Claude chooses the complete option vs shortcut across cavestack sessions. Aggregate into a dashboard showing completeness trend over time.
-
-**Why:** Without measurement, we can't know if the Completeness Principle is working. Could surface patterns (e.g., certain skills still bias toward shortcuts).
-
-**Context:** Would require logging choices (e.g., append to a JSONL file when AskUserQuestion resolves), parsing them, and displaying trends. Similar pattern to eval persistence.
-
-**Effort:** M (human) / S (CC)
-**Priority:** P3
-**Depends on:** Boil the Lake shipped (v0.6.1)
 
 ## Safety & Observability
 

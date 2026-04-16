@@ -139,7 +139,7 @@ function createRoutingWorkDir(suffix: string): string {
   // Clone the repo checkout into a tmpDir so concurrent tests don't interfere
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `routing-${suffix}-`));
   // Copy essential context files
-  const filesToCopy = ['CLAUDE.md', 'README.md', 'package.json', 'ETHOS.md'];
+  const filesToCopy = ['CLAUDE.md', 'README.md', 'package.json'];
   for (const f of filesToCopy) {
     const src = path.join(ROOT, f);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(tmpDir, f));

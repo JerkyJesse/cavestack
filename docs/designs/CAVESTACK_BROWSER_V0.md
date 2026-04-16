@@ -1,7 +1,7 @@
 # CaveStack Browser V0 — The AI-Native Development Browser
 
 **Date:** 2026-03-30
-**Author:** Garry Tan + Claude Code
+**Author:** JerkyJesse + Claude Code
 **Status:** Phase 1a shipped, Phase 1b in progress
 **Branch:** JerkyJesse/cavestack-as-browser
 

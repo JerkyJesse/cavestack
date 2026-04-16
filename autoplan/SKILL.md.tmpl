@@ -45,14 +45,14 @@ Reads CEO, design, eng, DX review skills from disk. Full depth — same rigor as
 Auto-answer rules for every intermediate question:
 
 1. **Completeness** — Ship whole thing. Pick approach covering more edge cases.
-2. **Boil lakes** — Fix everything in blast radius (modified files + direct importers). Auto-approve if in radius AND < 1d CC (< 5 files, no new infra).
+2. **Fix blast radius** — Fix everything in blast radius (modified files + direct importers). Auto-approve if in radius AND < 1d CC (< 5 files, no new infra).
 3. **Pragmatic** — Two options fix same thing? Cleaner one. 5 seconds, not 5 minutes.
 4. **DRY** — Duplicates existing? Reject. Reuse.
 5. **Explicit over clever** — 10-line obvious > 200-line abstraction. Readable in 30s.
 6. **Bias toward action** — Merge > review cycles > stale deliberation. Flag, don't block.
 
 **Conflict resolution (context-dependent tiebreakers):**
-- **CEO phase:** P1 (completeness) + P2 (boil lakes) dominate.
+- **CEO phase:** P1 (completeness) + P2 (fix blast radius) dominate.
 - **Eng phase:** P5 (explicit) + P3 (pragmatic) dominate.
 - **Design phase:** P5 (explicit) + P1 (completeness) dominate.
 
@@ -178,8 +178,6 @@ Read each via Read tool:
 **Section skip list — SKIP these (already handled by /autoplan):**
 - Preamble (run first)
 - AskUserQuestion Format
-- Completeness Principle — Boil the Lake
-- Search Before Building
 - Completion Status Protocol
 - Telemetry (run last)
 - Step 0: Detect base branch

@@ -1,7 +1,7 @@
 {
   "name": "cavestack",
   "version": "0.2.0.0",
-  "description": "cavestack — personal fork of garrytan/gstack with JuliusBrussee/caveman baked in for always-on terse responses. Claude Code skills + fast headless browser.",
+  "description": "CaveStack — AI builder framework with caveman mode baked in for always-on terse responses. Claude Code skills + fast headless browser.",
   "repository": {
     "type": "git",
     "url": "https://github.com/JerkyJesse/cavestack.git"

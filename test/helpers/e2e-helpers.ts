@@ -202,12 +202,12 @@ export async function finalizeEvalCollector(evalCollector: EvalCollector | null)
   }
 }
 
-// Pre-seed preamble state files so E2E tests don't waste turns on lake intro + telemetry prompts.
+// Pre-seed preamble state files so E2E tests don't waste turns on interactive prompts.
 // These are one-time interactive prompts that burn 3-7 turns per test if not pre-seeded.
 if (evalsEnabled) {
   const cavestackDir = path.join(os.homedir(), '.cavestack');
   fs.mkdirSync(cavestackDir, { recursive: true });
-  for (const f of ['.completeness-intro-seen', '.telemetry-prompted', '.proactive-prompted']) {
+  for (const f of ['.proactive-prompted']) {
     const p = path.join(cavestackDir, f);
     if (!fs.existsSync(p)) fs.writeFileSync(p, '');
   }

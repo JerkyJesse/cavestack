@@ -35,8 +35,6 @@ echo "SKILL_PREFIX: $_SKILL_PREFIX"
 source <(~/.claude/skills/cavestack/bin/cavestack-repo-mode 2>/dev/null) || true
 REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
-_LAKE_SEEN=$([ -f ~/.cavestack/.completeness-intro-seen ] && echo "yes" || echo "no")
-echo "LAKE_INTRO: $_LAKE_SEEN"
 _TEL_START=$(date +%s)
 _SESSION_ID="$$-$(date +%s)"
 mkdir -p ~/.cavestack/analytics
@@ -88,20 +86,8 @@ of `/qa`, `/cavestack-ship` instead of `/ship`). Disk paths are unaffected — a
 
 If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/cavestack/cavestack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running cavestack v{to} (just updated!)" and continue.
 
-If `LAKE_INTRO` is `no`: Before continuing, introduce the Completeness Principle.
-Tell the user: "cavestack follows the **Boil the Lake** principle — always do the complete
-thing when AI makes the marginal cost near-zero. Read more: https://garryslist.org/posts/boil-the-ocean"
-Then offer to open the essay in their default browser:
-
-```bash
-open https://garryslist.org/posts/boil-the-ocean
-touch ~/.cavestack/.completeness-intro-seen
-```
-
-Only run `open` if the user says yes. Always run `touch` to mark as seen. This only happens once.
-
-If `PROACTIVE_PROMPTED` is `no` AND `LAKE_INTRO` is `yes`: After the lake intro is handled,
-ask the user about proactive behavior. Use AskUserQuestion:
+If `PROACTIVE_PROMPTED` is `no`:
+Ask the user about proactive behavior. Use AskUserQuestion:
 
 > cavestack can proactively figure out when you might need a skill while you work —
 > like suggesting /qa when you say "does this work?" or /investigate when you hit
@@ -201,7 +187,7 @@ This only happens once per project. If the marker file exists, skip entirely.
 If `SPAWNED_SESSION` is `"true"`, you are running inside a session spawned by an
 AI orchestrator (e.g., OpenClaw). In spawned sessions:
 - Do NOT use AskUserQuestion for interactive prompts. Auto-choose the recommended option.
-- Do NOT run upgrade checks, routing injection, or lake intro.
+- Do NOT run upgrade checks or routing injection.
 - Focus on completing the task and reporting results via prose output.
 - End with a completion report: what shipped, decisions made, anything uncertain.
 
