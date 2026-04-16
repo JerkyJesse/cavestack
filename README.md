@@ -1,6 +1,6 @@
 # cavestack
 
-> **cavestack** is a fork of [gstack](https://github.com/garrytan/gstack) that shuts up by default. Every AI coding tool ships verbose, then makes terseness an opt-in flag you have to remember. cavestack flips it. Terse is what you get. Verbose is the opt-in.
+> **cavestack** — fork of [gstack](https://github.com/garrytan/gstack). Shuts up by default. Every AI tool ships verbose, makes terse opt-in. cavestack flips it. Terse = default. Verbose = opt-in.
 
 ![same /review, same patch, different default](docs/images/sidebyside-review.png)
 
@@ -19,22 +19,22 @@ That's it. Open a new Claude Code session anywhere. The first response lands in 
 
 ## What you get
 
-- Every [gstack](https://github.com/garrytan/gstack) skill — `/review`, `/ship`, `/qa`, `/investigate`, `/office-hours`, `/cso`, 40 total — with the same command names, so there's no muscle-memory break if you're migrating from upstream.
-- [caveman](https://github.com/JuliusBrussee/caveman) grafted into `~/.claude/settings.json` as `SessionStart` + `UserPromptSubmit` hooks. Default mode is `full`. Toggle per session with `/caveman lite`, `/caveman ultra`, or `stop caveman`.
-- A Windows-first install path. bun binaries compile, setup symlinks work under Git Bash, and the statusline script is PowerShell-aware.
-- Fully reversible — `~/.claude/skills/cavestack/bin/cavestack-uninstall` cleans up skills, hooks, and state.
+- Every [gstack](https://github.com/garrytan/gstack) skill — `/review`, `/ship`, `/qa`, `/investigate`, `/office-hours`, `/cso`, 40 total. Same command names. No muscle-memory break.
+- [caveman](https://github.com/JuliusBrussee/caveman) wired into `SessionStart` + `UserPromptSubmit` hooks. Default: `full`. Toggle: `/caveman lite`, `/caveman ultra`, `stop caveman`.
+- Windows-first install. Bun binaries compile, setup symlinks work under Git Bash, statusline PowerShell-aware.
+- Fully reversible — `cavestack-uninstall` cleans skills, hooks, state.
 
-## Why a fork instead of a plugin
+## Why fork, not plugin
 
-Because default behavior wins. Every opt-in terseness workaround — `/caveman` as a plugin command, `be terse` in CLAUDE.md, hand-written system prompts — requires the user to remember to activate it on every session. They don't. So the tool stays verbose. So the senior eng closes the window and goes back to grepping. The only way to change the default is to fork the framework and ship terseness as the baseline.
+Default behavior wins. Every opt-in terse workaround — `/caveman` plugin, `be terse` in CLAUDE.md, hand-written prompts — requires user to remember. They don't. Tool stays verbose. Senior eng closes window, goes back to grepping. Only way to change default = fork framework, ship terse as baseline.
 
-Also: running gstack + caveman as two separate pieces is fine until you want caveman to fire *before* the first prompt of a new session. That requires a SessionStart hook owned by the install. A fork can own that. A plugin next to a fork cannot.
+Also: caveman must fire *before* first prompt. Needs SessionStart hook owned by install. Fork can own that. Plugin can't.
 
 ## Credit
 
-cavestack is a personal fork. All substantive skill content and build tooling is upstream gstack by [Garry Tan](https://github.com/garrytan), and the caveman hooks + activation logic are vendored from [Julius Brussee](https://github.com/JuliusBrussee)'s [caveman](https://github.com/JuliusBrussee/caveman). Both MIT. This fork adds the always-on wiring and a Windows-first install path, nothing more.
+Personal fork. Skill content + tooling = upstream [gstack](https://github.com/garrytan/gstack) by [Garry Tan](https://github.com/garrytan). Caveman hooks vendored from [Julius Brussee](https://github.com/JuliusBrussee)'s [caveman](https://github.com/JuliusBrussee/caveman). Both MIT. This fork = always-on wiring + Windows install + caveman voice overhaul on templates.
 
-Upstream remote is kept as `upstream`, so `git fetch upstream && git merge upstream/main` pulls in gstack changes. Expect conflicts on every branding string — that's the cost of a rebrand.
+Upstream remote = `upstream`. `git fetch upstream && git merge upstream/main` pulls gstack changes. Expect conflicts on branding + compressed prose — cost of identity.
 
 ## Uninstall
 
