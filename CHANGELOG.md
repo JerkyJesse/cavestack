@@ -6,6 +6,12 @@ CaveStack is now a **finished product**. You can install it in one line, see
 every skill from inside your terminal, and know exactly what's getting
 measured — without running a single line of telemetry anywhere.
 
+**Savings now measured in characters, not tokens.** Every model counts tokens
+differently (GPT, Claude, Gemini all use different tokenizers). Characters are
+universal. `stdout.length` is the same number on every machine, every model.
+Anyone can reproduce the benchmark without an API key — Claude Code Pro
+subscription is enough.
+
 ### What you can now do
 
 - **Install in one line.** `curl -fsSL https://cavestack.jerkyjesse.io/install | sh` —

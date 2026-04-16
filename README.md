@@ -66,6 +66,7 @@ Six judgment-layer skills embody the "think before code" moat:
 | Design tools | `/design-consultation`, `/design-review`, `/design-shotgun` |
 | Security audit | `/cso` — OWASP Top 10 + STRIDE threat modeling |
 | Zero telemetry | No remote data ever. `/methodology` for how savings are measured. |
+| Chars not tokens | Benchmark measures characters (model-agnostic). Same unit every terminal can count, no API key needed. |
 
 ## Try It Live
 
@@ -206,7 +207,7 @@ Additional CaveStack-specific features:
 - **Always-on caveman mode** with three intensity levels: `lite` (gentle compression), `full` (classic caveman, the default), and `ultra` (maximum grunt, fragments only)
 - **Windows-first installation** — Bun binaries compile, setup symlinks work under Git Bash, and the statusline is PowerShell-aware
 - **Fully reversible** — `cavestack-uninstall` removes all symlinks, hooks, and state files without touching your project files
-- **Caveman voice on all skill templates** — Not just the chat output, but the skill instructions themselves are compressed, reducing token usage across the board
+- **Caveman voice on all skill templates** — Not just the chat output, but the skill instructions themselves are compressed, reducing output size across the board. We measure in characters, not tokens, because tokens vary by model (GPT, Claude, Gemini all count differently). Characters are model-agnostic and every terminal can count them.
 
 ### Controlling Caveman Mode
 

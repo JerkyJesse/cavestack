@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CaveStack — Benchmark Methodology</title>
-<meta name="description" content="How CaveStack's token-savings number was measured. Tasks, hardware, reproduction steps, honest caveats.">
+<meta name="description" content="How CaveStack's character-savings number was measured. Tasks, hardware, reproduction steps, honest caveats. Characters not tokens — model-agnostic, no API key needed.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -120,6 +120,29 @@
     margin-bottom: 8px;
   }
 
+  .unit-card {
+    margin: 32px 0;
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .unit-card h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+  }
+  .unit-card .big {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    color: var(--heading);
+    margin-bottom: 12px;
+  }
+
   .rerun-box {
     padding: 20px 24px;
     border-left: 3px solid var(--amber);
@@ -204,6 +227,7 @@
   <div class="meta-bar">
     <span><span class="k">version:</span>1.0.0.0</span>
     <span><span class="k">tasks:</span>10</span>
+    <span><span class="k">unit:</span>characters</span>
     <span><span class="k">frameworks:</span>up to 2</span>
     <span><span class="k">status:</span>pending run</span>
   </div>
@@ -215,6 +239,21 @@
     What hardware. How to rerun yourself. Where the numbers are honest,
     where they are probabilistic, where they can't be audited at all.
   </p>
+
+  <div class="unit-card">
+    <h3>Unit</h3>
+    <div class="big">Characters, not tokens.</div>
+    <p style="margin-bottom: 12px;">
+      Every model counts tokens differently. GPT, Claude, Gemini,
+      DeepSeek, Llama — each uses its own tokenizer. "75% fewer tokens"
+      is meaningless without naming the model.
+    </p>
+    <p style="margin-bottom: 0;">
+      We measure <code class="inline">stdout.length</code> — UTF-16 code units
+      of the output you see in your terminal. Model-agnostic. Universal.
+      Every terminal can count them. <strong>No API key required to reproduce.</strong>
+    </p>
+  </div>
 
   <div class="status-card">
     <div class="label">v1.0.0.0 — pending first run</div>
@@ -252,8 +291,8 @@
 
   <h2>Hardware + environment</h2>
   <ul>
-    <li>Claude Opus 4.7 (pinned model snapshot per release)</li>
-    <li>Anthropic API with maintainer-owned key (not user-paid)</li>
+    <li>Claude Opus 4.7 (pinned model snapshot per release) — via Claude Code; no direct API calls</li>
+    <li>No Anthropic API key required — Claude Pro subscription works fine</li>
     <li>macOS 14.5, M3 MacBook Pro, 32GB RAM (reference; actual recorded in results JSON)</li>
     <li>CaveStack installed globally, cold session per task</li>
     <li>Residential fiber, April 2026</li>
@@ -261,17 +300,31 @@
 
   <h2>Re-run it yourself</h2>
 
-  <p>Every number is reproducible. Clone the repo, install CaveStack, run the harness with your own API key:</p>
+  <p>Every number is reproducible. Clone the repo, install CaveStack, run the harness. No API key needed — Claude Code's own auth is enough:</p>
 
   <div class="rerun-box">
     <div><span class="prompt">$</span>git clone https://github.com/JerkyJesse/cavestack</div>
     <div><span class="prompt">$</span>cd cavestack &amp;&amp; ./setup</div>
-    <div><span class="prompt">$</span>export ANTHROPIC_API_KEY="sk-ant-..."</div>
     <div><span class="prompt">$</span>bun run bench</div>
     <div><span class="prompt">$</span>cat docs/benchmarks/v1.0.0.0.json</div>
   </div>
 
-  <p>Your numbers will differ slightly. Post the diff on <a href="https://github.com/JerkyJesse/cavestack/issues">Issues</a> if it deviates more than 15% from the published results.</p>
+  <p>Your numbers will differ slightly (model temperature, network variance, Claude Code version). Post the diff on <a href="https://github.com/JerkyJesse/cavestack/issues">Issues</a> if it deviates more than 20%.</p>
+
+  <h2>Why characters over tokens</h2>
+
+  <p>Token counts are a lie of precision. The same English sentence produces different counts on every model:</p>
+
+  <ul>
+    <li>GPT-4: ~cl100k_base tokenizer</li>
+    <li>Claude: Anthropic's proprietary tokenizer (not publicly documented exactly)</li>
+    <li>Gemini: SentencePiece with Google's vocab</li>
+    <li>Llama/DeepSeek: varies by checkpoint</li>
+  </ul>
+
+  <p>If we publish "X tokens saved" we have to specify WHICH model's tokenizer. And the number stops being comparable the moment Anthropic updates their tokenizer. And no reader can verify it without an API key. And Claude Code Pro users can't reproduce it at all.</p>
+
+  <p>Characters sidestep all of that. <code class="inline">"hello world".length === 11</code> on every machine, every language, every model. If CaveStack outputs 1,000 characters and raw Claude Code outputs 4,000 on the same task, we saved 75%. Full stop. No asterisks.</p>
 
   <h2>Three trust tiers</h2>
 
@@ -279,10 +332,10 @@
 
   <div class="trust-tiers">
     <div class="tier">
-      <span class="name">Verifiable</span> Benchmark task set, harness code, per-task token counts, reproduction steps. Anyone with an API key can rerun and compare.
+      <span class="name">Verifiable</span> Benchmark task set, harness code, per-task character counts, reproduction steps. Anyone with Claude Code installed can rerun and compare. No API key needed.
     </div>
     <div class="tier">
-      <span class="name">Probabilistic</span> The "typical user saves X" framing. Your workload differs from our task set. Real savings depend on what YOU ask Claude Code to do. We publish the task distribution so you can judge fit.
+      <span class="name">Probabilistic</span> The "typical user saves X%" framing. Your workload differs from our task set. Real savings depend on what YOU ask Claude Code to do. We publish the task distribution so you can judge fit.
     </div>
     <div class="tier">
       <span class="name">Unaudited</span> Anecdotes, social media screenshots, individual users' claims. Useful signal, not proof. Treat as "someone said this" not "measured fact."
@@ -292,11 +345,15 @@
   <h2>What this does NOT prove</h2>
 
   <div class="caveat">
+    Character count ≠ quality. A shorter response can still be worse. Our success criteria are grep-based — they catch whether key indicators are present, not whether the answer is subtly wrong. We measure size reduction, not correctness.
+  </div>
+
+  <div class="caveat">
     Task set is maintainer-selected. Different tasks produce different ratios. We pick tasks we consider representative, not tasks that maximize CaveStack's advantage. If your workload differs, your savings differ. Add tasks via PR; we re-run on the next release.
   </div>
 
   <div class="caveat">
-    Model revisions shift baselines. Anthropic updates Opus periodically. We pin the benchmark to a specific model snapshot and document it in each results JSON. A later release might show different numbers because the model changed, not because CaveStack did.
+    Model revisions shift baselines. Anthropic updates Opus periodically; each update changes how verbose raw Claude Code is. We pin the benchmark to a specific model snapshot and document it in each results JSON.
   </div>
 
   <div class="caveat">

@@ -3,8 +3,12 @@
 Ten tasks spanning common Claude Code workloads. Frozen for v1.0.0.0.
 
 Each task has a clear success criterion. The harness runs the task on
-{raw Claude Code, CaveStack, SuperClaude (optional)} and records
-`usage.input_tokens + usage.output_tokens` per run.
+{raw Claude Code, CaveStack, SuperClaude (optional)} and records the
+character count (UTF-16 code units) of the captured stdout.
+
+**Why characters, not tokens:** every model counts tokens differently
+(GPT, Claude, Gemini all differ). Characters are model-agnostic. Every
+terminal can count them. No API key required.
 
 ## Task 1 — Add dark-mode toggle
 
@@ -68,8 +72,24 @@ Each task has a clear success criterion. The harness runs the task on
 
 ---
 
-**Scoring:** For each task, harness records `usage.input_tokens + usage.output_tokens`
-from the Anthropic API response. Task is marked "passed" if success criterion grep
-matches the stdout. Failed tasks are still counted for tokens but flagged.
+**Scoring:** For each task, harness records `stdout.length` (UTF-16 code units)
+as `outputChars`. Task is marked "passed" if success criterion grep matches.
+Failed tasks still count for chars but flagged.
 
-**Token totals** published in `docs/benchmarks/v1.0.0.0.json`.
+**Totals** published in `docs/benchmarks/v1.0.0.0.json` under
+`summary.byFramework[*].totalChars` and per-task `outputChars`.
+
+**Savings expressed as:** absolute char count + percentage reduction vs baseline.
+Example: "CaveStack saved 2.4M characters on 10 tasks vs raw Claude Code (72%)."
+
+## Why not tokens
+
+Every model has its own tokenizer. The same English sentence produces
+different counts on GPT-4, Claude Opus, Gemini, DeepSeek, Llama. If we
+published "X tokens saved" people would ask "tokens as measured by
+what model?" — and we'd have to re-run the benchmark on every model.
+
+Characters are universal. `stdout.length` is the same number whether
+you run on Claude Pro, API, or a local model. Anyone can verify our
+claim by running the harness themselves without a paid API key — just
+need Claude Code installed.

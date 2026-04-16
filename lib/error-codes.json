@@ -75,8 +75,8 @@
     "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS600"
   },
   "CS601": {
-    "message": "token budget exceeded",
-    "fix": "Raise with --budget N, or run task in smaller steps",
+    "message": "character budget exceeded",
+    "fix": "Raise with --budget N (chars), or run task in smaller steps",
     "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS601"
   },
   "CS602": {

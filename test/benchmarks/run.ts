@@ -4,20 +4,25 @@
 // and (if SUPERCLAUDE_DIR is set) SuperClaude. Writes results to
 // docs/benchmarks/v<VERSION>.json.
 //
+// UNIT: output characters (bytes in UTF-8). Not tokens.
+//   Tokens vary by model — GPT, Claude, Gemini all count differently.
+//   Characters are model-agnostic. Every terminal can count them.
+//   No API key required to measure.
+//
 // CRITICAL: This runs only on the maintainer's machine, never on user installs.
-// It burns real API tokens and takes ~1 hour wall time.
 
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 interface TaskResult {
   taskId: number;
   taskName: string;
   category: string;
   framework: "claude-code-raw" | "cavestack" | "superclaude";
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
+  inputChars: number;
+  outputChars: number;
+  totalChars: number;
   wallSeconds: number;
   passed: boolean;
   error?: string;
@@ -28,13 +33,15 @@ interface BenchmarkReport {
   runDate: string;
   hardware: string;
   claudeModel: string;
+  unit: "characters";
+  note: string;
   tasks: TaskResult[];
   summary: {
     totalTasks: number;
-    byFramework: Record<string, { totalTokens: number; passed: number; failed: number }>;
+    byFramework: Record<string, { totalChars: number; passed: number; failed: number }>;
     savings: {
-      cavestackVsRaw: number | null;
-      cavestackVsSuperclaude: number | null;
+      cavestackVsRaw: { chars: number; pct: number } | null;
+      cavestackVsSuperclaude: { chars: number; pct: number } | null;
     };
   };
 }
@@ -52,30 +59,47 @@ const TASKS = [
   { id: 10, name: "Test coverage for billing", category: "tests", prompt: "Add test coverage for the billing module. Include edge cases: refunds, partial refunds, currency mismatch, network failure.", success: (s: string) => /refund/i.test(s) && /currency/i.test(s) && /network/i.test(s) },
 ];
 
+/**
+ * Count characters in a string as UTF-16 code units (matches JS .length).
+ * We use code units instead of grapheme clusters because "saved X chars"
+ * should reflect what users see in terminals and JSON payloads, not
+ * linguistic units.
+ */
+function charCount(s: string): number {
+  return s.length;
+}
+
 async function runTaskOnFramework(
   task: typeof TASKS[0],
   framework: TaskResult["framework"],
   workDir: string
 ): Promise<TaskResult> {
   const start = Date.now();
-  let inputTokens = 0;
-  let outputTokens = 0;
+  const inputChars = charCount(task.prompt);
+  let outputChars = 0;
   let stdout = "";
   let error: string | undefined;
 
   try {
-    // Placeholder for the actual invocation. Implementation notes:
-    //   - "claude-code-raw": spawn `claude -p <prompt>` with CaveStack hooks disabled
-    //     (env var CAVESTACK_DISABLED=1, or point CLAUDE_CONFIG to clean dir).
-    //   - "cavestack": spawn `claude -p <prompt>` with CaveStack installed normally.
-    //   - "superclaude": spawn SuperClaude's equivalent (`superclaude run <prompt>`
-    //     or `claude -p` with SuperClaude's CLAUDE.md) if $SUPERCLAUDE_DIR set.
-    // In both cases, capture the Anthropic API usage from the response metadata.
+    // Invocation strategy (wire up on first maintainer run):
+    //   - "claude-code-raw": CAVESTACK_DISABLED=1 claude -p "<prompt>"
+    //   - "cavestack": claude -p "<prompt>" (CaveStack hooks active)
+    //   - "superclaude": claude -p under a SUPERCLAUDE_DIR install
     //
-    // For v1.0.0.0 ship, this harness is a scaffold. Wire up actual invocation
-    // when maintainer runs `bun run bench` for the first time. Results will
-    // populate docs/benchmarks/v1.0.0.0.json at that point.
-    throw new Error("HARNESS_NOT_WIRED — see README.md for setup");
+    // Capture stdout character count. No API key needed — we are measuring
+    // what the user actually sees, not what Anthropic bills.
+    const env = { ...process.env };
+    if (framework === "claude-code-raw") env.CAVESTACK_DISABLED = "1";
+    if (framework === "superclaude") env.CLAUDE_CONFIG_DIR = process.env.SUPERCLAUDE_DIR || "";
+
+    // Actual invocation TODO — scaffold returns an error marker that the
+    // summary logic tolerates. Maintainer wires this up for v1.0.0.0's
+    // first run.
+    // const result = spawnSync("claude", ["-p", task.prompt], { env, cwd: workDir, encoding: "utf-8" });
+    // if (result.error) throw result.error;
+    // stdout = result.stdout || "";
+    // outputChars = charCount(stdout);
+    throw new Error("HARNESS_NOT_WIRED — see test/benchmarks/README.md");
   } catch (e: unknown) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -85,9 +109,9 @@ async function runTaskOnFramework(
     taskName: task.name,
     category: task.category,
     framework,
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens + outputTokens,
+    inputChars,
+    outputChars,
+    totalChars: inputChars + outputChars,
     wallSeconds: Math.round((Date.now() - start) / 1000),
     passed: stdout ? task.success(stdout) : false,
     error,
@@ -101,6 +125,7 @@ async function main() {
   const superclaudeEnabled = !!process.env.SUPERCLAUDE_DIR;
 
   console.log(`CaveStack benchmark — v${version}`);
+  console.log(`Unit: characters (model-agnostic, no API key required)`);
   console.log(`SuperClaude: ${superclaudeEnabled ? "ENABLED (" + process.env.SUPERCLAUDE_DIR + ")" : "DISABLED (set SUPERCLAUDE_DIR to include)"}`);
   console.log(`Tasks: ${TASKS.length}`);
   console.log("");
@@ -116,30 +141,35 @@ async function main() {
   }
 
   // Summarize
-  const byFramework: Record<string, { totalTokens: number; passed: number; failed: number }> = {};
+  const byFramework: Record<string, { totalChars: number; passed: number; failed: number }> = {};
   for (const r of results) {
-    byFramework[r.framework] ??= { totalTokens: 0, passed: 0, failed: 0 };
-    byFramework[r.framework].totalTokens += r.totalTokens;
+    byFramework[r.framework] ??= { totalChars: 0, passed: 0, failed: 0 };
+    byFramework[r.framework].totalChars += r.totalChars;
     if (r.passed) byFramework[r.framework].passed += 1;
     else byFramework[r.framework].failed += 1;
   }
 
-  const raw = byFramework["claude-code-raw"]?.totalTokens ?? null;
-  const cs = byFramework["cavestack"]?.totalTokens ?? null;
-  const sc = byFramework["superclaude"]?.totalTokens ?? null;
+  const raw = byFramework["claude-code-raw"]?.totalChars ?? null;
+  const cs = byFramework["cavestack"]?.totalChars ?? null;
+  const sc = byFramework["superclaude"]?.totalChars ?? null;
+
+  const pct = (baseline: number, actual: number): number =>
+    baseline > 0 ? Math.round(((baseline - actual) / baseline) * 1000) / 10 : 0;
 
   const report: BenchmarkReport = {
     version,
     runDate: new Date().toISOString(),
     hardware: `${process.platform}-${process.arch}`,
     claudeModel: "claude-opus-4-7", // Update when model revisions ship
+    unit: "characters",
+    note: "All counts are UTF-16 code units (JS .length). Chars, not tokens — model-agnostic, reproducible without an API key.",
     tasks: results,
     summary: {
       totalTasks: TASKS.length,
       byFramework,
       savings: {
-        cavestackVsRaw: raw && cs ? raw - cs : null,
-        cavestackVsSuperclaude: sc && cs ? sc - cs : null,
+        cavestackVsRaw: raw && cs ? { chars: raw - cs, pct: pct(raw, cs) } : null,
+        cavestackVsSuperclaude: sc && cs ? { chars: sc - cs, pct: pct(sc, cs) } : null,
       },
     },
   };
@@ -148,6 +178,9 @@ async function main() {
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
   console.log(`\nWrote ${outPath}`);
+  if (raw && cs) {
+    console.log(`CaveStack vs raw Claude Code: ${raw - cs} chars saved (${pct(raw, cs)}%)`);
+  }
 }
 
 main().catch((e) => {
