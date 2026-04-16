@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# cavestack-cs-aliases — create short `cs-*` aliases for every `cavestack-*` CLI.
+#
+# Run this after setup. Every `bin/cavestack-foo` gets a `bin/cs-foo` alongside it
+# (symlink on Unix, copy on Windows where symlinks may need admin).
+#
+# Usage:
+#   cavestack-cs-aliases         # create all cs-* aliases
+#   cavestack-cs-aliases --remove  # remove all cs-* aliases
+#   cavestack-cs-aliases --list    # show what would be created
+set -uo pipefail
+
+_here="$(cd "$(dirname "$0")" && pwd)"
+BIN_DIR="$_here"
+
+IS_WINDOWS=0
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*|Windows_NT) IS_WINDOWS=1 ;;
+esac
+
+_list_sources() {
+  find "$BIN_DIR" -maxdepth 1 -type f -name 'cavestack-*' 2>/dev/null | while read -r f; do
+    base="$(basename "$f")"
+    # Skip self-recursion, .exe binaries, and the alias tool itself
+    case "$base" in
+      cavestack-cs-aliases) continue ;;
+      *.exe|*.ts|*.js) continue ;;
+    esac
+    printf '%s\n' "$base"
+  done | sort
+}
+
+cmd_list() {
+  echo "Aliases that would be created (cs-* → cavestack-*):"
+  _list_sources | while read -r src; do
+    alias_name="cs-${src#cavestack-}"
+    printf "  %-24s → %s\n" "$alias_name" "$src"
+  done
+}
+
+cmd_remove() {
+  local removed=0
+  find "$BIN_DIR" -maxdepth 1 -name 'cs-*' -type l 2>/dev/null | while read -r f; do
+    rm -f "$f" && removed=$((removed + 1))
+  done
+  # On Windows, also clean up copies
+  if [ "$IS_WINDOWS" -eq 1 ]; then
+    find "$BIN_DIR" -maxdepth 1 -name 'cs-*' -type f 2>/dev/null | while read -r f; do
+      rm -f "$f"
+    done
+  fi
+  echo "Removed cs-* aliases from $BIN_DIR"
+}
+
+cmd_create() {
+  local created=0
+  local skipped=0
+  _list_sources | while read -r src; do
+    alias_name="cs-${src#cavestack-}"
+    alias_path="$BIN_DIR/$alias_name"
+    src_path="$BIN_DIR/$src"
+
+    if [ -e "$alias_path" ] || [ -L "$alias_path" ]; then
+      skipped=$((skipped + 1))
+      continue
+    fi
+
+    if [ "$IS_WINDOWS" -eq 1 ]; then
+      # On Windows, create wrapper script instead of symlink (more portable)
+      cat > "$alias_path" <<EOF
+#!/usr/bin/env bash
+# Auto-generated cs-* alias for $src
+exec "\$(dirname "\$0")/$src" "\$@"
+EOF
+      chmod +x "$alias_path" 2>/dev/null || true
+    else
+      ln -s "$src" "$alias_path"
+    fi
+    created=$((created + 1))
+  done
+  echo "cs-* aliases ready in $BIN_DIR (add $BIN_DIR to PATH if not already)"
+}
+
+case "${1:-}" in
+  --list|-l) cmd_list ;;
+  --remove|-r) cmd_remove ;;
+  --help|-h)
+    cat <<EOF
+cavestack-cs-aliases — short cs-* aliases for cavestack-* CLIs
+
+USAGE:
+  cavestack-cs-aliases            Create cs-* aliases (idempotent)
+  cavestack-cs-aliases --list     Show what would be created
+  cavestack-cs-aliases --remove   Remove all cs-* aliases
+  cavestack-cs-aliases --help     This help
+
+EXAMPLES:
+  cs-skills list         # same as cavestack-skills list
+  cs-config get proactive  # same as cavestack-config get proactive
+EOF
+    ;;
+  *) cmd_create ;;
+esac

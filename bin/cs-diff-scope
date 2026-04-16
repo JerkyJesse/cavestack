@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Auto-generated cs-* alias for cavestack-diff-scope
+exec "$(dirname "$0")/cavestack-diff-scope" "$@"

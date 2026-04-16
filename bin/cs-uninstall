@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Auto-generated cs-* alias for cavestack-uninstall
+exec "$(dirname "$0")/cavestack-uninstall" "$@"
