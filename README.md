@@ -136,22 +136,90 @@ MIT. Upstream: [gstack](https://github.com/garrytan/gstack). Caveman hooks: [Jul
 ---
 
 <details>
-<summary>Want verbose README? (weak, but available)</summary>
+<summary>Verbose README (for the wordy among us)</summary>
 
 ### What is CaveStack?
 
-CaveStack is a fork of gstack that ships with "caveman mode" enabled by default. Caveman mode compresses AI responses by approximately 75% without losing technical accuracy. Instead of opting into terse responses, CaveStack makes them the default behavior.
+CaveStack is a fork of [gstack](https://github.com/garrytan/gstack) that ships with "caveman mode" enabled by default. Caveman mode compresses AI responses by approximately 75% without losing technical accuracy. Instead of opting into terse responses, CaveStack makes them the default behavior from the very first prompt.
 
 ### Why does this exist?
 
-Every AI coding tool ships with verbose output as the default. Users who prefer concise responses must remember to configure terse mode each session. Most don't. CaveStack solves this by forking the framework and making terse the baseline.
+Every AI coding tool ships with verbose output as the default. Users who prefer concise responses must remember to configure terse mode each session — adding `/caveman` commands, writing custom instructions in `CLAUDE.md`, or manually requesting brevity. Most don't bother. The tool stays verbose. Senior engineers close the window and go back to grepping.
+
+CaveStack solves this by forking the upstream framework and making terse the baseline. Caveman mode fires on `SessionStart` before the first prompt is even processed, so there's nothing to remember and nothing to configure.
 
 ### Installation
 
-CaveStack requires Claude Code, Bun v1.0+, Node.js, and Git. Clone the repository to your Claude skills directory and run the setup script. After setup, open a new Claude Code session and caveman mode will be active automatically.
+CaveStack requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/), and Git. To install:
+
+```bash
+git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
+cd ~/.claude/skills/cavestack && ./setup
+```
+
+After setup, open a new Claude Code session in any project directory. Caveman mode will be active automatically — no additional commands or configuration needed.
 
 ### Features
 
-CaveStack includes all 40 skills from the upstream gstack framework, including code review, shipping workflows, QA testing, security audits, design tools, and debugging utilities. It adds always-on caveman mode with three intensity levels (lite, full, ultra), Windows-first installation support, and a fully reversible uninstall process.
+CaveStack includes all 40 skills from the upstream gstack framework:
+
+- **Code Review** (`/review`) — Analyze diffs for bugs, security issues, and style problems
+- **Ship** (`/ship`) — Test, review, version bump, push, and create PR in one command
+- **QA Testing** (`/qa`) — Systematically test web applications and fix bugs found
+- **Investigation** (`/investigate`) — Structured root-cause debugging with four phases
+- **Office Hours** (`/office-hours`) — Brainstorm ideas with startup diagnostic or builder mode
+- **Security Audit** (`/cso`) — OWASP Top 10 and STRIDE threat modeling
+- **Design Tools** (`/design-consultation`, `/design-review`, `/design-shotgun`) — Design system creation, visual QA, and variant exploration
+- **Headless Browser** (`/browse`) — Navigate pages, take screenshots, test interactions
+- **Retrospective** (`/retro`) — Weekly engineering retrospective with trend tracking
+- **Plan Reviews** (`/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`) — Multi-perspective plan review pipeline
+- **Deploy** (`/land-and-deploy`, `/canary`, `/benchmark`) — Merge, deploy, and monitor
+- **And 25+ more** — Run `/caveman-help` for the full list
+
+Additional CaveStack-specific features:
+
+- **Always-on caveman mode** with three intensity levels: `lite` (gentle compression), `full` (classic caveman, the default), and `ultra` (maximum grunt, fragments only)
+- **Windows-first installation** — Bun binaries compile, setup symlinks work under Git Bash, and the statusline is PowerShell-aware
+- **Fully reversible** — `cavestack-uninstall` removes all symlinks, hooks, and state files without touching your project files
+- **Caveman voice on all skill templates** — Not just the chat output, but the skill instructions themselves are compressed, reducing token usage across the board
+
+### Controlling Caveman Mode
+
+During any session, you can adjust or disable caveman mode:
+
+- `stop caveman` or `normal mode` — Return to standard verbose output
+- `/caveman` — Re-enable caveman mode (defaults to `full`)
+- `/caveman lite` — Gentle compression, mostly drops filler words
+- `/caveman full` — Classic caveman: fragments, no articles, short synonyms
+- `/caveman ultra` — Maximum compression, fragments only
+
+To permanently disable caveman mode, run:
+```bash
+~/.claude/skills/cavestack/bin/cavestack-settings-hook remove-caveman
+```
+
+To re-enable it later:
+```bash
+~/.claude/skills/cavestack/bin/cavestack-settings-hook install-caveman
+```
+
+### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| Skills not showing up | `cd ~/.claude/skills/cavestack && ./setup` |
+| `/browse` fails | `cd ~/.claude/skills/cavestack && bun install && bun run build` |
+| Stale install | Run `/cavestack-upgrade` or set `auto_upgrade: true` in `~/.cavestack/config.yaml` |
+| Caveman not firing | Verify `~/.claude/settings.json` has `SessionStart` and `UserPromptSubmit` hooks pointing at `caveman-activate.js` and `caveman-mode-tracker.js`. Re-register with `cavestack-settings-hook install-caveman`. Ensure Node.js is on PATH. |
+| Windows build error | Known upstream glob issue in `browse/scripts/build-node-server.sh`. Primary binaries still build successfully. Non-blocking for most workflows. |
+| Claude can't see skills | Add a cavestack section to your project's `CLAUDE.md`. The `/office-hours` skill does this automatically on first run. |
+
+### Reporting Bugs
+
+Open an issue at [github.com/JerkyJesse/cavestack/issues](https://github.com/JerkyJesse/cavestack/issues) with your OS, `bun --version`, `node --version`, and the exact error output.
+
+### License
+
+MIT. See [LICENSE](LICENSE) for full attribution covering gstack (upstream), caveman (hooks), and CaveStack (fork modifications).
 
 </details>
