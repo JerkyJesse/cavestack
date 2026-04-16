@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0.0",
+  "runDate": null,
+  "hardware": null,
+  "claudeModel": "claude-opus-4-7",
+  "status": "scaffold",
+  "note": "This file is a scaffold. Maintainer runs `bun run bench` before v1.0.0.0 release to populate with real measurements. Until then, site shows 'benchmark pending' fallback copy.",
+  "tasks": [],
+  "summary": {
+    "totalTasks": 10,
+    "byFramework": {},
+    "savings": {
+      "cavestackVsRaw": null,
+      "cavestackVsSuperclaude": null
+    }
+  }
+}
