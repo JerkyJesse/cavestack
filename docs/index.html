@@ -390,76 +390,6 @@
     background: rgba(245,158,11,0.04);
   }
 
-  /* ── CAVEROCK COMPARISON ── */
-  .compare-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    margin-bottom: 32px;
-  }
-
-  .compare-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 32px;
-  }
-  .compare-card.primary {
-    border-color: var(--amber);
-    box-shadow: 0 0 30px rgba(245,158,11,0.06);
-  }
-
-  .compare-card h3 {
-    font-family: 'Satoshi', sans-serif;
-    font-weight: 700;
-    font-size: 24px;
-    color: var(--heading);
-    margin-bottom: 16px;
-  }
-  .compare-card.primary h3::after {
-    content: ' (full)';
-    font-size: 14px;
-    color: var(--text-dim);
-    font-weight: 400;
-  }
-  .compare-card.secondary h3::after {
-    content: ' (lite)';
-    font-size: 14px;
-    color: var(--text-dim);
-    font-weight: 400;
-  }
-
-  .compare-card ul {
-    list-style: none;
-    margin-bottom: 24px;
-  }
-  .compare-card ul li {
-    padding: 6px 0;
-    font-size: 15px;
-    color: var(--text-dim);
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-  }
-  .compare-card.primary ul li { color: var(--text); }
-
-  .compare-card .install-box {
-    display: flex;
-    width: 100%;
-    font-size: 12px;
-    padding: 10px 14px;
-  }
-  .compare-card .install-box .cmd {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .caverock-demo-label {
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 14px;
-    margin-bottom: 12px;
-  }
-
   .terminal-frame.small {
     max-width: 600px;
     margin: 0 auto;
@@ -706,7 +636,6 @@
     <div class="demo-tabs" role="tablist">
       <button role="tab" aria-selected="true" data-scenario="0" tabindex="0">/review</button>
       <button role="tab" aria-selected="false" data-scenario="1" tabindex="-1">/investigate</button>
-      <button role="tab" aria-selected="false" data-scenario="2" tabindex="-1">CaveRock</button>
     </div>
     <div id="cave-terminal" class="terminal-frame">
       <div class="terminal-titlebar">
@@ -783,72 +712,6 @@ Status: Fix #1, merge.</pre>
         </div>
       </div>
       <div class="word-counter">187 fewer words (82% less)</div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ CAVESTACK vs CAVEROCK ═══ -->
-<section id="caverock">
-  <div class="container">
-    <h2 class="section-title">CaveStack vs CaveRock</h2>
-    <p class="section-subtitle">Full cave or just the voice? Pick your path.</p>
-    <div class="compare-grid">
-      <div class="compare-card primary">
-        <h3>CaveStack</h3>
-        <ul>
-          <li>40 skills</li>
-          <li>Headless browser</li>
-          <li>Design tools</li>
-          <li>Caveman mode &#10003;</li>
-        </ul>
-        <div class="install-box">
-          <span class="prompt">$</span>
-          <span class="cmd">git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack && cd ~/.claude/skills/cavestack && ./setup</span>
-          <button class="copy-btn">Copy</button>
-        </div>
-      </div>
-      <div class="compare-card secondary">
-        <h3>CaveRock</h3>
-        <ul>
-          <li>0 skills</li>
-          <li>No browser</li>
-          <li>No design tools</li>
-          <li>Caveman mode &#10003;</li>
-        </ul>
-        <div class="install-box">
-          <span class="prompt">$</span>
-          <span class="cmd">git clone https://github.com/JerkyJesse/caverock.git ~/.claude/skills/caverock && cd ~/.claude/skills/caverock && ./setup</span>
-          <button class="copy-btn">Copy</button>
-        </div>
-      </div>
-    </div>
-    <p class="caverock-demo-label">CaveRock in action:</p>
-    <div id="caverock-terminal" class="terminal-frame small">
-      <div class="terminal-titlebar">
-        <span class="terminal-dot red"></span>
-        <span class="terminal-dot yellow"></span>
-        <span class="terminal-dot green"></span>
-      </div>
-      <div class="terminal-content">
-        <div class="terminal-single">
-          <div class="pane-single" role="log" aria-label="CaveRock demo" aria-live="polite">
-            <pre>$ claude
-
-CAVEMAN MODE ACTIVE — level: full
-
-&gt; Explain database connection pooling.
-
-Pool reuse open DB connections. No new
-connection per request. Skip handshake
-overhead. Config: min=5, max=20,
-idle_timeout=30s.
-
-&gt; stop caveman
-
-Caveman mode deactivated.</pre>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </section>

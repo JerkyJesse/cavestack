@@ -50,25 +50,6 @@ Open new Claude Code session. Caveman mode active. No `/caveman` needed. Just wo
 
 [See the interactive demo](https://jerkyjesse.github.io/cavestack/) — watch caveman mode compress verbose AI output in real-time.
 
-## CaveRock — Just the Voice
-
-Don't need 40 skills? CaveRock = caveman mode only. One skill. Always on. No browser, no design tools, no framework.
-
-```bash
-git clone https://github.com/JerkyJesse/caverock.git ~/.claude/skills/caverock
-cd ~/.claude/skills/caverock && ./setup
-```
-
-| | CaveStack | CaveRock |
-|---|-----------|----------|
-| Skills | 40 | 0 |
-| Browser | Yes | No |
-| Design tools | Yes | No |
-| Caveman mode | Yes | Yes |
-| Install size | ~50MB | ~10KB |
-
-Want CaveStack later? Install it. Setup auto-detects CaveRock and upgrades.
-
 ## Before / After
 
 | Verbose Claude | CaveStack Claude |

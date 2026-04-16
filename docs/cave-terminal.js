@@ -142,34 +142,6 @@ should show Index Scan, not Seq Scan.`,
     typeSpeed: 12,
     pauseAfter: 3000
   },
-  {
-    command: 'CaveRock',
-    mode: 'single',
-    caveman: `$ claude
-
-CAVEMAN MODE ACTIVE — level: full
-
-> Explain database connection pooling.
-
-Pool reuse open DB connections. No new
-connection per request. Skip handshake
-overhead. Config: min=5, max=20,
-idle_timeout=30s. Monitor: active count,
-wait queue depth, avg checkout time.
-
-> Why React component re-render?
-
-New object ref each render. Inline object
-prop = new ref = re-render. Wrap in useMemo.
-Or extract to module-level const if static.
-
-> stop caveman
-
-Caveman mode deactivated. Returning to
-standard verbose output.`,
-    typeSpeed: 18,
-    pauseAfter: 3000
-  }
 ];
 
 /* ── HERO MINI TERMINAL ── */
@@ -399,7 +371,7 @@ class CaveTerminal {
   buildSingleHTML(scenario, withContent) {
     return `
       <div class="terminal-single">
-        <div class="pane-single" role="log" aria-label="CaveRock demo" aria-live="polite">
+        <div class="pane-single" role="log" aria-label="Caveman demo" aria-live="polite">
           <pre>${withContent ? this.escapeHTML(scenario.caveman) : ''}</pre>
         </div>
       </div>`;
@@ -473,13 +445,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     });
-  }
-
-  // CaveRock mini terminal
-  const crEl = document.getElementById('caverock-terminal');
-  if (crEl) {
-    const crTerminal = new CaveTerminal(crEl);
-    crTerminal.switchScenario(2); // CaveRock scenario
   }
 
   // Hero mini terminal

@@ -113,23 +113,6 @@ case "$ACTION" in
 
       if (!settings.hooks) settings.hooks = {};
 
-      // Bidirectional conflict: remove CaveRock hooks if present (CaveStack includes CaveRock)
-      const dropCaverock = (arr) => arr.filter(entry =>
-        !(entry.hooks && entry.hooks.some(h => h.command && h.command.includes('caverock')))
-      );
-      let upgradedFromCaverock = false;
-      if (settings.hooks.SessionStart) {
-        const before = settings.hooks.SessionStart.length;
-        settings.hooks.SessionStart = dropCaverock(settings.hooks.SessionStart);
-        if (settings.hooks.SessionStart.length < before) upgradedFromCaverock = true;
-      }
-      if (settings.hooks.UserPromptSubmit) {
-        settings.hooks.UserPromptSubmit = dropCaverock(settings.hooks.UserPromptSubmit);
-      }
-      if (upgradedFromCaverock) {
-        console.log('Upgrading from CaveRock to CaveStack...');
-      }
-
       // SessionStart: caveman-activate
       if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
       const activateExists = settings.hooks.SessionStart.some(entry =>
