@@ -88,6 +88,7 @@ case "$ACTION" in
   install-caveman)
     CAVESTACK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
     ACTIVATE_HOOK="node \"$CAVESTACK_ROOT/hooks/caveman-activate.js\""
+    VOICE_HOOK="node \"$CAVESTACK_ROOT/hooks/caveman-voice-priority.js\""
     TRACKER_HOOK="node \"$CAVESTACK_ROOT/hooks/caveman-mode-tracker.js\""
 
     if ! command -v node >/dev/null 2>&1; then
@@ -99,17 +100,35 @@ case "$ACTION" in
     mkdir -p "$(dirname "$SETTINGS_FILE")"
     [ -f "$SETTINGS_FILE" ] && cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup"
 
-    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" CAVESTACK_ACTIVATE="$ACTIVATE_HOOK" CAVESTACK_TRACKER="$TRACKER_HOOK" bun -e "
+    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" CAVESTACK_ACTIVATE="$ACTIVATE_HOOK" CAVESTACK_VOICE="$VOICE_HOOK" CAVESTACK_TRACKER="$TRACKER_HOOK" bun -e "
       const fs = require('fs');
       const path = require('path');
       const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
       const activateCmd = process.env.CAVESTACK_ACTIVATE;
+      const voiceCmd = process.env.CAVESTACK_VOICE;
       const trackerCmd = process.env.CAVESTACK_TRACKER;
 
       let settings = {};
       try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch {}
 
       if (!settings.hooks) settings.hooks = {};
+
+      // Bidirectional conflict: remove CaveRock hooks if present (CaveStack includes CaveRock)
+      const dropCaverock = (arr) => arr.filter(entry =>
+        !(entry.hooks && entry.hooks.some(h => h.command && h.command.includes('caverock')))
+      );
+      let upgradedFromCaverock = false;
+      if (settings.hooks.SessionStart) {
+        const before = settings.hooks.SessionStart.length;
+        settings.hooks.SessionStart = dropCaverock(settings.hooks.SessionStart);
+        if (settings.hooks.SessionStart.length < before) upgradedFromCaverock = true;
+      }
+      if (settings.hooks.UserPromptSubmit) {
+        settings.hooks.UserPromptSubmit = dropCaverock(settings.hooks.UserPromptSubmit);
+      }
+      if (upgradedFromCaverock) {
+        console.log('Upgrading from CaveRock to CaveStack...');
+      }
 
       // SessionStart: caveman-activate
       if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
@@ -119,6 +138,16 @@ case "$ACTION" in
       if (!activateExists) {
         settings.hooks.SessionStart.push({
           hooks: [{ type: 'command', command: activateCmd, timeout: 5, statusMessage: 'Loading cavestack caveman mode...' }]
+        });
+      }
+
+      // SessionStart: caveman-voice-priority (belt-and-suspenders for voice profiles)
+      const voiceExists = settings.hooks.SessionStart.some(entry =>
+        entry.hooks && entry.hooks.some(h => h.command && h.command.includes('caveman-voice-priority'))
+      );
+      if (!voiceExists) {
+        settings.hooks.SessionStart.push({
+          hooks: [{ type: 'command', command: voiceCmd, timeout: 5 }]
         });
       }
 
@@ -156,6 +185,7 @@ case "$ACTION" in
       if (settings.hooks) {
         if (settings.hooks.SessionStart) {
           settings.hooks.SessionStart = drop(settings.hooks.SessionStart, 'caveman-activate');
+          settings.hooks.SessionStart = drop(settings.hooks.SessionStart, 'caveman-voice-priority');
           if (settings.hooks.SessionStart.length === 0) delete settings.hooks.SessionStart;
         }
         if (settings.hooks.UserPromptSubmit) {
