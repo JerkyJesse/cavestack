@@ -479,7 +479,6 @@ create_agents_sidecar() {
   done
 
   # (ETHOS.md sidecar removed)
-  done
 }
 
 # ─── Helper: create a minimal ~/.codex/skills/cavestack runtime root ───────────

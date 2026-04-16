@@ -67,7 +67,7 @@ cmd_share() {
     else
       echo "Error[CS603]: refusing to share — record captured with --no-redact" >&2
       echo "   fix: re-record without --no-redact, or manually review + strip secrets" >&2
-      echo "   docs: https://cavestack.jerkyjesse.io/docs/errors/CS603" >&2
+      echo "   docs: https://cavestack.jerkyjesse.com/docs/errors/CS603" >&2
       exit 1
     fi
   fi
@@ -118,7 +118,7 @@ cmd_share() {
       echo "$findings" | grep -v "CS603:" >&2
       echo "" >&2
       echo "   fix: add missing patterns to ~/.cavestack/redact.json and re-record" >&2
-      echo "   docs: https://cavestack.jerkyjesse.io/docs/errors/CS603" >&2
+      echo "   docs: https://cavestack.jerkyjesse.com/docs/errors/CS603" >&2
       exit 1
       ;;
     *VERIFIER_UNAVAILABLE*)

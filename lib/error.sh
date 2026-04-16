@@ -25,7 +25,7 @@ cavestack_error() {
     printf 'Error[CS900]: internal invariant violated\n' >&2
     printf '   reason: %s missing\n' "$codes_file" >&2
     printf '   fix: reinstall cavestack (./setup)\n' >&2
-    printf '   docs: https://cavestack.jerkyjesse.io/docs/errors/CS900\n' >&2
+    printf '   docs: https://cavestack.jerkyjesse.com/docs/errors/CS900\n' >&2
     exit 1
   fi
 
@@ -37,7 +37,7 @@ cavestack_error() {
   if [ -z "$entry" ] || [ "$entry" = "UNKNOWN" ]; then
     printf 'Error[%s]: unrecognized error code\n' "$code" >&2
     printf '   fix: check lib/error-codes.json for valid codes\n' >&2
-    printf '   docs: https://cavestack.jerkyjesse.io/docs/errors\n' >&2
+    printf '   docs: https://cavestack.jerkyjesse.com/docs/errors\n' >&2
     exit 1
   fi
 

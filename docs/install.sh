@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # CaveStack one-liner installer
 #
-#   curl -fsSL https://cavestack.jerkyjesse.io/install | sh
+#   curl -fsSL https://cavestack.jerkyjesse.com/install | sh
 #
 # What it does:
 #   1. Checks prerequisites (git required; bun auto-installs if missing)
@@ -42,7 +42,7 @@ echo ""
 if ! command -v git >/dev/null 2>&1; then
   printf "${RED}Error[CS002]: git not found${RESET}\n" >&2
   echo "   fix: install git — https://git-scm.com/downloads" >&2
-  echo "   docs: https://cavestack.jerkyjesse.io/docs/errors/CS002" >&2
+  echo "   docs: https://cavestack.jerkyjesse.com/docs/errors/CS002" >&2
   exit 1
 fi
 
@@ -79,7 +79,7 @@ if ! command -v bun >/dev/null 2>&1; then
     echo "   expected: $EXPECTED_SHA" >&2
     echo "   actual:   $ACTUAL_SHA" >&2
     echo "   fix: set CAVESTACK_BUN_INSTALL_SHA to new value if trusted, or abort" >&2
-    echo "   docs: https://cavestack.jerkyjesse.io/docs/errors/CS102" >&2
+    echo "   docs: https://cavestack.jerkyjesse.com/docs/errors/CS102" >&2
     rm "$TMPFILE"
     exit 1
   fi
@@ -108,7 +108,7 @@ if [ -d "$CAVESTACK_DIR" ]; then
   else
     printf "${RED}Error[CS100]: $CAVESTACK_DIR exists but is not a git repo${RESET}\n" >&2
     echo "   fix: back up with 'mv $CAVESTACK_DIR ${CAVESTACK_DIR}.bak' and re-run installer" >&2
-    echo "   docs: https://cavestack.jerkyjesse.io/docs/errors/CS100" >&2
+    echo "   docs: https://cavestack.jerkyjesse.com/docs/errors/CS100" >&2
     exit 1
   fi
 else
@@ -138,5 +138,5 @@ printf "${BOLD}Open a new Claude Code session${RESET} (caveman hooks activate on
 printf "  then try: ${AMBER}/office-hours${RESET} or ${AMBER}/investigate${RESET} or ${AMBER}/help${RESET}\n"
 echo ""
 printf "${DIM}Add ${CAVESTACK_DIR}/bin to PATH for 'cs-*' short aliases.${RESET}\n"
-printf "${DIM}Docs: https://cavestack.jerkyjesse.io${RESET}\n"
+printf "${DIM}Docs: https://cavestack.jerkyjesse.com${RESET}\n"
 printf "${DIM}Issues: https://github.com/JerkyJesse/cavestack/issues${RESET}\n"

@@ -14,7 +14,7 @@ subscription is enough.
 
 ### What you can now do
 
-- **Install in one line.** `curl -fsSL https://cavestack.jerkyjesse.io/install | sh` —
+- **Install in one line.** `curl -fsSL https://cavestack.jerkyjesse.com/install | sh` —
   detects and installs bun if missing (with SHA256-verified installer), clones
   cavestack into the right place, builds binaries, wires hooks, and prints
   a post-install message pointing you at your first three skills.

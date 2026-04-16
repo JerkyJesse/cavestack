@@ -23,7 +23,7 @@ export class CavestackError extends Error {
       super(`Unrecognized error code ${code}`);
       this.code = "CS900";
       this.fix = "check lib/error-codes.json for valid codes";
-      this.docs = "https://cavestack.jerkyjesse.io/docs/errors";
+      this.docs = "https://cavestack.jerkyjesse.com/docs/errors";
       return;
     }
     super(entry.message);

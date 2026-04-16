@@ -8,7 +8,7 @@
 //
 // Known insufficient for: multi-line keys split across log entries, base64-
 // wrapped secrets, URL-embedded credentials beyond basic-auth, custom env
-// var names. These are documented at cavestack.jerkyjesse.io/methodology.
+// var names. These are documented at cavestack.jerkyjesse.com/methodology.
 
 import fs from "node:fs";
 import path from "node:path";

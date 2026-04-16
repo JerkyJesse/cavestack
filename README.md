@@ -28,7 +28,7 @@ Need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) + Git.
 Bun auto-installs if missing (with SHA256-verified installer).
 
 ```bash
-curl -fsSL https://cavestack.jerkyjesse.io/install | sh
+curl -fsSL https://cavestack.jerkyjesse.com/install | sh
 ```
 
 Open new Claude Code session. Caveman mode active. No `/caveman` needed. Just works.
