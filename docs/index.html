@@ -667,35 +667,35 @@
     </div>
   </section>
 
-  <!-- ═══════════════════════ DEMO ═══════════════════════ -->
+  <!-- ═══════════════════════ DEMO — scrolling review comparison ═══════════════════════ -->
   <section class="demo" id="demo">
     <div class="container">
-      <div class="eyebrow">What it feel like</div>
-      <h2>One command. Clear verdict.</h2>
+      <div class="eyebrow">Same /review · same patch · watch difference</div>
+      <h2>Before / After.</h2>
       <p>
-        Every skill run preflight. Dual-voice review. Write artifacts to disk.
-        <code>/ship</code> go from "ready?" to receipts. Under a minute.
+        Default verbose vs caveman mode. Scroll sideways. Math speak for itself.
       </p>
 
-      <div class="terminal">
-        <div class="terminal-chrome">
-          <span class="terminal-dot r"></span>
-          <span class="terminal-dot y"></span>
-          <span class="terminal-dot g"></span>
-          <span class="terminal-title">claude-code — cavestack</span>
-        </div>
-        <div class="terminal-body" id="term" aria-live="off">
-<span class="term-prompt">$</span> /ship
-<span class="term-dim">→ Running preflight (git, tests, CHANGELOG)...</span>
-<span class="term-ok">✓</span> 12 commits on branch, base is main
-<span class="term-ok">✓</span> Tests pass (47 files, 0 fail)
-<span class="term-warn">⚠</span> CHANGELOG entry missing for this branch
-<span class="term-dim">→ Generating entry + version bump...</span>
-<span class="term-ok">✓</span> v1.0.1.0 — Cave Mural redesign
-<span class="term-dim">→ Opening PR via gh...</span>
-<span class="term-ok">✓</span> PR #42 opened: cavestack.jerkyjesse.com/pr/42
-<span class="term-prompt">$</span> <span class="cursor"></span>
-        </div>
+      <div class="compare-carousel" role="region" aria-label="Review output comparison" tabindex="0">
+        <figure class="compare-card">
+          <img src="images/sidebyside-review.png" alt="Side-by-side /review output: default verbose (left) vs CaveStack caveman mode (right). Caveman version is 82% fewer characters."
+               width="1280" height="720" loading="eager" decoding="async">
+          <figcaption>/review — 82% fewer characters, same findings.</figcaption>
+        </figure>
+        <figure class="compare-card">
+          <img src="images/github-2013.png" alt="Screenshot of verbose GitHub-style code review comment, long prose, buried recommendation"
+               width="1398" height="400" loading="lazy" decoding="async">
+          <figcaption>Verbose review. Prose wall. Recommendation buried.</figcaption>
+        </figure>
+        <figure class="compare-card">
+          <img src="images/github-2026.png" alt="Screenshot of caveman-compressed code review: tight bullet list, line numbers, exact diff suggestion"
+               width="1406" height="374" loading="lazy" decoding="async">
+          <figcaption>Caveman review. File:line. Exact fix. Done.</figcaption>
+        </figure>
+      </div>
+
+      <div class="compare-meta">
+        <span>drag / swipe / arrow keys →</span>
       </div>
     </div>
   </section>
@@ -854,6 +854,14 @@
       <a href="https://github.com/JerkyJesse/CaveStack/issues">Issues</a>
       <a href="https://github.com/JerkyJesse/CaveStack/blob/main/CHANGELOG.md">Changelog</a>
     </nav>
+    <div class="foot-attrib">
+      <span>Personal fork of</span>
+      <a href="https://github.com/garrytan/gstack" rel="noopener">gstack</a>
+      <span>by Garry Tan.</span>
+      <span>Caveman voice from</span>
+      <a href="https://github.com/JuliusBrussee/caveman" rel="noopener">caveman</a>
+      <span>by Julius Brussee.</span>
+    </div>
     <div class="foot-meta">
       <span>v1.0.1.0 · MIT</span>
       <span>Built by JerkyJesse</span>
