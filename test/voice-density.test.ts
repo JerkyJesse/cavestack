@@ -181,6 +181,33 @@ describe('extractNonFloorText', () => {
     expect(stripped).not.toContain('code1');
     expect(stripped).not.toContain('code2');
   });
+
+  test('unclosed fence falls back to treating fence as prose (evasion guard)', () => {
+    // Previously an unclosed ``` flipped inCode=true and stripped every
+    // following line, letting an assistant evade density scoring by just
+    // opening a fence and talking. Now the opening fence is kept as prose.
+    const text = '```bash\nthe just really verbose stuff that would normally be stripped\nand more prose here';
+    const stripped = extractNonFloorText(text);
+    expect(stripped).toContain('verbose stuff');
+    expect(stripped).toContain('more prose');
+  });
+
+  test('YAML frontmatter without close within 20 lines treated as prose (evasion guard)', () => {
+    // An assistant starting with `---` and never closing it within 20 lines
+    // should NOT get the whole message stripped as frontmatter.
+    const tailLines = Array.from({ length: 25 }, (_, i) => `just really line ${i}`).join('\n');
+    const text = `---\n${tailLines}`;
+    const stripped = extractNonFloorText(text);
+    expect(stripped).toContain('just really line');
+  });
+
+  test('YAML frontmatter with close within 20 lines still strips', () => {
+    // Normal legit frontmatter (close within 20 lines) stays stripped.
+    const text = '---\nname: foo\nvoice: caveman\n---\n\nThe actual prose that scores.';
+    const stripped = extractNonFloorText(text);
+    expect(stripped).toContain('actual prose');
+    expect(stripped).not.toContain('voice: caveman');
+  });
 });
 
 describe('loadProfile', () => {

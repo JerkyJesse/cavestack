@@ -88,21 +88,20 @@ function computeDensity(prose, startLine = 0, lineMap = new Map) {
   const fillerCount = scan(FILLERS, "filler");
   const hedgeCount = scan(HEDGES, "hedge");
   let verboseCount = 0;
-  const lowerProse = prose.toLowerCase();
   for (const [verbose] of VERBOSE_PHRASES) {
-    const regex = new RegExp(verbose.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-    const matches = lowerProse.match(regex) || [];
-    verboseCount += matches.length;
-    if (matches.length > 0) {
-      for (let i = 0;i < proseLines.length; i++) {
-        if (proseLines[i].toLowerCase().includes(verbose)) {
-          flagged.push({
-            line: startLine + (lineMap.get(i) ?? i),
-            type: "verbose-phrase",
-            match: verbose,
-            context: proseLines[i].trim().substring(0, 80)
-          });
-        }
+    const lineRegex = new RegExp(verbose.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    for (let i = 0;i < proseLines.length; i++) {
+      const matches = proseLines[i].match(lineRegex) || [];
+      if (matches.length === 0)
+        continue;
+      verboseCount += matches.length;
+      for (let k = 0;k < matches.length; k++) {
+        flagged.push({
+          line: startLine + (lineMap.get(i) ?? i),
+          type: "verbose-phrase",
+          match: verbose,
+          context: proseLines[i].trim().substring(0, 80)
+        });
       }
     }
   }
@@ -132,12 +131,37 @@ function checkThresholds(metrics, thresholds) {
   }
   return { pass: failed.length === 0, failedMetrics: failed };
 }
+var YAML_MAX_LINES = 20;
 function extractNonFloorText(text) {
   const lines = text.split(`
 `);
-  const kept = [];
-  let inCode = false;
-  let inFrontmatter = false;
+  let frontmatterEnd = -1;
+  if (lines.length > 0 && lines[0].trim() === "---") {
+    const limit = Math.min(lines.length, YAML_MAX_LINES + 1);
+    for (let i = 1;i < limit; i++) {
+      if (lines[i].trim() === "---") {
+        frontmatterEnd = i;
+        break;
+      }
+    }
+  }
+  const fenceRanges = [];
+  {
+    let openStart = -1;
+    for (let i = 0;i < lines.length; i++) {
+      if (i <= frontmatterEnd)
+        continue;
+      if (!/^```/.test(lines[i].trim()))
+        continue;
+      if (openStart === -1) {
+        openStart = i;
+      } else {
+        fenceRanges.push({ start: openStart, end: i });
+        openStart = -1;
+      }
+    }
+  }
+  const inFence = (i) => fenceRanges.some((r) => i >= r.start && i <= r.end);
   const tableLines = new Set;
   for (let i = 1;i < lines.length - 1; i++) {
     const sep = lines[i].trim();
@@ -152,29 +176,18 @@ function extractNonFloorText(text) {
       }
     }
   }
+  const kept = [];
   for (let i = 0;i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (i === 0 && trimmed === "---") {
-      inFrontmatter = true;
+    if (i <= frontmatterEnd)
       continue;
-    }
-    if (inFrontmatter) {
-      if (trimmed === "---")
-        inFrontmatter = false;
-      continue;
-    }
-    if (/^```/.test(trimmed)) {
-      inCode = !inCode;
-      continue;
-    }
-    if (inCode)
-      continue;
-    if (/^<!--.*-->$/.test(trimmed))
+    if (inFence(i))
       continue;
     if (tableLines.has(i))
       continue;
-    kept.push(line.replace(/`[^`]*`/g, ""));
+    const trimmed = lines[i].trim();
+    if (/^<!--.*-->$/.test(trimmed))
+      continue;
+    kept.push(lines[i].replace(/`[^`]*`/g, ""));
   }
   return kept.join(`
 `);
@@ -196,7 +209,6 @@ function loadProfile(name, cavestackRoot) {
 
 // hooks/caveman-voice-verify.ts
 var MAX_TRANSCRIPT_BYTES = 50 * 1024 * 1024;
-var RETRY_TIMESTAMP_WINDOW_MS = 5000;
 var WORD_COUNT_MIN = 20;
 function resolveCavestackRoot() {
   try {
@@ -231,13 +243,21 @@ function getActiveVoiceName() {
 function readStdin() {
   return new Promise((resolve2) => {
     let data = "";
+    let settled = false;
+    const settle = (value) => {
+      if (settled)
+        return;
+      settled = true;
+      clearTimeout(timer);
+      resolve2(value);
+    };
     process.stdin.setEncoding("utf-8");
     process.stdin.on("data", (chunk) => {
       data += chunk;
     });
-    process.stdin.on("end", () => resolve2(data));
-    process.stdin.on("error", () => resolve2(""));
-    setTimeout(() => resolve2(data), 500);
+    process.stdin.on("end", () => settle(data));
+    process.stdin.on("error", () => settle(""));
+    const timer = setTimeout(() => settle(data), 500);
   });
 }
 function parseInput(raw) {
@@ -266,17 +286,16 @@ function extractTextFromContent(content) {
 
 `);
 }
-function findLastAssistantMessages(transcriptPath) {
+function findLastAssistantMessage(transcriptPath) {
   if (!fs2.existsSync(transcriptPath))
-    return { last: null, previous: null };
+    return null;
   const stat = fs2.statSync(transcriptPath);
   if (stat.size > MAX_TRANSCRIPT_BYTES)
-    return { last: null, previous: null };
+    return null;
   const content = fs2.readFileSync(transcriptPath, "utf-8");
   const lines = content.split(`
 `);
-  const found = [];
-  for (let i = lines.length - 1;i >= 0 && found.length < 2; i--) {
+  for (let i = lines.length - 1;i >= 0; i--) {
     const line = lines[i].trim();
     if (!line)
       continue;
@@ -294,22 +313,12 @@ function findLastAssistantMessages(transcriptPath) {
     if (!text.trim())
       continue;
     const ts = event.timestamp ? Date.parse(event.timestamp) : Date.now();
-    found.push({ text, timestamp: Number.isNaN(ts) ? Date.now() : ts });
+    return { text, timestamp: Number.isNaN(ts) ? Date.now() : ts };
   }
-  return {
-    last: found[0] ?? null,
-    previous: found[1] ?? null
-  };
+  return null;
 }
-function isRetry(input, previous) {
-  if (input.stop_hook_active === true)
-    return true;
-  if (previous && previous.timestamp) {
-    const age = Date.now() - previous.timestamp;
-    if (age >= 0 && age < RETRY_TIMESTAMP_WINDOW_MS)
-      return true;
-  }
-  return false;
+function isRetry(input) {
+  return input.stop_hook_active === true;
 }
 function formatBlockReason(metrics, result) {
   const lines = ["Voice density failed. Metrics over floor:"];
@@ -359,7 +368,7 @@ async function main() {
     return 0;
   if (!profile.density_thresholds)
     return 0;
-  const { last, previous } = findLastAssistantMessages(input.transcript_path);
+  const last = findLastAssistantMessage(input.transcript_path);
   if (!last)
     return 0;
   const nonFloorText = extractNonFloorText(last.text);
@@ -370,8 +379,7 @@ async function main() {
   const check = checkThresholds(metrics, profile.density_thresholds);
   if (check.pass)
     return 0;
-  const retry = isRetry(input, previous);
-  if (retry) {
+  if (isRetry(input)) {
     process.stdout.write(formatRetryMarker(check));
     return 0;
   }

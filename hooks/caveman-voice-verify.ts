@@ -33,7 +33,6 @@ import {
 
 // Hard timeout safety cap — transcripts above this size are skipped (fails open).
 const MAX_TRANSCRIPT_BYTES = 50 * 1024 * 1024; // 50 MB
-const RETRY_TIMESTAMP_WINDOW_MS = 5000;
 const WORD_COUNT_MIN = 20; // skip density check if assistant output < 20 words
 
 interface StopHookInput {
@@ -107,14 +106,22 @@ function getActiveVoiceName(): string {
 function readStdin(): Promise<string> {
   return new Promise((resolve) => {
     let data = '';
+    let settled = false;
+    const settle = (value: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
     process.stdin.setEncoding('utf-8');
     process.stdin.on('data', (chunk) => {
       data += chunk;
     });
-    process.stdin.on('end', () => resolve(data));
-    process.stdin.on('error', () => resolve(''));
-    // Safety: if no stdin within 500ms, resolve empty (Claude Code always sends)
-    setTimeout(() => resolve(data), 500);
+    process.stdin.on('end', () => settle(data));
+    process.stdin.on('error', () => settle(''));
+    // Safety: if no stdin within 500ms, resolve with whatever arrived (Claude
+    // Code always sends JSON within ms — this is a stuck-pipe escape hatch).
+    const timer = setTimeout(() => settle(data), 500);
   });
 }
 
@@ -143,20 +150,17 @@ function extractTextFromContent(content: TranscriptEvent['content']): string {
   return parts.join('\n\n');
 }
 
-function findLastAssistantMessages(
-  transcriptPath: string,
-): { last: AssistantMessage | null; previous: AssistantMessage | null } {
-  if (!fs.existsSync(transcriptPath)) return { last: null, previous: null };
+function findLastAssistantMessage(transcriptPath: string): AssistantMessage | null {
+  if (!fs.existsSync(transcriptPath)) return null;
 
   const stat = fs.statSync(transcriptPath);
-  if (stat.size > MAX_TRANSCRIPT_BYTES) return { last: null, previous: null };
+  if (stat.size > MAX_TRANSCRIPT_BYTES) return null;
 
   const content = fs.readFileSync(transcriptPath, 'utf-8');
   const lines = content.split('\n');
 
-  const found: AssistantMessage[] = [];
-  // Parse backwards from end — early-exit once we have two assistant messages
-  for (let i = lines.length - 1; i >= 0 && found.length < 2; i--) {
+  // Parse backwards from end — early-exit at the first assistant message.
+  for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
     if (!line) continue;
     let event: TranscriptEvent;
@@ -176,32 +180,20 @@ function findLastAssistantMessages(
     if (!text.trim()) continue;
 
     const ts = event.timestamp ? Date.parse(event.timestamp) : Date.now();
-    found.push({ text, timestamp: Number.isNaN(ts) ? Date.now() : ts });
+    return { text, timestamp: Number.isNaN(ts) ? Date.now() : ts };
   }
 
-  return {
-    last: found[0] ?? null,
-    previous: found[1] ?? null,
-  };
+  return null;
 }
 
 // ─── Retry detection ────────────────────────────────────────
 
-function isRetry(
-  input: StopHookInput,
-  previous: AssistantMessage | null,
-): boolean {
-  // Primary: Claude Code's own signal
-  if (input.stop_hook_active === true) return true;
-
-  // Fallback: previous assistant timestamp within window (hook fired again
-  // quickly = likely a retry we blocked on the prior turn)
-  if (previous && previous.timestamp) {
-    const age = Date.now() - previous.timestamp;
-    if (age >= 0 && age < RETRY_TIMESTAMP_WINDOW_MS) return true;
-  }
-
-  return false;
+function isRetry(input: StopHookInput): boolean {
+  // Claude Code's stop_hook_active flag is the authoritative retry signal.
+  // (Originally the hook had a timestamp fallback — previous-assistant <5s
+  // ago — but that false-positived on fast legitimate conversations, where
+  // a block on turn N+1 would soft-marker instead of actually blocking.)
+  return input.stop_hook_active === true;
 }
 
 // ─── Output ─────────────────────────────────────────────────
@@ -275,7 +267,7 @@ async function main(): Promise<number> {
   if (!profile) return 0;
   if (!profile.density_thresholds) return 0;
 
-  const { last, previous } = findLastAssistantMessages(input.transcript_path);
+  const last = findLastAssistantMessage(input.transcript_path);
   if (!last) return 0;
 
   const nonFloorText = extractNonFloorText(last.text);
@@ -287,8 +279,7 @@ async function main(): Promise<number> {
 
   if (check.pass) return 0;
 
-  const retry = isRetry(input, previous);
-  if (retry) {
+  if (isRetry(input)) {
     // Retry fail path — emit marker to stdout, exit 0 (do NOT block again)
     process.stdout.write(formatRetryMarker(check));
     return 0;

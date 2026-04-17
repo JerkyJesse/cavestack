@@ -171,23 +171,27 @@ export function computeDensity(
   const fillerCount = scan(FILLERS, 'filler');
   const hedgeCount = scan(HEDGES, 'hedge');
 
-  // Verbose phrases — substring scan, case-insensitive
+  // Verbose phrases — per-line scan so flaggedItems count matches verboseCount.
+  // (Previous implementation used a full-text regex count + a separate per-line
+  // includes() pass, which desynced when one line contained the same phrase
+  // multiple times.)
   let verboseCount = 0;
-  const lowerProse = prose.toLowerCase();
   for (const [verbose] of VERBOSE_PHRASES) {
-    const regex = new RegExp(verbose.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    const matches = lowerProse.match(regex) || [];
-    verboseCount += matches.length;
-    if (matches.length > 0) {
-      for (let i = 0; i < proseLines.length; i++) {
-        if (proseLines[i].toLowerCase().includes(verbose)) {
-          flagged.push({
-            line: startLine + (lineMap.get(i) ?? i),
-            type: 'verbose-phrase',
-            match: verbose,
-            context: proseLines[i].trim().substring(0, 80),
-          });
-        }
+    const lineRegex = new RegExp(
+      verbose.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+      'gi',
+    );
+    for (let i = 0; i < proseLines.length; i++) {
+      const matches = proseLines[i].match(lineRegex) || [];
+      if (matches.length === 0) continue;
+      verboseCount += matches.length;
+      for (let k = 0; k < matches.length; k++) {
+        flagged.push({
+          line: startLine + (lineMap.get(i) ?? i),
+          type: 'verbose-phrase',
+          match: verbose,
+          context: proseLines[i].trim().substring(0, 80),
+        });
       }
     }
   }
@@ -237,28 +241,66 @@ export function checkThresholds(
  * Strip code/tables/frontmatter from assistant output for runtime density scoring.
  *
  * Strips:
- *   - Fenced code blocks (```...```)
+ *   - Fenced code blocks (```...```). If the opening fence never closes by end
+ *     of message, the opening is treated as literal text (evasion guard: an
+ *     assistant can't silence the check by opening a fence and talking prose).
  *   - Inline code (backtick-wrapped spans)
  *   - GitHub markdown tables with separator row (|---|---|)
- *   - YAML frontmatter (leading --- ... ---)
+ *   - YAML frontmatter (leading --- ... ---) when the closing --- appears
+ *     within YAML_MAX_LINES. Otherwise the opening --- is treated as literal
+ *     (evasion guard for the same reason).
  *   - HTML comments
  *
  * Does NOT strip bulleted lists containing `|` (inline pipes in prose).
  * Accepts false-positive risk on 2-line pseudo-tables without separator row.
  */
+const YAML_MAX_LINES = 20;
+
 export function extractNonFloorText(text: string): string {
   const lines = text.split('\n');
-  const kept: string[] = [];
-  let inCode = false;
-  let inFrontmatter = false;
 
-  // Detect table ranges (lines bracketing a |---|---| separator)
+  // Resolve YAML frontmatter range. Only treat leading `---` as frontmatter
+  // if a closing `---` appears within YAML_MAX_LINES; otherwise the line is
+  // prose and we score it.
+  let frontmatterEnd = -1; // inclusive end index, -1 = no frontmatter
+  if (lines.length > 0 && lines[0].trim() === '---') {
+    const limit = Math.min(lines.length, YAML_MAX_LINES + 1);
+    for (let i = 1; i < limit; i++) {
+      if (lines[i].trim() === '---') {
+        frontmatterEnd = i;
+        break;
+      }
+    }
+  }
+
+  // Resolve fence ranges. A fence that never closes is NOT stripped — the
+  // opening ``` stays as literal prose. This blocks the "open a fence to
+  // silence density" evasion path.
+  type FenceRange = { start: number; end: number };
+  const fenceRanges: FenceRange[] = [];
+  {
+    let openStart = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (i <= frontmatterEnd) continue; // skip frontmatter region
+      if (!/^```/.test(lines[i].trim())) continue;
+      if (openStart === -1) {
+        openStart = i;
+      } else {
+        fenceRanges.push({ start: openStart, end: i });
+        openStart = -1;
+      }
+    }
+    // openStart !== -1 here means the last fence was never closed. Do NOT
+    // add it to fenceRanges — the opening line reverts to prose.
+  }
+  const inFence = (i: number): boolean =>
+    fenceRanges.some((r) => i >= r.start && i <= r.end);
+
+  // Detect table ranges (lines bracketing a |---|---| separator).
   const tableLines = new Set<number>();
   for (let i = 1; i < lines.length - 1; i++) {
     const sep = lines[i].trim();
     if (/^\|[\s\-:|]+\|$/.test(sep) && /-/.test(sep)) {
-      // Table detected. Mark header row (i-1), separator (i), and all
-      // subsequent contiguous pipe-starting rows as table lines.
       tableLines.add(i - 1);
       tableLines.add(i);
       for (let j = i + 1; j < lines.length; j++) {
@@ -268,29 +310,18 @@ export function extractNonFloorText(text: string): string {
     }
   }
 
+  const kept: string[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
+    if (i <= frontmatterEnd) continue; // resolved frontmatter lines
+    if (inFence(i)) continue; // resolved fence range (both delimiters + body)
+    if (tableLines.has(i)) continue;
 
-    // YAML frontmatter (must be at file start)
-    if (i === 0 && trimmed === '---') { inFrontmatter = true; continue; }
-    if (inFrontmatter) {
-      if (trimmed === '---') inFrontmatter = false;
-      continue;
-    }
-
-    // Fenced code
-    if (/^```/.test(trimmed)) { inCode = !inCode; continue; }
-    if (inCode) continue;
-
+    const trimmed = lines[i].trim();
     // HTML comments (single-line only — multi-line rare in assistant prose)
     if (/^<!--.*-->$/.test(trimmed)) continue;
 
-    // Tables
-    if (tableLines.has(i)) continue;
-
     // Keep the line, but strip inline backtick-wrapped code spans
-    kept.push(line.replace(/`[^`]*`/g, ''));
+    kept.push(lines[i].replace(/`[^`]*`/g, ''));
   }
 
   return kept.join('\n');

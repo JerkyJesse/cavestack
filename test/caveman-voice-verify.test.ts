@@ -152,7 +152,12 @@ describe('caveman-voice-verify Stop hook', () => {
     expect(result.stdout).toContain('shipped as-is');
   });
 
-  test('scenario 4: retry via recent prev-assistant timestamp <5s → exit 0 + marker', () => {
+  test('scenario 4: fast legitimate turn (prev assistant <5s ago) still blocks on first attempt', () => {
+    // Regression guard: previous hook had a timestamp fallback that treated
+    // any turn within 5s of the prior assistant message as a retry, which
+    // soft-markered fast conversations instead of blocking. Fallback was
+    // dropped — stop_hook_active is now authoritative. A new failing turn
+    // after a quick legit turn must still block.
     const prevTs = new Date(Date.now() - 1000).toISOString(); // 1s ago
     const nowTs = new Date().toISOString();
     const transcript = writeTranscript([
@@ -162,8 +167,9 @@ describe('caveman-voice-verify Stop hook', () => {
       makeAssistantEvent(FAIL_TEXT, nowTs),
     ]);
     const result = runHook({ transcript_path: transcript, stop_hook_active: false });
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('[voice: over-floor');
+    expect(result.exitCode).toBe(2);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.decision).toBe('block');
   });
 
   test('scenario 5: opt-out via CAVESTACK_VOICE_VERIFY=0 → exit 0 silent', () => {

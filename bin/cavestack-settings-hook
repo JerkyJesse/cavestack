@@ -152,6 +152,14 @@ case "$ACTION" in
       fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
       fs.renameSync(tmp, settingsPath);
     " 2>/dev/null
+
+    # Bundle: install-caveman always also registers voice-verify Stop hook
+    # (so enabling caveman → enabling closed-loop density enforcement are
+    # a single action — no drift path where caveman is on but voice-verify
+    # silently unregistered).
+    if [ -f "$CAVESTACK_ROOT/hooks/caveman-voice-verify.js" ]; then
+      "$0" install-voice-verify 2>/dev/null || true
+    fi
     ;;
   remove-caveman)
     [ -f "$SETTINGS_FILE" ] || exit 0
@@ -184,6 +192,9 @@ case "$ACTION" in
       fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
       fs.renameSync(tmp, settingsPath);
     " 2>/dev/null
+
+    # Symmetric bundle: remove-caveman also removes voice-verify.
+    "$0" remove-voice-verify 2>/dev/null || true
     ;;
   install-voice-verify)
     CAVESTACK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -220,7 +231,7 @@ case "$ACTION" in
       );
       if (!exists) {
         settings.hooks.Stop.push({
-          hooks: [{ type: 'command', command: verifyCmd, timeout: 1 }]
+          hooks: [{ type: 'command', command: verifyCmd, timeout: 5 }]
         });
       }
 
