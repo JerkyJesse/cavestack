@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.0.1.0] - 2026-04-17 — Cave Mural website redesign
+
+The marketing site now looks like the tool itself feels: cave wall, torch glow,
+hand-drawn petroglyphs, zero clickthrough. Every pitch fact is visible in the
+first screen. Everything verbose hides in a single collapsible at the bottom.
+
+### What you can now do
+
+- **Visit one page and get the whole pitch.** Hero + terminal demo + 9 skills
+  grid + collapsible deep-dive. No nav, no tabs, no "learn more" round trips.
+- **Copy-paste install in one click.** The install box has an amber border,
+  a firelight glow, and a big copy button that turns green when it worked.
+- **Read the docs without leaving the page.** Everything you'd want on a
+  "How it works" page is folded into a single `<details>` at the bottom —
+  install, voice, philosophy, character-based metrics, what's on disk, team
+  mode, troubleshooting, license.
+- **Tell a story with cave art.** Four hand-authored petroglyph SVGs (handprint,
+  mammoth, spiral, torch) anchor the sections without stock-clipart energy.
+  Amber is rare and meaningful: only on torch, install border, `<details>` marker.
+
+### Accessibility + SEO upgrades
+
+- Skip link to content (WCAG 2.4.1 now A-level compliant).
+- Every interactive surface has a visible focus ring (amber outline, 2px).
+- Torch cursor auto-disables on touch and on `prefers-reduced-motion`.
+- Terminal `aria-live` is off so screen readers don't narrate every keystroke.
+- JSON-LD SoftwareApplication schema so Google gets the name, price, license,
+  download URL right.
+- `sitemap.xml` and `robots.txt` so search engines can actually crawl the site.
+- Proper `og:` and `twitter:` tags so the link preview on Twitter/X, Slack,
+  Discord, LinkedIn all look right.
+
+### What's gone
+
+- `docs/methodology.html` and `docs/roadmap.md` — both were dead ends that
+  distracted from the pitch. Deferred items now live as GitHub Issues.
+- The benchmark table on the marketing page — moved to the collapsible docs
+  section. The front page is for "what and why", not "prove it to me".
+
+### For contributors
+
+- Inline `<style>` in `docs/index.html` extracted to `docs/styles.css` so the
+  two pages share a stylesheet and CSS caches across navigation.
+- `docs/install` (no extension) mirrors `docs/install.sh` so the one-liner
+  resolves. GitHub Pages serves the extensionless file as octet-stream; curl
+  still pipes it to sh without issue.
+- 8-token color palette locked in CSS custom properties. Anyone contributing
+  a new skill card should use `var(--heading)` / `var(--cave-brown)` and
+  keep amber off the chrome.
+- `TODOS.md` preamble updated: deferred ideas → GitHub Issues, not a
+  phantom roadmap doc.
+
 ## [1.0.0.0] - 2026-04-16 — v1.0 finished product
 
 CaveStack is now a **finished product**. You can install it in one line, see
