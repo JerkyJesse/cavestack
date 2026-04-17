@@ -268,6 +268,23 @@ Examples of good bisection:
 When the user says "bisect commit" or "bisect and push," split staged/unstaged
 changes into logical commits and push.
 
+## No deferred work
+
+**Mirror of Clause B in `voices/caveman-*.json`.** The caveman voice profile enforces
+this in-session; CLAUDE.md reinforces it on every project load regardless of voice.
+
+Do not add Phase 2 / Phase 3 / "future work" / "later" plans to design docs, plans,
+or TODOs unless the user explicitly asks for phased rollout. Ship scope complete in
+one shot or cut scope to what you will ship now. Do not append TODOS.md entries
+describing work you chose not to do. Do not write "we could also..." followed by a
+third of the feature. Either in scope or out of scope — no third state.
+
+This extends the existing "Don't add features, refactor, or introduce abstractions
+beyond what the task requires" rule to design docs, plans, and TODO lists. The
+pattern is the same: do not build tomorrow's work into today's shipped artifact.
+If you caught yourself about to write "phase 2", stop and ask: are you shipping
+it now, or cutting it?
+
 ## Slop-scan: AI code quality, not AI code hiding
 
 We use [slop-scan](https://github.com/benvinegar/slop-scan) to catch patterns where
@@ -347,8 +364,8 @@ not what was already on main.
 - At `/ship` time (Step 5), not during development or mid-branch.
 - The entry covers ALL commits on this branch vs the base branch.
 - Never fold new work into an existing CHANGELOG entry from a prior version that
-  already landed on main. If main has v0.10.0.0 and your branch adds features,
-  bump to v0.10.1.0 with a new entry — don't edit the v0.10.0.0 entry.
+  already landed on main. If main has v1.0.0.0 and your branch adds features,
+  bump to v1.0.1.0 with a new entry — don't edit the v1.0.0.0 entry.
 
 **Key questions before writing:**
 1. What branch am I on? What did THIS branch change?
@@ -358,8 +375,8 @@ not what was already on main.
 
 **Merging main does NOT mean adopting main's version.** When you merge origin/main into
 a feature branch, main may bring new CHANGELOG entries and a higher VERSION. Your branch
-still needs its OWN version bump on top. If main is at v0.13.8.0 and your branch adds
-features, bump to v0.13.9.0 with a new entry. Never jam your changes into an entry that
+still needs its OWN version bump on top. If main is at v1.0.1.0 and your branch adds
+features, bump to v1.0.2.0 with a new entry. Never jam your changes into an entry that
 already landed on main. Your entry goes on top because your branch lands next.
 
 **After merging main, always check:**

@@ -18,6 +18,7 @@ allowed-tools:
   - Agent
   - AskUserQuestion
   - WebSearch
+sensitive: true
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -228,6 +229,10 @@ Lead with point. Say what it does, why matters, what changes for builder.
 **Auto-Clarity:** Drop caveman for: security warnings, irreversible action confirmations, multi-step sequences where fragment order risks misread. Resume after.
 
 **Boundaries:** Code/commits/PRs: write normal. "stop caveman" or "normal mode": revert.
+
+**ENFORCEMENT (terminal rule):** All user-facing prose output MUST pass caveman compression. Before finalizing any response: scan your output. Articles, filler, pleasantries, hedges = rewrite. Code/commits/PRs/security warnings = exempt per Boundaries above. If rewrite still verbose after one pass, flag the attempt in output rather than ship verbose prose silently.
+
+**NO DEFERRED WORK.** Do not add Phase 2 / Phase 3 / "future work" / "later" plans to design docs, plans, or TODOs unless user explicitly asks for phased rollout. Ship scope complete in one shot or cut scope to what you will ship now. Do not append TODOS.md entries describing work you chose not to do. Do not write "we could also..." followed by a third of the feature. Either in scope or out of scope — no third state.
 
 ## Context Recovery
 
@@ -2070,7 +2075,7 @@ if [ "$CURRENT_VERSION" != "$BASE_VERSION" ]; then echo "ALREADY_BUMPED"; fi
    - **MICRO** (4th): <50 lines, trivial  **PATCH** (3rd): 50+ lines, no features
    - **MINOR** (2nd): **ASK** if feature signal, 500+ lines, or new modules
    - **MAJOR** (1st): **ASK** — milestones/breaking only
-3. Bump resets digits to right. `0.19.1.0` + PATCH = `0.19.2.0`
+3. Bump resets digits to right. `1.0.1.0` + PATCH = `1.0.2.0`
 4. Write to `VERSION`.
 
 ---

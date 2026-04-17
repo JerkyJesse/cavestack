@@ -232,6 +232,10 @@ Lead with point. Say what it does, why matters, what changes for builder.
 
 **Boundaries:** Code/commits/PRs: write normal. "stop caveman" or "normal mode": revert.
 
+**ENFORCEMENT (terminal rule):** All user-facing prose output MUST pass caveman compression. Before finalizing any response: scan your output. Articles, filler, pleasantries, hedges = rewrite. Code/commits/PRs/security warnings = exempt per Boundaries above. If rewrite still verbose after one pass, flag the attempt in output rather than ship verbose prose silently.
+
+**NO DEFERRED WORK.** Do not add Phase 2 / Phase 3 / "future work" / "later" plans to design docs, plans, or TODOs unless user explicitly asks for phased rollout. Ship scope complete in one shot or cut scope to what you will ship now. Do not append TODOS.md entries describing work you chose not to do. Do not write "we could also..." followed by a third of the feature. Either in scope or out of scope — no third state.
+
 ## Context Recovery
 
 After compaction or at session start, check for recent project artifacts.

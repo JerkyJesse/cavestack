@@ -540,9 +540,9 @@ describe('TODOS-format.md reference consistency', () => {
   });
 });
 
-// --- v0.4.1 feature coverage: RECOMMENDATION format, session awareness, enum completeness ---
+// --- Preamble feature coverage: RECOMMENDATION format, session awareness, enum completeness ---
 
-describe('v0.4.1 preamble features', () => {
+describe('Preamble feature coverage', () => {
   // Tier 1 skills have core preamble only (no AskUserQuestion format)
   const tier1Skills = ['SKILL.md', 'browse/SKILL.md', 'setup-browser-cookies/SKILL.md', 'benchmark/SKILL.md'];
 
@@ -729,7 +729,7 @@ describe('investigate skill structure', () => {
   }
 });
 
-// Contributor mode was removed in v0.13.10.0 — replaced by operational self-improvement.
+// Contributor mode was removed — replaced by operational self-improvement.
 // Tests for contributor mode preamble structure are no longer applicable.
 
 describe('Enum & Value Completeness in review checklist', () => {
@@ -1361,7 +1361,7 @@ describe('Skill trigger phrases', () => {
 describe('Codex skill validation', () => {
   const AGENTS_DIR = path.join(ROOT, '.agents', 'skills');
 
-  // .agents/ is gitignored (v0.11.2.0) — generate on demand for tests
+  // .agents/ is gitignored — generate on demand for tests
   Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--host', 'codex'], {
     cwd: ROOT, stdout: 'pipe', stderr: 'pipe',
   });
@@ -1552,4 +1552,62 @@ describe('voice density regression', () => {
       expect(result.status).toBe('PASS');
     });
   }
+});
+
+describe('Voice profile terminal rule + density thresholds', () => {
+  const CAVEMAN_PROFILES = ['caveman-full', 'caveman-lite', 'caveman-ultra'];
+
+  for (const profileName of CAVEMAN_PROFILES) {
+    test(`${profileName}.json has ENFORCEMENT clause (voice terminal rule)`, () => {
+      const profilePath = path.join(ROOT, 'voices', `${profileName}.json`);
+      const profile = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
+      expect(profile.directive.full).toContain('ENFORCEMENT (terminal rule)');
+      expect(profile.directive.full).toContain('MUST pass caveman');
+    });
+
+    test(`${profileName}.json has NO DEFERRED WORK clause (anti-deferral)`, () => {
+      const profilePath = path.join(ROOT, 'voices', `${profileName}.json`);
+      const profile = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
+      expect(profile.directive.full).toContain('NO DEFERRED WORK');
+      expect(profile.directive.full).toContain('no third state');
+    });
+
+    test(`${profileName}.json has density_thresholds populated`, () => {
+      const profilePath = path.join(ROOT, 'voices', `${profileName}.json`);
+      const profile = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
+      expect(profile.density_thresholds).toBeDefined();
+      expect(typeof profile.density_thresholds.articlesPerHundred).toBe('number');
+      expect(typeof profile.density_thresholds.fillersPerHundred).toBe('number');
+      expect(typeof profile.density_thresholds.hedgesPerHundred).toBe('number');
+      expect(typeof profile.density_thresholds.verbosePhraseMax).toBe('number');
+      // Thresholds must be strictly positive (0 would block everything)
+      expect(profile.density_thresholds.articlesPerHundred).toBeGreaterThan(0);
+      expect(profile.density_thresholds.fillersPerHundred).toBeGreaterThan(0);
+      expect(profile.density_thresholds.hedgesPerHundred).toBeGreaterThan(0);
+      expect(profile.density_thresholds.verbosePhraseMax).toBeGreaterThan(0);
+    });
+  }
+
+  test('caveman-ultra thresholds are strictest; caveman-lite are loosest', () => {
+    const full = JSON.parse(fs.readFileSync(path.join(ROOT, 'voices', 'caveman-full.json'), 'utf-8'));
+    const lite = JSON.parse(fs.readFileSync(path.join(ROOT, 'voices', 'caveman-lite.json'), 'utf-8'));
+    const ultra = JSON.parse(fs.readFileSync(path.join(ROOT, 'voices', 'caveman-ultra.json'), 'utf-8'));
+
+    // lite > full > ultra for every metric (higher = looser floor)
+    expect(lite.density_thresholds.articlesPerHundred).toBeGreaterThan(full.density_thresholds.articlesPerHundred);
+    expect(full.density_thresholds.articlesPerHundred).toBeGreaterThan(ultra.density_thresholds.articlesPerHundred);
+    expect(lite.density_thresholds.fillersPerHundred).toBeGreaterThan(full.density_thresholds.fillersPerHundred);
+    expect(full.density_thresholds.fillersPerHundred).toBeGreaterThan(ultra.density_thresholds.fillersPerHundred);
+  });
+
+  test('none.json has no density_thresholds (exempt by design)', () => {
+    const none = JSON.parse(fs.readFileSync(path.join(ROOT, 'voices', 'none.json'), 'utf-8'));
+    expect(none.density_thresholds).toBeUndefined();
+  });
+
+  test('CLAUDE.md mirrors Clause B anti-deferral rule', () => {
+    const claudemd = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf-8');
+    expect(claudemd).toContain('## No deferred work');
+    expect(claudemd).toContain('no third state');
+  });
 });
