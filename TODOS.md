@@ -1,9 +1,10 @@
 # TODOS
 
 Active work only. If it's not happening soon, it belongs in
-[docs/roadmap.md](docs/roadmap.md) instead.
+CHANGELOG.md history or GitHub Issues instead.
 
-Prior TODOS (pre-v1.0.0.0) archived to docs/roadmap.md on 2026-04-16.
+Prior TODOS (pre-v1.0.0.0) archived in git history. Roadmap doc retired 2026-04-17
+when docs site was redesigned — parking lot ideas now live as GitHub Issues.
 
 ---
 

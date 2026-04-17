@@ -116,7 +116,7 @@
   },
   "CS901": {
     "message": "feature not yet implemented",
-    "fix": "Track progress in docs/roadmap.md. Request priority via GitHub Issues.",
+    "fix": "Open a GitHub Issue at github.com/JerkyJesse/CaveStack/issues to request priority.",
     "docs": "https://cavestack.jerkyjesse.com/docs/errors/CS901"
   }
 }
