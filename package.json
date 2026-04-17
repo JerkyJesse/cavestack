@@ -1,6 +1,6 @@
 {
   "name": "cavestack",
-  "version": "0.2.0.0",
+  "version": "1.0.0.0",
   "description": "CaveStack — AI builder framework with caveman mode baked in for always-on terse responses. Claude Code skills + fast headless browser.",
   "repository": {
     "type": "git",
@@ -28,6 +28,7 @@
     "test:codex:all": "EVALS=1 EVALS_ALL=1 bun test test/codex-e2e.test.ts",
     "test:gemini": "EVALS=1 bun test test/gemini-e2e.test.ts",
     "test:gemini:all": "EVALS=1 EVALS_ALL=1 bun test test/gemini-e2e.test.ts",
+    "bench": "bun run test/benchmarks/run.ts",
     "skill:check": "bun run scripts/skill-check.ts",
     "dev:skill": "bun run scripts/dev-skill.ts",
     "start": "bun run browse/src/server.ts",

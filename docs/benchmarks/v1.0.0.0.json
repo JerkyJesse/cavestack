@@ -1,15 +1,131 @@
 {
   "version": "1.0.0.0",
-  "runDate": null,
-  "hardware": null,
+  "runDate": "2026-04-17T00:15:12.368Z",
+  "hardware": "win32-x64",
   "claudeModel": "claude-opus-4-7",
   "unit": "characters",
-  "note": "All counts are UTF-16 code units (stdout.length). Chars, not tokens — model-agnostic, reproducible without an API key.",
-  "status": "scaffold",
-  "tasks": [],
+  "note": "All counts are UTF-16 code units (JS .length). Chars, not tokens — model-agnostic, reproducible without an API key. FIRST RUN: cavestack-only — raw Claude Code baseline pending separate run with hooks disabled. Without a baseline, `savings` is null; compare task-by-task outputs once baseline lands.",
+  "tasks": [
+    {
+      "taskId": 1,
+      "taskName": "Add dark-mode toggle",
+      "category": "feature",
+      "framework": "cavestack",
+      "inputChars": 127,
+      "outputChars": 183,
+      "totalChars": 310,
+      "wallSeconds": 38,
+      "passed": false
+    },
+    {
+      "taskId": 2,
+      "taskName": "Investigate 500 error",
+      "category": "debug",
+      "framework": "cavestack",
+      "inputChars": 89,
+      "outputChars": 287,
+      "totalChars": 376,
+      "wallSeconds": 32,
+      "passed": false
+    },
+    {
+      "taskId": 3,
+      "taskName": "Rename function across files",
+      "category": "refactor",
+      "framework": "cavestack",
+      "inputChars": 100,
+      "outputChars": 83,
+      "totalChars": 183,
+      "wallSeconds": 9,
+      "passed": false
+    },
+    {
+      "taskId": 4,
+      "taskName": "SQL injection review",
+      "category": "review",
+      "framework": "cavestack",
+      "inputChars": 89,
+      "outputChars": 129,
+      "totalChars": 218,
+      "wallSeconds": 6,
+      "passed": false
+    },
+    {
+      "taskId": 5,
+      "taskName": "Ship feature branch",
+      "category": "deploy",
+      "framework": "cavestack",
+      "inputChars": 91,
+      "outputChars": 146,
+      "totalChars": 237,
+      "wallSeconds": 18,
+      "passed": false
+    },
+    {
+      "taskId": 6,
+      "taskName": "Add migration for new column",
+      "category": "feature",
+      "framework": "cavestack",
+      "inputChars": 128,
+      "outputChars": 626,
+      "totalChars": 754,
+      "wallSeconds": 33,
+      "passed": true
+    },
+    {
+      "taskId": 7,
+      "taskName": "Debug flaky test",
+      "category": "debug",
+      "framework": "cavestack",
+      "inputChars": 107,
+      "outputChars": 249,
+      "totalChars": 356,
+      "wallSeconds": 22,
+      "passed": false
+    },
+    {
+      "taskId": 8,
+      "taskName": "OWASP Top 10 audit",
+      "category": "security",
+      "framework": "cavestack",
+      "inputChars": 100,
+      "outputChars": 200,
+      "totalChars": 300,
+      "wallSeconds": 29,
+      "passed": false
+    },
+    {
+      "taskId": 9,
+      "taskName": "Design review: pricing page",
+      "category": "design",
+      "framework": "cavestack",
+      "inputChars": 112,
+      "outputChars": 179,
+      "totalChars": 291,
+      "wallSeconds": 35,
+      "passed": false
+    },
+    {
+      "taskId": 10,
+      "taskName": "Test coverage for billing",
+      "category": "tests",
+      "framework": "cavestack",
+      "inputChars": 123,
+      "outputChars": 369,
+      "totalChars": 492,
+      "wallSeconds": 31,
+      "passed": false
+    }
+  ],
   "summary": {
     "totalTasks": 10,
-    "byFramework": {},
+    "byFramework": {
+      "cavestack": {
+        "totalChars": 3517,
+        "passed": 1,
+        "failed": 9
+      }
+    },
     "savings": {
       "cavestackVsRaw": null,
       "cavestackVsSuperclaude": null

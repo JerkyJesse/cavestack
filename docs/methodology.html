@@ -229,7 +229,7 @@
     <span><span class="k">tasks:</span>10</span>
     <span><span class="k">unit:</span>characters</span>
     <span><span class="k">frameworks:</span>up to 2</span>
-    <span><span class="k">status:</span>pending run</span>
+    <span><span class="k">status:</span>first run landed</span>
   </div>
 
   <h1>Benchmark methodology</h1>
@@ -256,12 +256,18 @@
   </div>
 
   <div class="status-card">
-    <div class="label">v1.0.0.0 — pending first run</div>
-    <p>CaveStack v1.0.0.0 ships with the benchmark harness but not yet with numbers.
-      The maintainer runs <code class="inline">bun run bench</code> once before tagging
-      the release, which populates <code class="inline">docs/benchmarks/v1.0.0.0.json</code>
-      and updates the hero counter above. Until then the site shows
-      <code class="inline">see benchmarks</code> with a link here.</p>
+    <div class="label">v1.0.0.0 — first-run data landed (cavestack-only)</div>
+    <p>First benchmark run completed 2026-04-17. 10 tasks executed via
+      <code class="inline">bun run bench</code> against Claude Opus 4.7 on
+      Windows x64. Total cavestack output: <strong>3,517 characters</strong>
+      across 10 tasks (avg 352 chars/task, range 83–626). Wall time 253s.</p>
+    <p>Raw Claude Code baseline column is pending — requires a separate run
+      with cavestack hooks disabled in <code class="inline">~/.claude/settings.json</code>.
+      Without a baseline the <code class="inline">savings</code> field stays null.
+      Numbers below are cavestack-only measurements: what the user actually
+      sees when running a skill.</p>
+    <p>Full per-task data:
+      <a href="https://github.com/JerkyJesse/cavestack/blob/main/docs/benchmarks/v1.0.0.0.json">v1.0.0.0.json</a>.</p>
   </div>
 
   <h2>The task set</h2>

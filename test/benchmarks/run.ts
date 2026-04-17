@@ -12,6 +12,7 @@
 // CRITICAL: This runs only on the maintainer's machine, never on user installs.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -81,25 +82,35 @@ async function runTaskOnFramework(
   let error: string | undefined;
 
   try {
-    // Invocation strategy (wire up on first maintainer run):
-    //   - "claude-code-raw": CAVESTACK_DISABLED=1 claude -p "<prompt>"
-    //   - "cavestack": claude -p "<prompt>" (CaveStack hooks active)
-    //   - "superclaude": claude -p under a SUPERCLAUDE_DIR install
-    //
-    // Capture stdout character count. No API key needed — we are measuring
+    // Spawn `claude -p "<prompt>"` and capture stdout char count.
+    // No API key needed — Claude Code handles its own auth. We measure
     // what the user actually sees, not what Anthropic bills.
+    //
+    // Framework distinction:
+    //   - "claude-code-raw": set CAVESTACK_DISABLED=1. Hooks that check this
+    //     env var will bow out. Until all hooks respect it, raw runs may
+    //     still include CaveStack voice — document as known limitation.
+    //   - "cavestack": normal invocation, all hooks active.
+    //   - "superclaude": CLAUDE_CONFIG_DIR points at SuperClaude's install.
     const env = { ...process.env };
     if (framework === "claude-code-raw") env.CAVESTACK_DISABLED = "1";
     if (framework === "superclaude") env.CLAUDE_CONFIG_DIR = process.env.SUPERCLAUDE_DIR || "";
 
-    // Actual invocation TODO — scaffold returns an error marker that the
-    // summary logic tolerates. Maintainer wires this up for v1.0.0.0's
-    // first run.
-    // const result = spawnSync("claude", ["-p", task.prompt], { env, cwd: workDir, encoding: "utf-8" });
-    // if (result.error) throw result.error;
-    // stdout = result.stdout || "";
-    // outputChars = charCount(stdout);
-    throw new Error("HARNESS_NOT_WIRED — see test/benchmarks/README.md");
+    const result = spawnSync("claude", ["-p", task.prompt], {
+      env,
+      cwd: workDir,
+      encoding: "utf-8",
+      timeout: 300_000, // 5 min per task hard cap
+      maxBuffer: 10 * 1024 * 1024, // 10 MB stdout cap
+    });
+
+    if (result.error) throw result.error;
+    if (result.status !== 0 && !result.stdout) {
+      throw new Error(`claude exited with status ${result.status}: ${result.stderr || "no stderr"}`);
+    }
+
+    stdout = result.stdout || "";
+    outputChars = charCount(stdout);
   } catch (e: unknown) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -119,26 +130,66 @@ async function runTaskOnFramework(
 }
 
 async function main() {
-  const rootDir = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  // Prefer cwd (matches `bun run bench` invoked from repo root). Fall back
+  // to import.meta.url resolution if cwd doesn't look like the repo.
+  let rootDir = process.cwd();
+  if (!fs.existsSync(path.join(rootDir, "VERSION"))) {
+    // Windows: file:///C:/... → strip the leading slash before URL → path conversion
+    const url = new URL(import.meta.url);
+    const rawPath = decodeURIComponent(url.pathname);
+    const filePath = process.platform === "win32" && rawPath.startsWith("/") ? rawPath.slice(1) : rawPath;
+    rootDir = path.resolve(path.dirname(filePath), "..", "..");
+  }
   const versionPath = path.join(rootDir, "VERSION");
   const version = fs.existsSync(versionPath) ? fs.readFileSync(versionPath, "utf-8").trim() : "0.0.0.0";
   const superclaudeEnabled = !!process.env.SUPERCLAUDE_DIR;
 
+  // Use an EMPTY temp directory as the claude working dir so tasks that say
+  // "rename X across the repo" have nothing to scan — claude responds from
+  // the prompt text alone. This makes char-count measurement reproducible
+  // without needing a fixture repo, and prevents accidental repo mutations.
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "cavestack-bench-"));
   console.log(`CaveStack benchmark — v${version}`);
   console.log(`Unit: characters (model-agnostic, no API key required)`);
+  console.log(`Sandbox: ${sandbox}`);
   console.log(`SuperClaude: ${superclaudeEnabled ? "ENABLED (" + process.env.SUPERCLAUDE_DIR + ")" : "DISABLED (set SUPERCLAUDE_DIR to include)"}`);
   console.log(`Tasks: ${TASKS.length}`);
+  console.log("");
+
+  // Determine which frameworks to run. Default: both raw + cavestack.
+  // BENCH_FRAMEWORKS=cavestack skips raw (useful when hooks can't be cleanly
+  // disabled in the current shell).
+  const frameworks: TaskResult["framework"][] = (() => {
+    const env = process.env.BENCH_FRAMEWORKS;
+    if (!env) return ["claude-code-raw", "cavestack"];
+    return env.split(",").map((s) => s.trim()) as TaskResult["framework"][];
+  })();
+  console.log(`Frameworks: ${frameworks.join(", ")}`);
   console.log("");
 
   const results: TaskResult[] = [];
   for (const task of TASKS) {
     console.log(`[${task.id}/${TASKS.length}] ${task.name}`);
-    results.push(await runTaskOnFramework(task, "claude-code-raw", rootDir));
-    results.push(await runTaskOnFramework(task, "cavestack", rootDir));
-    if (superclaudeEnabled) {
-      results.push(await runTaskOnFramework(task, "superclaude", rootDir));
+    for (const fw of frameworks) {
+      process.stdout.write(`  ${fw}... `);
+      const r = await runTaskOnFramework(task, fw, sandbox);
+      results.push(r);
+      if (r.error) {
+        console.log(`ERROR (${r.wallSeconds}s): ${r.error.slice(0, 80)}`);
+      } else {
+        console.log(`${r.outputChars} chars (${r.wallSeconds}s) ${r.passed ? "[PASS]" : "[FAIL]"}`);
+      }
+    }
+    if (superclaudeEnabled && !frameworks.includes("superclaude")) {
+      process.stdout.write(`  superclaude... `);
+      const r = await runTaskOnFramework(task, "superclaude", sandbox);
+      results.push(r);
+      console.log(`${r.outputChars} chars (${r.wallSeconds}s)`);
     }
   }
+
+  // Clean up sandbox
+  try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* ignore */ }
 
   // Summarize
   const byFramework: Record<string, { totalChars: number; passed: number; failed: number }> = {};
