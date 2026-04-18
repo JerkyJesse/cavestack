@@ -12,10 +12,11 @@ const OPENCLAW_NATIVE_SKILLS = [
 ];
 
 function extractFrontmatter(content: string): string {
-  expect(content.startsWith('---\n')).toBe(true);
-  const fmEnd = content.indexOf('\n---', 4);
+  const normalized = content.replace(/\r\n/g, '\n');
+  expect(normalized.startsWith('---\n')).toBe(true);
+  const fmEnd = normalized.indexOf('\n---', 4);
   expect(fmEnd).toBeGreaterThan(0);
-  return content.slice(4, fmEnd);
+  return normalized.slice(4, fmEnd);
 }
 
 describe('OpenClaw native skills', () => {
