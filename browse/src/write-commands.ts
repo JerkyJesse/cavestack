@@ -7,7 +7,7 @@
 
 import type { TabSession } from './tab-session';
 import type { BrowserManager } from './browser-manager';
-import { findInstalledBrowsers, importCookies, listSupportedBrowserNames } from './cookie-import-browser';
+import { findInstalledBrowsers, importCookies, importCookiesViaCdp, hasV20Cookies, listSupportedBrowserNames } from './cookie-import-browser';
 import { generatePickerCode } from './cookie-picker-routes';
 import { validateNavigationUrl } from './url-validation';
 import { validateOutputPath } from './path-security';
@@ -504,7 +504,11 @@ export async function handleWriteCommand(
           throw new Error(`--domain "${domain}" does not match current page domain "${pageHostname}". Navigate to the target site first.`);
         }
         const browser = browserArg || 'comet';
-        const result = await importCookies(browser, [domain], profile);
+        let result = await importCookies(browser, [domain], profile);
+        // If all cookies failed and v20 is detected, try CDP extraction
+        if (result.cookies.length === 0 && result.failed > 0 && hasV20Cookies(browser, profile)) {
+          result = await importCookiesViaCdp(browser, [domain], profile);
+        }
         if (result.cookies.length > 0) {
           await page.context().addCookies(result.cookies);
           bm.trackCookieImportDomains([domain]);
