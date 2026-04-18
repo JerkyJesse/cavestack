@@ -757,38 +757,104 @@ const idleCheckInterval = setInterval(() => {
 // server can become an orphan — keeping chrome-headless-shell alive and
 // causing console-window flicker on Windows. Poll the parent PID every 15s
 // and self-terminate if it is gone.
+//
+// PID reuse guard: the OS can recycle the parent's PID to an unrelated
+// new process during the 15s poll window. Without a guard, `process.kill(pid, 0)`
+// would succeed against the new process and keep the server alive forever.
+// We capture the parent's start time at launch and re-check it on every
+// poll; mismatch means the original parent is gone even if the PID is
+// alive. Platform-specific: ps -o lstart= on mac/linux, WMIC on Windows.
 const BROWSE_PARENT_PID = parseInt(process.env.BROWSE_PARENT_PID || '0', 10);
-// Outer gate: if the spawner explicitly marks this as headed (env var set at
-// launch time), skip registering the watchdog entirely. Cheaper than entering
-// the closure every 15s. The CLI's connect path sets BROWSE_HEADED=1 + PID=0,
-// so this branch is the normal path for /open-cavestack-browser.
 const IS_HEADED_WATCHDOG = process.env.BROWSE_HEADED === '1';
+
+function getProcessStartTime(pid: number): string | null {
+  try {
+    if (process.platform === 'win32') {
+      // WMIC is deprecated on Win11 but still present; fall back to PowerShell.
+      const wmic = Bun.spawnSync(
+        ['wmic', 'process', 'where', `ProcessId=${pid}`, 'get', 'CreationDate', '/value'],
+        { stdout: 'pipe', stderr: 'ignore' },
+      );
+      if (wmic.exitCode === 0) {
+        const out = wmic.stdout.toString();
+        const match = out.match(/CreationDate=(\S+)/);
+        if (match) return match[1];
+      }
+      // PowerShell fallback for systems without WMIC.
+      const ps = Bun.spawnSync(
+        ['powershell', '-NoProfile', '-Command', `(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).StartTime.ToFileTimeUtc()`],
+        { stdout: 'pipe', stderr: 'ignore' },
+      );
+      if (ps.exitCode === 0) {
+        const out = ps.stdout.toString().trim();
+        if (out) return out;
+      }
+      return null;
+    }
+    // mac + linux: ps -o lstart= gives a stable full-second timestamp.
+    const ps = Bun.spawnSync(['ps', '-p', String(pid), '-o', 'lstart='], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+    });
+    if (ps.exitCode === 0) {
+      const out = ps.stdout.toString().trim();
+      return out || null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+const PARENT_START_TIME = BROWSE_PARENT_PID > 0 ? getProcessStartTime(BROWSE_PARENT_PID) : null;
+
 if (BROWSE_PARENT_PID > 0 && !IS_HEADED_WATCHDOG) {
   let parentGone = false;
   setInterval(() => {
-    try {
-      process.kill(BROWSE_PARENT_PID, 0); // signal 0 = existence check only, no signal sent
-    } catch {
-      // Parent exited. Resolution order:
-      // 1. Active cookie picker (one-time code or session live)? Stay alive
-      //    regardless of mode — tearing down the server mid-import leaves the
-      //    picker UI with a stale "Failed to fetch" error.
-      // 2. Headed / tunnel mode? Shutdown. The idle timeout doesn't apply in
-      //    these modes (see idleCheckInterval above — both early-return), so
-      //    ignoring parent death here would leak orphan daemons after
-      //    /pair-agent or /open-cavestack-browser sessions.
-      // 3. Normal (headless) mode? Stay alive. Claude Code's Bash tool kills
-      //    the parent shell between invocations. The idle timeout (30 min)
-      //    handles eventual cleanup.
-      if (hasActivePicker()) return;
-      const headed = browserManager.getConnectionMode() === 'headed';
-      if (headed || tunnelActive) {
-        console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited in ${headed ? 'headed' : 'tunnel'} mode, shutting down`);
-        shutdown();
-      } else if (!parentGone) {
-        parentGone = true;
-        console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited (server stays alive, idle timeout will clean up)`);
+    // PID reuse guard: if we captured a start time at launch, compare it
+    // against the current process with this PID. Mismatch => PID reuse =>
+    // original parent is gone.
+    let pidReused = false;
+    if (PARENT_START_TIME) {
+      const current = getProcessStartTime(BROWSE_PARENT_PID);
+      if (current && current !== PARENT_START_TIME) {
+        pidReused = true;
       }
+    }
+
+    let parentAlive = true;
+    if (pidReused) {
+      parentAlive = false;
+    } else {
+      try {
+        process.kill(BROWSE_PARENT_PID, 0); // signal 0 = existence check only
+      } catch {
+        parentAlive = false;
+      }
+    }
+
+    if (parentAlive) return;
+
+    // Parent exited (or PID was reused). Resolution order:
+    // 1. Active cookie picker (one-time code or session live)? Stay alive
+    //    regardless of mode — tearing down the server mid-import leaves the
+    //    picker UI with a stale "Failed to fetch" error.
+    // 2. Headed / tunnel mode? Shutdown. The idle timeout doesn't apply in
+    //    these modes (see idleCheckInterval above — both early-return), so
+    //    ignoring parent death here would leak orphan daemons after
+    //    /pair-agent or /open-cavestack-browser sessions.
+    // 3. Normal (headless) mode? Stay alive. Claude Code's Bash tool kills
+    //    the parent shell between invocations. The idle timeout (30 min)
+    //    handles eventual cleanup.
+    if (hasActivePicker()) return;
+    const headed = browserManager.getConnectionMode() === 'headed';
+    const reuseNote = pidReused ? ' (PID reused)' : '';
+    if (headed || tunnelActive) {
+      console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited${reuseNote} in ${headed ? 'headed' : 'tunnel'} mode, shutting down`);
+      shutdown();
+    } else if (!parentGone) {
+      parentGone = true;
+      console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited${reuseNote} (server stays alive, idle timeout will clean up)`);
     }
   }, 15_000);
 }
