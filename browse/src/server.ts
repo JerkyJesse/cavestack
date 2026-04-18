@@ -17,7 +17,7 @@ import { BrowserManager } from './browser-manager';
 import { handleReadCommand } from './read-commands';
 import { handleWriteCommand } from './write-commands';
 import { handleMetaCommand } from './meta-commands';
-import { handleCookiePickerRoute } from './cookie-picker-routes';
+import { handleCookiePickerRoute, hasActivePicker } from './cookie-picker-routes';
 import { sanitizeExtensionUrl } from './sidebar-utils';
 import { COMMAND_DESCRIPTIONS, PAGE_CONTENT_COMMANDS, wrapUntrustedContent } from './commands';
 import {
@@ -758,13 +758,37 @@ const idleCheckInterval = setInterval(() => {
 // causing console-window flicker on Windows. Poll the parent PID every 15s
 // and self-terminate if it is gone.
 const BROWSE_PARENT_PID = parseInt(process.env.BROWSE_PARENT_PID || '0', 10);
-if (BROWSE_PARENT_PID > 0) {
+// Outer gate: if the spawner explicitly marks this as headed (env var set at
+// launch time), skip registering the watchdog entirely. Cheaper than entering
+// the closure every 15s. The CLI's connect path sets BROWSE_HEADED=1 + PID=0,
+// so this branch is the normal path for /open-cavestack-browser.
+const IS_HEADED_WATCHDOG = process.env.BROWSE_HEADED === '1';
+if (BROWSE_PARENT_PID > 0 && !IS_HEADED_WATCHDOG) {
+  let parentGone = false;
   setInterval(() => {
     try {
       process.kill(BROWSE_PARENT_PID, 0); // signal 0 = existence check only, no signal sent
     } catch {
-      console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited, shutting down`);
-      shutdown();
+      // Parent exited. Resolution order:
+      // 1. Active cookie picker (one-time code or session live)? Stay alive
+      //    regardless of mode — tearing down the server mid-import leaves the
+      //    picker UI with a stale "Failed to fetch" error.
+      // 2. Headed / tunnel mode? Shutdown. The idle timeout doesn't apply in
+      //    these modes (see idleCheckInterval above — both early-return), so
+      //    ignoring parent death here would leak orphan daemons after
+      //    /pair-agent or /open-cavestack-browser sessions.
+      // 3. Normal (headless) mode? Stay alive. Claude Code's Bash tool kills
+      //    the parent shell between invocations. The idle timeout (30 min)
+      //    handles eventual cleanup.
+      if (hasActivePicker()) return;
+      const headed = browserManager.getConnectionMode() === 'headed';
+      if (headed || tunnelActive) {
+        console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited in ${headed ? 'headed' : 'tunnel'} mode, shutting down`);
+        shutdown();
+      } else if (!parentGone) {
+        parentGone = true;
+        console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited (server stays alive, idle timeout will clean up)`);
+      }
     }
   }, 15_000);
 }
@@ -1225,8 +1249,36 @@ async function shutdown() {
 }
 
 // Handle signals
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+//
+// Node passes the signal name (e.g. 'SIGTERM') as the first arg to listeners.
+// Wrap calls to shutdown() so it receives no args — otherwise the string gets
+// passed as exitCode and process.exit() coerces it to NaN, exiting with code 1
+// instead of 0.
+//
+// SIGINT (Ctrl+C): user intentionally stopping → shutdown.
+process.on('SIGINT', () => shutdown());
+// SIGTERM behavior depends on mode:
+// - Normal (headless) mode: Claude Code's Bash sandbox fires SIGTERM when the
+//   parent shell exits between tool invocations. Ignoring it keeps the server
+//   alive across $B calls. Idle timeout (30 min) handles eventual cleanup.
+// - Headed / tunnel mode: idle timeout doesn't apply in these modes. Respect
+//   SIGTERM so external tooling (systemd, supervisord, CI) can shut cleanly
+//   without waiting forever. Ctrl+C and /stop still work either way.
+// - Active cookie picker: never tear down mid-import regardless of mode —
+//   would strand the picker UI with "Failed to fetch."
+process.on('SIGTERM', () => {
+  if (hasActivePicker()) {
+    console.log('[browse] Received SIGTERM but cookie picker is active, ignoring to avoid stranding the picker UI');
+    return;
+  }
+  const headed = browserManager.getConnectionMode() === 'headed';
+  if (headed || tunnelActive) {
+    console.log(`[browse] Received SIGTERM in ${headed ? 'headed' : 'tunnel'} mode, shutting down`);
+    shutdown();
+  } else {
+    console.log('[browse] Received SIGTERM (ignoring — use /stop or Ctrl+C for intentional shutdown)');
+  }
+});
 // Windows: taskkill /F bypasses SIGTERM, but 'exit' fires for some shutdown paths.
 // Defense-in-depth — primary cleanup is the CLI's stale-state detection via health check.
 if (process.platform === 'win32') {
