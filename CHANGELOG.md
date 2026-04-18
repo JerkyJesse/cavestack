@@ -1,25 +1,36 @@
 # Changelog
 
-## [1.2.2.0] - 2026-04-17 — Windows cookie import, cookie picker survives CLI exit, caveman locked to full
+## [1.2.2.0] - 2026-04-18 — Windows cookie import, cookie picker survives CLI exit, caveman locked to full
 
 Windows cookie import works now. Chrome 80+ moved cookies from
 `profile/Cookies` to `profile/Network/Cookies`, uses DPAPI for the master
 key, and v20 App-Bound Encryption on newer versions. cavestack handles all
-three: profile auto-discovery, DPAPI decryption via PowerShell, and a CDP
-headless fallback for v20 cookies that bypass user-space decryption.
+three: profile auto-discovery, DPAPI decryption via PowerShell (with a
+`pwsh.exe` fallback on hardened systems), and a CDP headless fallback for
+v20 cookies that bypass user-space decryption.
 
-The cookie picker UI now survives after the CLI exits. Before, running
-`$B cookies import --picker` spawned a picker server that died the moment
-the CLI process ended, leaving users staring at a dead port. Now the
-picker stays alive while codes are pending and shuts itself down after
-timeout.
+When v20 decryption kicks in, the cookie picker now pops a confirmation
+dialog first. The fallback has to launch Chrome against your real profile
+directory (v20 keys are path-bound, so a copy won't work). If Chrome is
+force-killed mid-launch, profile state can corrupt. You get the warning
+before the launch happens so the risk is your call.
 
-The browse server now persists across Claude Code Bash calls. The sandbox
-sends SIGTERM between tool invocations, which previously killed the server
-mid-session. Now SIGTERM is ignored in normal (headless) mode. Headed +
-tunnel modes still respect it (leaked browsers on shared machines were a
-real resource leak). SIGINT and `/stop` still work for intentional
-shutdown.
+The cookie picker UI survives after the CLI exits. Before, `$B cookies
+import --picker` spawned a picker server that died the moment the CLI
+process ended, leaving users staring at a dead port. Now the picker stays
+alive while codes are pending and shuts itself down after timeout.
+
+The browse server persists across Claude Code Bash calls. The sandbox
+sends SIGTERM between tool invocations, which previously killed the
+server mid-session. Now SIGTERM is ignored in normal (headless) mode.
+Headed + tunnel modes still respect it (leaked browsers on shared
+machines were a real resource leak). SIGINT and `/stop` still work.
+
+The server watchdog that detects a vanished parent process is now
+resilient to Windows PID reuse. Before, a recycled PID could make the
+server think its parent was still alive forever; now we capture the
+parent's start time at launch and reject a mismatch as a dead parent
+even when the PID is reusing.
 
 Caveman mode is now locked to **full**. No more `/caveman lite` or
 `/caveman ultra` — one compression level for everyone. Wenyan variants
@@ -34,11 +45,15 @@ session. Reduces decision fatigue; nobody was switching levels anyway.
   handling, AES-256-GCM decryption with platform branching (Windows vs.
   AES-128-CBC on mac/linux), v20 App-Bound Encryption detection.
 - **CDP fallback for v20 cookies** (#892). When v20 encryption blocks
-  direct key access, cavestack launches Chrome headless with
-  `--remote-debugging-port` on the real profile and extracts cookies via
-  `Network.getAllCookies` over CDP WebSocket. Requires Chrome to be closed
-  (v20 keys are path-bound to user-data-dir). Both picker UI and CLI
-  direct-import paths fall back automatically.
+  direct key access, cavestack launches Chrome headless on the real
+  profile and extracts cookies via `Network.getAllCookies` over CDP
+  WebSocket. Chrome picks a debug port itself (`--remote-debugging-port=0`)
+  and we read the chosen port from `DevToolsActivePort` in user-data-dir,
+  so there's no collision risk with other Chrome-based tools.
+- **Preflight warning in the cookie picker** before v20 CDP launch. The
+  UI now asks you to confirm before launching Chrome against your real
+  profile, surfacing the profile-corruption risk of a force-killed
+  headless launch.
 - **`hasActivePicker()` gate** (#996). Cookie picker stays alive while
   codes are pending; only shuts down after all codes expire.
 
@@ -49,6 +64,24 @@ session. Reduces decision fatigue; nobody was switching levels anyway.
   Claude Code Bash calls. Headed + tunnel modes still shut down cleanly
   on SIGTERM (prevents leaked browsers on shared machines). SIGINT always
   shuts down. Idle timeout (30 min) handles eventual cleanup.
+- **Parent-PID watchdog guards against Windows PID reuse.** The watchdog
+  captures the parent's creation time at launch (via WMIC / PowerShell on
+  Windows, `ps -o lstart=` on mac/linux) and shuts the server down when
+  the start time mismatches, even if the PID still resolves. The probes
+  run async so the 15s tick no longer blocks the event loop.
+- **Windows tree-kill for spawned processes.** Every kill site
+  (DPAPI PowerShell, macOS Keychain, secret-tool, Chrome headless) now
+  routes through `taskkill /F /T /PID` on Windows so Chrome's renderer,
+  GPU, and utility children no longer orphan and lock the profile.
+- **Windows AES-256 key handling is now per-session.** The master key is
+  cached as the DPAPI-encrypted blob (safe at rest) instead of the
+  decrypted key. Plaintext is zeroed after each import. macOS and Linux
+  still cache the derived key — the Keychain prompt makes re-derivation
+  expensive and the threat model is unchanged there.
+- **Temp cookie-DB copies are swept on process crash.** If the server
+  dies via SIGKILL or an uncaught exception before `Database.close()`
+  runs, the exit + uncaughtException + unhandledRejection handlers now
+  unlink the `.db` / `.db-wal` / `.db-shm` files they created.
 - **Caveman voice locked to full**. `/caveman lite` and `/caveman ultra`
   removed. `caveman-lite.json` and `caveman-ultra.json` voice profiles
   deleted. SKILL docs, README, setup, web docs, and tests updated to
@@ -73,9 +106,20 @@ session. Reduces decision fatigue; nobody was switching levels anyway.
 
 ### For contributors
 
-- New regression test `test/openclaw-native-skills.test.ts` enforces
+- New regression tests: `test/openclaw-native-skills.test.ts` enforces
   strict frontmatter (name + description only) on the four native
-  OpenClaw skills. CRLF-tolerant for Windows git checkouts.
+  OpenClaw skills, CRLF-tolerant for Windows git checkouts. New direct
+  unit tests for `hasActivePicker()` and the `/cookie-picker/preflight`
+  endpoint.
+- `importCookiesWithV20Fallback()` consolidates the v10→CDP fallback
+  heuristic previously duplicated between the picker route and the
+  write-commands direct-import path.
+- `extractCookiesViaCdp` now has a fresh 15s budget for target
+  discovery; the shared deadline with DevToolsActivePort polling could
+  silently shrink the target-discovery window on a cold Chrome launch.
+- Exit-sweep handlers for temp cookie DBs no longer re-throw from
+  `uncaughtException` / `unhandledRejection` — they sweep and let Node's
+  default handler produce the diagnostic.
 - Ported from garrytan/gstack#1028 (community wave v0.18.1.0): PRs #892
   (msr-hickory), #864 (cathrynlavery), #994 + #1020 + #996 + #993
   (upstream contributors + Claude).
