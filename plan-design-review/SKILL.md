@@ -858,7 +858,7 @@ Report findings before Step 0.
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 D=""
 [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/cavestack/design/dist/design" ] && D="$_ROOT/.claude/skills/cavestack/design/dist/design"
-[ -z "$D" ] && D=~/.claude/skills/cavestack/design/dist/design
+[ -z "$D" ] && D="$HOME/.claude/skills/cavestack/design/dist/design"
 if [ -x "$D" ]; then
   echo "DESIGN_READY: $D"
 else
@@ -866,7 +866,7 @@ else
 fi
 B=""
 [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/cavestack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/cavestack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/cavestack/browse/dist/browse
+[ -z "$B" ] && B="$HOME/.claude/skills/cavestack/browse/dist/browse"
 if [ -x "$B" ]; then
   echo "BROWSE_READY: $B"
 else
@@ -941,7 +941,7 @@ First, set up the output directory. Name it after the screen/feature being desig
 
 ```bash
 eval "$(~/.claude/skills/cavestack/bin/cavestack-slug 2>/dev/null)"
-_DESIGN_DIR=~/.cavestack/projects/$SLUG/designs/<screen-name>-$(date +%Y%m%d)
+_DESIGN_DIR="$HOME/.cavestack/projects/$SLUG/designs/<screen-name>-$(date +%Y%m%d)"
 mkdir -p "$_DESIGN_DIR"
 echo "DESIGN_DIR: $_DESIGN_DIR"
 ```

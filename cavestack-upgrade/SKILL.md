@@ -53,7 +53,7 @@ Tell user: "Auto-upgrade enabled. Future updates install automatically." Then pr
 
 **If "Not now":** Write snooze state with escalating backoff (first snooze = 24h, second = 48h, third+ = 1 week), then continue with current skill. Do not mention upgrade again.
 ```bash
-_SNOOZE_FILE=~/.cavestack/update-snoozed
+_SNOOZE_FILE="$HOME/.cavestack/update-snoozed"
 _REMOTE_VER="{new}"
 _CUR_LEVEL=0
 if [ -f "$_SNOOZE_FILE" ]; then
