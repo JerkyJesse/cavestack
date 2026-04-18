@@ -116,8 +116,32 @@ const BROWSER_REGISTRY: BrowserInfo[] = [
 // ─── Key Cache ──────────────────────────────────────────────────
 // Cache derived AES keys per browser. First import per browser does
 // Keychain + PBKDF2. Subsequent imports reuse the cached key.
+//
+// Security note: keys are cached in process memory for the daemon's
+// lifetime (idle timeout 30 min). A heap dump of the browse daemon
+// reveals the AES keys used to decrypt Chromium cookies. This is the
+// same privilege boundary as Chrome itself (same-user process memory),
+// but we prefer to minimize exposure on Windows where DPAPI gives us
+// a cheap way to re-derive: we cache the encrypted DPAPI blob there
+// and decrypt on demand per session, zeroing plaintext after use.
+// On macOS / Linux the Keychain prompt makes re-derivation expensive,
+// so we keep the plaintext cache.
 
 const keyCache = new Map<string, Buffer>();
+// Windows-only: cache the encrypted DPAPI blob (safe at rest because
+// DPAPI binds it to the current user account), not the decrypted AES
+// key. getDerivedKeys() decrypts per session and zeroes after use.
+const winEncryptedKeyCache = new Map<string, Buffer>();
+// Plaintext buffers from the current import that must be zeroed when
+// the caller is done. See zeroSessionKeys() below.
+type SessionKeys = { keys: Map<string, Buffer>; ephemeral: Buffer[] };
+
+function zeroSessionKeys(session: SessionKeys): void {
+  for (const buf of session.ephemeral) {
+    try { buf.fill(0); } catch {}
+  }
+  session.ephemeral.length = 0;
+}
 
 // ─── Public API ─────────────────────────────────────────────────
 
@@ -253,7 +277,7 @@ export async function importCookies(
 
   const browser = resolveBrowser(browserName);
   const match = getBrowserMatch(browser, profile);
-  const derivedKeys = await getDerivedKeys(match);
+  const session = await getDerivedKeys(match);
   const db = openDb(match.dbPath, browser.name);
 
   try {
@@ -275,7 +299,7 @@ export async function importCookies(
 
     for (const row of rows) {
       try {
-        const value = decryptCookieValue(row, derivedKeys, match.platform);
+        const value = decryptCookieValue(row, session.keys, match.platform);
         const cookie = toPlaywrightCookie(row, value);
         cookies.push(cookie);
         domainCounts[row.host_key] = (domainCounts[row.host_key] || 0) + 1;
@@ -287,6 +311,8 @@ export async function importCookies(
     return { cookies, count: cookies.length, failed, domainCounts };
   } finally {
     db.close();
+    // Zero any ephemeral plaintext key buffers (Windows-only currently).
+    zeroSessionKeys(session);
   }
 }
 
@@ -408,11 +434,44 @@ function openDb(dbPath: string, browserName: string): Database {
   }
 }
 
+// Track all temp DB copies so we can sweep them on process exit if the
+// DB is never closed normally (crash, uncaught exception, SIGKILL). The
+// files hold encrypted-at-rest Chromium cookie data; they're no more
+// sensitive than the source DB, but leaving them on disk indefinitely
+// is still a hygiene gap.
+const tempDbPaths = new Set<string>();
+let tempDbExitHandlerRegistered = false;
+
+function ensureTempDbExitHandler(): void {
+  if (tempDbExitHandlerRegistered) return;
+  tempDbExitHandlerRegistered = true;
+  const sweep = () => {
+    for (const p of tempDbPaths) {
+      for (const suffix of ['', '-wal', '-shm']) {
+        try { fs.unlinkSync(p + suffix); } catch {}
+      }
+    }
+    tempDbPaths.clear();
+  };
+  process.on('exit', sweep);
+  // Uncaught errors: best-effort cleanup then let Node re-throw / exit.
+  process.on('uncaughtException', (err) => {
+    sweep();
+    throw err;
+  });
+  process.on('unhandledRejection', (reason) => {
+    sweep();
+    throw reason;
+  });
+}
+
 function openDbFromCopy(dbPath: string, browserName: string): Database {
   // Use os.tmpdir() instead of hardcoded /tmp for cross-platform support (#708)
   const tmpPath = path.join(os.tmpdir(), `browse-cookies-${browserName.toLowerCase()}-${crypto.randomUUID()}.db`);
+  ensureTempDbExitHandler();
   try {
     fs.copyFileSync(dbPath, tmpPath);
+    tempDbPaths.add(tmpPath);
     // Also copy WAL and SHM if they exist (for consistent reads)
     const walPath = dbPath + '-wal';
     const shmPath = dbPath + '-shm';
@@ -427,17 +486,45 @@ function openDbFromCopy(dbPath: string, browserName: string): Database {
       try { fs.unlinkSync(tmpPath); } catch {}
       try { fs.unlinkSync(tmpPath + '-wal'); } catch {}
       try { fs.unlinkSync(tmpPath + '-shm'); } catch {}
+      tempDbPaths.delete(tmpPath);
     };
     return db;
   } catch {
     // Clean up on failure
     try { fs.unlinkSync(tmpPath); } catch {}
+    tempDbPaths.delete(tmpPath);
     throw new CookieImportError(
       `Cookie database is locked (${browserName} may be running). Try closing ${browserName} first.`,
       'db_locked',
       'retry',
     );
   }
+}
+
+// ─── Internal: Process Tree Kill (Windows-aware) ─────────────────
+// Bun.spawn.kill() on Windows uses TerminateProcess which does NOT kill
+// child processes. Chrome spawns renderers/GPU/utility procs that would
+// orphan and keep the profile locked, blocking subsequent CDP launches.
+// taskkill /F /T /PID kills the whole tree.
+
+function killProcessTree(proc: Bun.Subprocess): void {
+  const pid = proc.pid;
+  if (pid == null) {
+    try { proc.kill(); } catch {}
+    return;
+  }
+  if (process.platform === 'win32') {
+    try {
+      Bun.spawnSync(['taskkill', '/F', '/T', '/PID', String(pid)], {
+        stdout: 'ignore',
+        stderr: 'ignore',
+      });
+      return;
+    } catch {
+      // Fall through to proc.kill() as last resort.
+    }
+  }
+  try { proc.kill(); } catch {}
 }
 
 // ─── Internal: Keychain Access (async, 10s timeout) ─────────────
@@ -454,17 +541,17 @@ function getCachedDerivedKey(cacheKey: string, password: string, iterations: num
   return derived;
 }
 
-async function getDerivedKeys(match: BrowserMatch): Promise<Map<string, Buffer>> {
+async function getDerivedKeys(match: BrowserMatch): Promise<SessionKeys> {
   if (match.platform === 'darwin') {
     const password = await getMacKeychainPassword(match.browser.keychainService);
-    return new Map([
-      ['v10', getCachedDerivedKey(`darwin:${match.browser.keychainService}:v10`, password, 1003)],
-    ]);
+    const key = getCachedDerivedKey(`darwin:${match.browser.keychainService}:v10`, password, 1003);
+    return { keys: new Map([['v10', key]]), ephemeral: [] };
   }
 
   if (match.platform === 'win32') {
+    // Decrypt fresh per session; caller must zero after use.
     const key = await getWindowsAesKey(match.browser);
-    return new Map([['v10', key]]);
+    return { keys: new Map([['v10', key]]), ephemeral: [key] };
   }
 
   const keys = new Map<string, Buffer>();
@@ -477,13 +564,15 @@ async function getDerivedKeys(match: BrowserMatch): Promise<Map<string, Buffer>>
       getCachedDerivedKey(`linux:${match.browser.keychainService}:v11`, linuxPassword, 1),
     );
   }
-  return keys;
+  return { keys, ephemeral: [] };
 }
 
 async function getWindowsAesKey(browser: BrowserInfo): Promise<Buffer> {
+  // Cache the encrypted DPAPI blob (safe) instead of the decrypted key.
+  // DPAPI decrypts quickly (~50ms) so per-session decryption is fine.
   const cacheKey = `win32:${browser.keychainService}`;
-  const cached = keyCache.get(cacheKey);
-  if (cached) return cached;
+  const cachedBlob = winEncryptedKeyCache.get(cacheKey);
+  if (cachedBlob) return dpapiDecrypt(cachedBlob);
 
   const platform = 'win32' as const;
   const dataDir = getDataDirForPlatform(browser, platform);
@@ -512,8 +601,39 @@ async function getWindowsAesKey(browser: BrowserInfo): Promise<Buffer> {
   // The stored value is base64(b"DPAPI" + dpapi_encrypted_bytes) — strip the 5-byte prefix
   const encryptedKey = Buffer.from(encryptedKeyB64, 'base64').slice(5);
   const key = await dpapiDecrypt(encryptedKey);
-  keyCache.set(cacheKey, key);
+  // Cache the encrypted blob, not the decrypted key. Plaintext key is
+  // the caller's responsibility to zero after the import completes.
+  winEncryptedKeyCache.set(cacheKey, encryptedKey);
   return key;
+}
+
+function findPowerShellExe(): string | null {
+  // Prefer Windows PowerShell 5.1 (powershell.exe) for compatibility with
+  // older Windows installs. Fall back to PowerShell 7+ (pwsh.exe) which
+  // is the default shell on some hardened / Windows 11 systems where
+  // powershell.exe is being phased out. If neither is on PATH, try the
+  // canonical install locations.
+  const candidates = [
+    'powershell.exe',
+    'pwsh.exe',
+    path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'PowerShell', '7', 'pwsh.exe'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      // Use `where` to resolve PATH; fs.existsSync for absolute paths.
+      if (candidate.includes('\\') || candidate.includes('/')) {
+        if (fs.existsSync(candidate)) return candidate;
+        continue;
+      }
+      const result = Bun.spawnSync(['where', candidate], { stdout: 'pipe', stderr: 'ignore' });
+      if (result.exitCode === 0) {
+        const found = result.stdout.toString().trim().split('\n')[0]?.trim();
+        if (found && fs.existsSync(found)) return found;
+      }
+    } catch {}
+  }
+  return null;
 }
 
 async function dpapiDecrypt(encryptedBytes: Buffer): Promise<Buffer> {
@@ -525,7 +645,15 @@ async function dpapiDecrypt(encryptedBytes: Buffer): Promise<Buffer> {
     'Write-Output ([System.Convert]::ToBase64String($dec))',
   ].join('; ');
 
-  const proc = Bun.spawn(['powershell', '-NoProfile', '-Command', script], {
+  const psExe = findPowerShellExe();
+  if (!psExe) {
+    throw new CookieImportError(
+      'Cannot find powershell.exe or pwsh.exe. DPAPI decryption requires PowerShell. Install PowerShell 7 or re-enable Windows PowerShell.',
+      'keychain_error',
+    );
+  }
+
+  const proc = Bun.spawn([psExe, '-NoProfile', '-Command', script], {
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
@@ -536,7 +664,7 @@ async function dpapiDecrypt(encryptedBytes: Buffer): Promise<Buffer> {
 
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(() => {
-      proc.kill();
+      killProcessTree(proc);
       reject(new CookieImportError('DPAPI decryption timed out', 'keychain_timeout', 'retry'));
     }, 10_000),
   );
@@ -568,7 +696,7 @@ async function getMacKeychainPassword(service: string): Promise<string> {
 
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(() => {
-      proc.kill();
+      killProcessTree(proc);
       reject(new CookieImportError(
         `macOS is waiting for Keychain permission. Look for a dialog asking to allow access to "${service}".`,
         'keychain_timeout',
@@ -641,7 +769,7 @@ async function runPasswordLookup(cmd: string[], timeoutMs: number): Promise<stri
     const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' });
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => {
-        proc.kill();
+        killProcessTree(proc);
         reject(new Error('timeout'));
       }, timeoutMs),
     );
@@ -836,17 +964,21 @@ export async function importCookiesViaCdp(
   //     running as the same user could connect and read cookies, but if an
   //     attacker already has local-user access they can read the cookie DB
   //     directly. Threat model: no worse than baseline.
-  //   - Port is randomized in [9222, 9321] to avoid collisions with other
-  //     Chrome-based tools the user may have open. Not cryptographic.
-  //   - Chrome is always killed in the finally block below (even on crash).
+  //   - Port 0 lets Chrome pick any free port. The real port is read from
+  //     the DevToolsActivePort file Chrome writes to user-data-dir on
+  //     startup. Avoids the race where a random port in [9222,9321] is
+  //     already taken by another Chrome-based tool.
+  //   - killProcessTree() kills Chrome + all child processes (renderer/GPU/
+  //     utility) in the finally block below; on Windows this uses
+  //     taskkill /F /T /PID because Bun.spawn.kill() only terminates the
+  //     root process, leaving orphans that hold the profile lock.
   //
   // Debugging note: if this path starts failing after a Chrome update,
   // check the Chrome version logged below — Chrome's ABE key format (v20)
   // or /json/list shape can change between major versions.
-  const debugPort = 9222 + Math.floor(Math.random() * 100);
   const chromeProc = Bun.spawn([
     exePath,
-    `--remote-debugging-port=${debugPort}`,
+    '--remote-debugging-port=0',
     `--user-data-dir=${userDataDir}`,
     `--profile-directory=${profile}`,
     '--headless=new',
@@ -858,10 +990,40 @@ export async function importCookiesViaCdp(
     '--no-default-browser-check',
   ], { stdout: 'pipe', stderr: 'pipe' });
 
-  // Wait for Chrome to start, then find a page target's WebSocket URL.
+  // Chrome writes the chosen debug port to DevToolsActivePort in
+  // user-data-dir when --remote-debugging-port=0 is used. First line is
+  // the port, second line is the browser-level WebSocket path. Poll for
+  // the file to appear (Chrome writes it once the port is bound).
+  const devToolsPortFile = path.join(userDataDir, 'DevToolsActivePort');
+  let debugPort: number | null = null;
+  const startTime = Date.now();
+  while (Date.now() - startTime < 15_000) {
+    try {
+      if (fs.existsSync(devToolsPortFile)) {
+        const contents = fs.readFileSync(devToolsPortFile, 'utf-8').trim();
+        const firstLine = contents.split('\n')[0]?.trim();
+        const parsed = firstLine ? parseInt(firstLine, 10) : NaN;
+        if (Number.isFinite(parsed) && parsed > 0) {
+          debugPort = parsed;
+          break;
+        }
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  if (debugPort == null) {
+    killProcessTree(chromeProc);
+    throw new CookieImportError(
+      `${browser.name} headless did not write DevToolsActivePort within 15s`,
+      'cdp_timeout',
+      'retry',
+    );
+  }
+
+  // Now find a page target's WebSocket URL.
   // Network.getAllCookies is only available on page targets, not browser.
   let wsUrl: string | null = null;
-  const startTime = Date.now();
   let loggedVersion = false;
   while (Date.now() - startTime < 15_000) {
     try {
@@ -871,7 +1033,7 @@ export async function importCookiesViaCdp(
           const versionResp = await fetch(`http://127.0.0.1:${debugPort}/json/version`);
           if (versionResp.ok) {
             const v = await versionResp.json() as { Browser?: string };
-            console.log(`[cookie-import] CDP fallback: ${browser.name} ${v.Browser || 'unknown version'}`);
+            console.log(`[cookie-import] CDP fallback: ${browser.name} ${v.Browser || 'unknown version'} on port ${debugPort}`);
             loggedVersion = true;
           }
         } catch {}
@@ -892,9 +1054,9 @@ export async function importCookiesViaCdp(
   }
 
   if (!wsUrl) {
-    chromeProc.kill();
+    killProcessTree(chromeProc);
     throw new CookieImportError(
-      `${browser.name} headless did not start within 15s`,
+      `${browser.name} headless did not expose a page target within 15s`,
       'cdp_timeout',
       'retry',
     );
@@ -911,7 +1073,7 @@ export async function importCookiesViaCdp(
 
     return { cookies, count: cookies.length, failed: 0, domainCounts };
   } finally {
-    chromeProc.kill();
+    killProcessTree(chromeProc);
   }
 }
 
