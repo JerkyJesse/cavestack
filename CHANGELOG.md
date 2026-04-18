@@ -1,5 +1,85 @@
 # Changelog
 
+## [1.2.2.0] - 2026-04-17 — Windows cookie import, cookie picker survives CLI exit, caveman locked to full
+
+Windows cookie import works now. Chrome 80+ moved cookies from
+`profile/Cookies` to `profile/Network/Cookies`, uses DPAPI for the master
+key, and v20 App-Bound Encryption on newer versions. cavestack handles all
+three: profile auto-discovery, DPAPI decryption via PowerShell, and a CDP
+headless fallback for v20 cookies that bypass user-space decryption.
+
+The cookie picker UI now survives after the CLI exits. Before, running
+`$B cookies import --picker` spawned a picker server that died the moment
+the CLI process ended, leaving users staring at a dead port. Now the
+picker stays alive while codes are pending and shuts itself down after
+timeout.
+
+The browse server now persists across Claude Code Bash calls. The sandbox
+sends SIGTERM between tool invocations, which previously killed the server
+mid-session. Now SIGTERM is ignored in normal (headless) mode. Headed +
+tunnel modes still respect it (leaked browsers on shared machines were a
+real resource leak). SIGINT and `/stop` still work for intentional
+shutdown.
+
+Caveman mode is now locked to **full**. No more `/caveman lite` or
+`/caveman ultra` — one compression level for everyone. Wenyan variants
+(`wenyan-lite`, `wenyan-full`, `wenyan-ultra`) are still available via
+`/caveman wenyan`. "stop caveman" and "normal mode" still disable per
+session. Reduces decision fatigue; nobody was switching levels anyway.
+
+### Added
+
+- **Windows cookie import** (#892). DPAPI decryption, profile discovery
+  under `%LOCALAPPDATA%\Google\Chrome\User Data`, Chrome 80+ cookie path
+  handling, AES-256-GCM decryption with platform branching (Windows vs.
+  AES-128-CBC on mac/linux), v20 App-Bound Encryption detection.
+- **CDP fallback for v20 cookies** (#892). When v20 encryption blocks
+  direct key access, cavestack launches Chrome headless with
+  `--remote-debugging-port` on the real profile and extracts cookies via
+  `Network.getAllCookies` over CDP WebSocket. Requires Chrome to be closed
+  (v20 keys are path-bound to user-data-dir). Both picker UI and CLI
+  direct-import paths fall back automatically.
+- **`hasActivePicker()` gate** (#996). Cookie picker stays alive while
+  codes are pending; only shuts down after all codes expire.
+
+### Changed
+
+- **Browse server SIGTERM behavior** (#994 + #1020). Normal headless mode
+  ignores SIGTERM and parent-PID watchdog so the server persists across
+  Claude Code Bash calls. Headed + tunnel modes still shut down cleanly
+  on SIGTERM (prevents leaked browsers on shared machines). SIGINT always
+  shuts down. Idle timeout (30 min) handles eventual cleanup.
+- **Caveman voice locked to full**. `/caveman lite` and `/caveman ultra`
+  removed. `caveman-lite.json` and `caveman-ultra.json` voice profiles
+  deleted. SKILL docs, README, setup, web docs, and tests updated to
+  reflect the single level.
+
+### Fixed
+
+- **Tilde-in-assignment triggering Claude Code permission prompts**
+  (#993). `scripts/resolvers/design.ts` (3 spots) and 4 skill templates
+  (`design-shotgun`, `plan-design-review`, `design-consultation`,
+  `design-review`, `cavestack-upgrade`) now use `"$HOME/..."` instead of
+  bare `~/...`. Resolves the permission-dialog spam when skills set up
+  their design/browse/report directories.
+- **OpenClaw native skills now load in Codex** (#864). Normalized YAML
+  frontmatter on the 4 hand-authored OpenClaw skills
+  (`cavestack-openclaw-ceo-review`, `cavestack-openclaw-investigate`,
+  `cavestack-openclaw-office-hours`, `cavestack-openclaw-retro`). Dropped
+  non-standard `version` and `metadata` fields; rewrote descriptions into
+  simple "Use when..." form without inline colons. Codex CLI was
+  rejecting the old frontmatter with "mapping values are not allowed in
+  this context."
+
+### For contributors
+
+- New regression test `test/openclaw-native-skills.test.ts` enforces
+  strict frontmatter (name + description only) on the four native
+  OpenClaw skills. CRLF-tolerant for Windows git checkouts.
+- Ported from garrytan/gstack#1028 (community wave v0.18.1.0): PRs #892
+  (msr-hickory), #864 (cathrynlavery), #994 + #1020 + #996 + #993
+  (upstream contributors + Claude).
+
 ## [1.2.1.0] - 2026-04-17 — Resume Protocol rail: every skill ends with a paste-ready handoff
 
 Every cavestack skill now closes with a two-section Resume Protocol: a
