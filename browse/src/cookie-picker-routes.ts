@@ -218,6 +218,29 @@ export async function handleCookiePickerRoute(
       }, { port });
     }
 
+    // GET /cookie-picker/preflight?browser=<name>&profile=<profile>
+    // Called by the UI before import. Reports whether v20 App-Bound
+    // Encryption is present so the UI can warn the user that import will
+    // launch Chrome headless against the real profile dir (theoretical
+    // profile-state corruption risk if Chrome is killed mid-launch).
+    if (pathname === '/cookie-picker/preflight' && req.method === 'GET') {
+      const browserName = url.searchParams.get('browser');
+      if (!browserName) {
+        return errorResponse("Missing 'browser' parameter", 'missing_param', { port });
+      }
+      const profile = url.searchParams.get('profile') || 'Default';
+      let v20 = false;
+      try {
+        v20 = hasV20Cookies(browserName, profile);
+      } catch {}
+      return jsonResponse({
+        v20Detected: v20,
+        warning: v20
+          ? `${browserName} uses App-Bound Encryption (v20) on this profile. Importing will briefly launch ${browserName} in headless mode against your real profile directory. Close ${browserName} first. If Chrome is force-killed mid-launch, profile state (Preferences, Local State) could be corrupted. Risk is low but non-zero.`
+          : null,
+      }, { port });
+    }
+
     // POST /cookie-picker/import — decrypt + import to Playwright session
     if (pathname === '/cookie-picker/import' && req.method === 'POST') {
       let body: any;
