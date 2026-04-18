@@ -4,7 +4,7 @@
 
 **CaveStack** is an AI builder framework by JerkyJesse, with [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) integrated as always-on terse-response behavior.
 
-**Caveman integration:** on every SessionStart, `hooks/caveman-activate.js` injects the caveman ruleset (drop articles, fragments OK, short synonyms). `hooks/caveman-mode-tracker.js` handles `/caveman lite|full|ultra` and `stop caveman` toggles. Default mode is `full`. Code/commits/PRs are exempt from caveman compression and are written normally.
+**Caveman integration:** on every SessionStart, `hooks/caveman-activate.js` injects the caveman ruleset (drop articles, fragments OK, short synonyms). `hooks/caveman-mode-tracker.js` handles the `/caveman` resume command, wenyan variants (`wenyan`, `wenyan-lite`, `wenyan-ultra`), and `stop caveman`. Cavestack locks caveman to `full` — lite/ultra branches stripped, see commit `06e5f97`. Code/commits/PRs are exempt from caveman compression and are written normally.
 
 **Command prefix:** `cavestack-config` persists the `prefix` flag; setup enables prefix by default so skills surface as `/cavestack-qa`, `/cavestack-ship`, etc. Disable with `bin/cavestack-config prefix false && bin/cavestack-relink`.
 

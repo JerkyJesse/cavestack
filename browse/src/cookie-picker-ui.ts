@@ -269,6 +269,11 @@ export function getCookiePickerHTML(serverPort: number): string {
     border-bottom: 1px solid #112233;
     color: #60a5fa;
   }
+  .banner.warning {
+    background: #1f1507;
+    border-bottom: 1px solid #3a2a0f;
+    color: #fbbf24;
+  }
   .banner .banner-text { flex: 1; }
   .banner .banner-close, .banner .banner-retry {
     background: none;
@@ -347,6 +352,8 @@ export function getCookiePickerHTML(serverPort: number): string {
   let allDomains = [];
   let importedSet = {};  // domain → count
   let inflight = {};     // domain → true (prevents double-click)
+  let v20Warning = null; // text to confirm before import, null when safe
+  let v20Acknowledged = false; // user confirmed for this browser+profile
 
   const $pills = document.getElementById('browser-pills');
   const $profilePills = document.getElementById('profile-pills');
@@ -503,10 +510,28 @@ export function getCookiePickerHTML(serverPort: number): string {
       const data = await api('/domains?browser=' + encodeURIComponent(activeBrowser) + '&profile=' + encodeURIComponent(activeProfile));
       allDomains = data.domains;
       renderSourceDomains();
+      // Preflight: detect v20 App-Bound Encryption for this browser+profile.
+      // If present, warn the user before their first import attempt.
+      v20Warning = null;
+      v20Acknowledged = false;
+      try {
+        const pre = await api('/preflight?browser=' + encodeURIComponent(activeBrowser) + '&profile=' + encodeURIComponent(activeProfile));
+        if (pre && pre.v20Detected && pre.warning) {
+          v20Warning = pre.warning;
+          showBanner(pre.warning + ' You will be asked to confirm before import runs.', 'warning', null);
+        }
+      } catch {}
     } catch (err) {
       showBanner(err.message, 'error', err.action === 'retry' ? () => loadDomains() : null);
       $sourceDomains.innerHTML = '<div class="imported-empty">Failed to load domains</div>';
     }
+  }
+
+  function ensureV20Confirmed() {
+    if (!v20Warning || v20Acknowledged) return true;
+    const ok = window.confirm(v20Warning + '\\n\\nProceed with the import?');
+    if (ok) v20Acknowledged = true;
+    return ok;
   }
 
   // ─── Render Source Domains ─────────────
@@ -565,6 +590,7 @@ export function getCookiePickerHTML(serverPort: number): string {
   // ─── Import Domain ─────────────────────
   async function importDomain(domain) {
     if (inflight[domain] || domain in importedSet) return;
+    if (!ensureV20Confirmed()) return;
     inflight[domain] = true;
     renderSourceDomains();
 
@@ -598,6 +624,7 @@ export function getCookiePickerHTML(serverPort: number): string {
       : allDomains;
     const toImport = filtered.filter(d => !(d.domain in importedSet) && !inflight[d.domain]);
     if (toImport.length === 0) return;
+    if (!ensureV20Confirmed()) return;
 
     $btnImportAll.disabled = true;
     $btnImportAll.textContent = 'Importing...';

@@ -1,6 +1,6 @@
 # Voice Profiles
 
-Voice profiles control how CaveStack skills emit prose — from vanilla verbose (`none`) through caveman-full and caveman-ultra.
+Voice profiles control how CaveStack skills emit prose — from vanilla verbose (`none`) through caveman-full.
 
 Each profile is a JSON file validated against `schema.json`. `generateVoiceDirective()` in `scripts/resolvers/preamble.ts` reads the active profile and injects the directive into every generated SKILL.md.
 
@@ -34,20 +34,18 @@ Resolution order (first match wins):
 
 `density_thresholds` defines the runtime floor enforced by the `caveman-voice-verify` Stop hook. Every caveman profile ships with a threshold object. `none` has no thresholds (verbose by design).
 
-| Metric | `caveman-full` | `caveman-lite` | `caveman-ultra` |
-|---|---|---|---|
-| `articlesPerHundred` | 2.0 | 3.0 | 1.0 |
-| `fillersPerHundred` | 1.0 | 1.5 | 0.5 |
-| `hedgesPerHundred` | 0.5 | 0.75 | 0.25 |
-| `verbosePhraseMax` | 3 | 5 | 1 |
+| Metric | `caveman-full` |
+|---|---|
+| `articlesPerHundred` | 2.0 |
+| `fillersPerHundred` | 1.0 |
+| `hedgesPerHundred` | 0.5 |
+| `verbosePhraseMax` | 3 |
 
 ### Derivation
 
 Template-level defaults in `scripts/lib/voice-density.ts` (`DEFAULT_THRESHOLDS`) were calibrated from 14 already-compressed templates (commit `6c16229`) at the 90th percentile of compressed results. Runtime thresholds tighten that:
 
 - `caveman-full` sits ~2.25x tighter than template defaults. Compressed assistant output (single message, no headers/tables) scores lower than compressed templates, which contain scaffolding. Tighter gate catches model drift without false-positive-tripping compressed-but-not-cave prose.
-- `caveman-lite` sits ~1.5x looser than `caveman-full`. Lite keeps articles + sentence structure, so `articlesPerHundred` is proportionally higher.
-- `caveman-ultra` sits ~2x stricter than `caveman-full`. Ultra demands fragments + tables; any article or filler is a miss.
 
 ### When to adjust
 

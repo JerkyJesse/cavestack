@@ -15,14 +15,12 @@ Display this reference card when invoked. One-shot — do NOT change mode, write
 
 | Mode | Trigger | What change |
 |------|---------|-------------|
-| **Lite** | `/caveman lite` | Drop filler. Keep sentence structure. |
-| **Full** | `/caveman` | Drop articles, filler, pleasantries, hedging. Fragments OK. Default. |
-| **Ultra** | `/caveman ultra` | Extreme compression. Bare fragments. Tables over prose. |
+| **Full** | `/caveman` | Drop articles, filler, pleasantries, hedging. Fragments OK. Locked default. |
 | **Wenyan-Lite** | `/caveman wenyan-lite` | Classical Chinese style, light compression. |
 | **Wenyan-Full** | `/caveman wenyan` | Full 文言文. Maximum classical terseness. |
 | **Wenyan-Ultra** | `/caveman wenyan-ultra` | Extreme. Ancient scholar on a budget. |
 
-Mode stick until changed or session end.
+Cavestack locks caveman to full. Only wenyan variants switch.
 
 ## Skills
 
@@ -43,12 +41,12 @@ Default mode = `full`. Change it:
 
 **Environment variable** (highest priority):
 ```bash
-export CAVEMAN_DEFAULT_MODE=ultra
+export CAVEMAN_DEFAULT_MODE=full
 ```
 
 **Config file** (`~/.config/caveman/config.json`):
 ```json
-{ "defaultMode": "lite" }
+{ "defaultMode": "full" }
 ```
 
 Set `"off"` to disable auto-activation on session start. User can still activate manually with `/caveman`.

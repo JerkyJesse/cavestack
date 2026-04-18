@@ -640,7 +640,7 @@ cards self-size, chat bubbles shrinkwrap, editorial spreads flow around obstacle
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 D=""
 [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/cavestack/design/dist/design" ] && D="$_ROOT/.claude/skills/cavestack/design/dist/design"
-[ -z "$D" ] && D=~/.claude/skills/cavestack/design/dist/design
+[ -z "$D" ] && D="$HOME/.claude/skills/cavestack/design/dist/design"
 if [ -x "$D" ]; then
   echo "DESIGN_READY: $D"
 else
@@ -648,7 +648,7 @@ else
 fi
 B=""
 [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/cavestack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/cavestack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/cavestack/browse/dist/browse
+[ -z "$B" ] && B="$HOME/.claude/skills/cavestack/browse/dist/browse"
 if [ -x "$B" ]; then
   echo "BROWSE_READY: $B"
 else

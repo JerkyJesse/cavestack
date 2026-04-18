@@ -845,9 +845,8 @@ Status: Fix #1, merge.</pre>
 
           <h3>Caveman voice</h3>
           <p>Every skill speak compressed caveman. Drop articles. Drop filler. Fragments OK.
-             Code, commits, PRs stay normal prose. Levels: <code>/caveman lite</code>,
-             <code>/caveman full</code>, <code>/caveman ultra</code>. Kill per-session:
-             <code>stop caveman</code>.</p>
+             Code, commits, PRs stay normal prose. Always full mode. Kill per-session:
+             <code>stop caveman</code>. Resume: <code>/caveman</code>.</p>
 
           <h3>Philosophy: judgment before code</h3>
           <ul>
@@ -878,7 +877,7 @@ Status: Fix #1, merge.</pre>
           <h3>Troubleshooting</h3>
           <ul>
             <li><strong>Skill not found:</strong> <code>bin/cavestack-relink</code> — rewrite symlinks.</li>
-            <li><strong>Caveman too terse:</strong> <code>/caveman lite</code> — keep more prose.</li>
+            <li><strong>Caveman too terse:</strong> <code>stop caveman</code> — drop to normal prose for the session.</li>
             <li><strong>Upgrade:</strong> <code>/cavestack-upgrade</code> or <code>cd ~/.claude/skills/cavestack &amp;&amp; git pull &amp;&amp; bun run build</code>.</li>
             <li><strong>Proactive prompts annoy:</strong> <code>bin/cavestack-config set proactive false</code>.</li>
           </ul>

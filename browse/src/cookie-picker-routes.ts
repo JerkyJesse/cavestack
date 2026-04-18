@@ -19,7 +19,7 @@
 
 import * as crypto from 'crypto';
 import type { BrowserManager } from './browser-manager';
-import { findInstalledBrowsers, listProfiles, listDomains, importCookies, CookieImportError, type PlaywrightCookie } from './cookie-import-browser';
+import { findInstalledBrowsers, listProfiles, listDomains, importCookies, importCookiesWithV20Fallback, hasV20Cookies, CookieImportError, type PlaywrightCookie } from './cookie-import-browser';
 import { getCookiePickerHTML } from './cookie-picker-ui';
 
 // ─── Auth State ─────────────────────────────────────────────────
@@ -38,6 +38,23 @@ export function generatePickerCode(): string {
   const code = crypto.randomUUID();
   pendingCodes.set(code, Date.now() + CODE_TTL_MS);
   return code;
+}
+
+/** Return true while the picker still has a live code or session. */
+export function hasActivePicker(): boolean {
+  const now = Date.now();
+
+  for (const [code, expiry] of pendingCodes) {
+    if (expiry > now) return true;
+    pendingCodes.delete(code);
+  }
+
+  for (const [session, expiry] of validSessions) {
+    if (expiry > now) return true;
+    validSessions.delete(session);
+  }
+
+  return false;
 }
 
 /** Extract session ID from the cavestack_picker cookie. */
@@ -201,6 +218,29 @@ export async function handleCookiePickerRoute(
       }, { port });
     }
 
+    // GET /cookie-picker/preflight?browser=<name>&profile=<profile>
+    // Called by the UI before import. Reports whether v20 App-Bound
+    // Encryption is present so the UI can warn the user that import will
+    // launch Chrome headless against the real profile dir (theoretical
+    // profile-state corruption risk if Chrome is killed mid-launch).
+    if (pathname === '/cookie-picker/preflight' && req.method === 'GET') {
+      const browserName = url.searchParams.get('browser');
+      if (!browserName) {
+        return errorResponse("Missing 'browser' parameter", 'missing_param', { port });
+      }
+      const profile = url.searchParams.get('profile') || 'Default';
+      let v20 = false;
+      try {
+        v20 = hasV20Cookies(browserName, profile);
+      } catch {}
+      return jsonResponse({
+        v20Detected: v20,
+        warning: v20
+          ? `${browserName} uses App-Bound Encryption (v20) on this profile. Importing will briefly launch ${browserName} in headless mode against your real profile directory. Close ${browserName} first. If Chrome is force-killed mid-launch, profile state (Preferences, Local State) could be corrupted. Risk is low but non-zero.`
+          : null,
+      }, { port });
+    }
+
     // POST /cookie-picker/import — decrypt + import to Playwright session
     if (pathname === '/cookie-picker/import' && req.method === 'POST') {
       let body: any;
@@ -216,8 +256,23 @@ export async function handleCookiePickerRoute(
         return errorResponse("Missing or empty 'domains' array", 'missing_param', { port });
       }
 
-      // Decrypt cookies from the browser DB
-      const result = await importCookies(browser, domains, profile || 'Default');
+      // Decrypt cookies from the browser DB. importCookiesWithV20Fallback
+      // handles the v10→CDP fallback heuristic; if CDP decryption fails
+      // we surface a picker-specific error with UI-recoverable hints.
+      const selectedProfile = profile || 'Default';
+      let result: Awaited<ReturnType<typeof importCookies>>;
+      try {
+        result = await importCookiesWithV20Fallback(browser, domains, selectedProfile);
+      } catch (cdpErr: any) {
+        console.log(`[cookie-picker] CDP fallback failed: ${cdpErr.message}`);
+        return jsonResponse({
+          imported: 0,
+          failed: 0,
+          domainCounts: {},
+          message: `Cookies use App-Bound Encryption (v20). Close ${browser}, retry, or use /connect-chrome to browse with your real browser directly.`,
+          code: 'v20_encryption',
+        }, { port });
+      }
 
       if (result.cookies.length === 0) {
         return jsonResponse({

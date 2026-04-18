@@ -1,5 +1,129 @@
 # Changelog
 
+## [1.2.2.0] - 2026-04-18 — Windows cookie import, cookie picker survives CLI exit, caveman locked to full
+
+Windows cookie import works now. Chrome 80+ moved cookies from
+`profile/Cookies` to `profile/Network/Cookies`, uses DPAPI for the master
+key, and v20 App-Bound Encryption on newer versions. cavestack handles all
+three: profile auto-discovery, DPAPI decryption via PowerShell (with a
+`pwsh.exe` fallback on hardened systems), and a CDP headless fallback for
+v20 cookies that bypass user-space decryption.
+
+When v20 decryption kicks in, the cookie picker now pops a confirmation
+dialog first. The fallback has to launch Chrome against your real profile
+directory (v20 keys are path-bound, so a copy won't work). If Chrome is
+force-killed mid-launch, profile state can corrupt. You get the warning
+before the launch happens so the risk is your call.
+
+The cookie picker UI survives after the CLI exits. Before, `$B cookies
+import --picker` spawned a picker server that died the moment the CLI
+process ended, leaving users staring at a dead port. Now the picker stays
+alive while codes are pending and shuts itself down after timeout.
+
+The browse server persists across Claude Code Bash calls. The sandbox
+sends SIGTERM between tool invocations, which previously killed the
+server mid-session. Now SIGTERM is ignored in normal (headless) mode.
+Headed + tunnel modes still respect it (leaked browsers on shared
+machines were a real resource leak). SIGINT and `/stop` still work.
+
+The server watchdog that detects a vanished parent process is now
+resilient to Windows PID reuse. Before, a recycled PID could make the
+server think its parent was still alive forever; now we capture the
+parent's start time at launch and reject a mismatch as a dead parent
+even when the PID is reusing.
+
+Caveman mode is now locked to **full**. No more `/caveman lite` or
+`/caveman ultra` — one compression level for everyone. Wenyan variants
+(`wenyan-lite`, `wenyan-full`, `wenyan-ultra`) are still available via
+`/caveman wenyan`. "stop caveman" and "normal mode" still disable per
+session. Reduces decision fatigue; nobody was switching levels anyway.
+
+### Added
+
+- **Windows cookie import** (#892). DPAPI decryption, profile discovery
+  under `%LOCALAPPDATA%\Google\Chrome\User Data`, Chrome 80+ cookie path
+  handling, AES-256-GCM decryption with platform branching (Windows vs.
+  AES-128-CBC on mac/linux), v20 App-Bound Encryption detection.
+- **CDP fallback for v20 cookies** (#892). When v20 encryption blocks
+  direct key access, cavestack launches Chrome headless on the real
+  profile and extracts cookies via `Network.getAllCookies` over CDP
+  WebSocket. Chrome picks a debug port itself (`--remote-debugging-port=0`)
+  and we read the chosen port from `DevToolsActivePort` in user-data-dir,
+  so there's no collision risk with other Chrome-based tools.
+- **Preflight warning in the cookie picker** before v20 CDP launch. The
+  UI now asks you to confirm before launching Chrome against your real
+  profile, surfacing the profile-corruption risk of a force-killed
+  headless launch.
+- **`hasActivePicker()` gate** (#996). Cookie picker stays alive while
+  codes are pending; only shuts down after all codes expire.
+
+### Changed
+
+- **Browse server SIGTERM behavior** (#994 + #1020). Normal headless mode
+  ignores SIGTERM and parent-PID watchdog so the server persists across
+  Claude Code Bash calls. Headed + tunnel modes still shut down cleanly
+  on SIGTERM (prevents leaked browsers on shared machines). SIGINT always
+  shuts down. Idle timeout (30 min) handles eventual cleanup.
+- **Parent-PID watchdog guards against Windows PID reuse.** The watchdog
+  captures the parent's creation time at launch (via WMIC / PowerShell on
+  Windows, `ps -o lstart=` on mac/linux) and shuts the server down when
+  the start time mismatches, even if the PID still resolves. The probes
+  run async so the 15s tick no longer blocks the event loop.
+- **Windows tree-kill for spawned processes.** Every kill site
+  (DPAPI PowerShell, macOS Keychain, secret-tool, Chrome headless) now
+  routes through `taskkill /F /T /PID` on Windows so Chrome's renderer,
+  GPU, and utility children no longer orphan and lock the profile.
+- **Windows AES-256 key handling is now per-session.** The master key is
+  cached as the DPAPI-encrypted blob (safe at rest) instead of the
+  decrypted key. Plaintext is zeroed after each import. macOS and Linux
+  still cache the derived key — the Keychain prompt makes re-derivation
+  expensive and the threat model is unchanged there.
+- **Temp cookie-DB copies are swept on process crash.** If the server
+  dies via SIGKILL or an uncaught exception before `Database.close()`
+  runs, the exit + uncaughtException + unhandledRejection handlers now
+  unlink the `.db` / `.db-wal` / `.db-shm` files they created.
+- **Caveman voice locked to full**. `/caveman lite` and `/caveman ultra`
+  removed. `caveman-lite.json` and `caveman-ultra.json` voice profiles
+  deleted. SKILL docs, README, setup, web docs, and tests updated to
+  reflect the single level.
+
+### Fixed
+
+- **Tilde-in-assignment triggering Claude Code permission prompts**
+  (#993). `scripts/resolvers/design.ts` (3 spots) and 4 skill templates
+  (`design-shotgun`, `plan-design-review`, `design-consultation`,
+  `design-review`, `cavestack-upgrade`) now use `"$HOME/..."` instead of
+  bare `~/...`. Resolves the permission-dialog spam when skills set up
+  their design/browse/report directories.
+- **OpenClaw native skills now load in Codex** (#864). Normalized YAML
+  frontmatter on the 4 hand-authored OpenClaw skills
+  (`cavestack-openclaw-ceo-review`, `cavestack-openclaw-investigate`,
+  `cavestack-openclaw-office-hours`, `cavestack-openclaw-retro`). Dropped
+  non-standard `version` and `metadata` fields; rewrote descriptions into
+  simple "Use when..." form without inline colons. Codex CLI was
+  rejecting the old frontmatter with "mapping values are not allowed in
+  this context."
+
+### For contributors
+
+- New regression tests: `test/openclaw-native-skills.test.ts` enforces
+  strict frontmatter (name + description only) on the four native
+  OpenClaw skills, CRLF-tolerant for Windows git checkouts. New direct
+  unit tests for `hasActivePicker()` and the `/cookie-picker/preflight`
+  endpoint.
+- `importCookiesWithV20Fallback()` consolidates the v10→CDP fallback
+  heuristic previously duplicated between the picker route and the
+  write-commands direct-import path.
+- `extractCookiesViaCdp` now has a fresh 15s budget for target
+  discovery; the shared deadline with DevToolsActivePort polling could
+  silently shrink the target-discovery window on a cold Chrome launch.
+- Exit-sweep handlers for temp cookie DBs no longer re-throw from
+  `uncaughtException` / `unhandledRejection` — they sweep and let Node's
+  default handler produce the diagnostic.
+- Ported from garrytan/gstack#1028 (community wave v0.18.1.0): PRs #892
+  (msr-hickory), #864 (cathrynlavery), #994 + #1020 + #996 + #993
+  (upstream contributors + Claude).
+
 ## [1.2.1.0] - 2026-04-17 — Resume Protocol rail: every skill ends with a paste-ready handoff
 
 Every cavestack skill now closes with a two-section Resume Protocol: a

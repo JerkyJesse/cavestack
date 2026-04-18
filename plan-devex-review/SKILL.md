@@ -8,7 +8,13 @@ description: |
   POLISH (bulletproof touchpoints), TRIAGE (critical gaps only).
   Use when: "DX review", "devex audit", "API design review".
   Suggest when user has plan for dev-facing products (APIs, CLIs, SDKs, libs). (cavestack)
-  Voice triggers (speech-to-text aliases): "dx review", "developer experience review", "devex review", "devex audit", "API design review", "onboarding review".
+voice-triggers:
+  - "dx review"
+  - "developer experience review"
+  - "devex review"
+  - "devex audit"
+  - "API design review"
+  - "onboarding review"
 benefits-from: [office-hours]
 allowed-tools:
   - Read

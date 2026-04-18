@@ -219,18 +219,6 @@ describe('loadProfile', () => {
     expect(profile?.directive.full).toContain('ENFORCEMENT');
   });
 
-  test('loads caveman-lite profile', () => {
-    const profile = loadProfile('caveman-lite', ROOT);
-    expect(profile).not.toBeNull();
-    expect(profile?.density_thresholds?.articlesPerHundred).toBe(3.0);
-  });
-
-  test('loads caveman-ultra profile', () => {
-    const profile = loadProfile('caveman-ultra', ROOT);
-    expect(profile).not.toBeNull();
-    expect(profile?.density_thresholds?.verbosePhraseMax).toBe(1);
-  });
-
   test('loads none profile but no density_thresholds', () => {
     const profile = loadProfile('none', ROOT);
     expect(profile).not.toBeNull();

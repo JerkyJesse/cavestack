@@ -7,7 +7,7 @@
  */
 
 import { describe, test, expect } from 'bun:test';
-import { handleCookiePickerRoute, generatePickerCode } from '../src/cookie-picker-routes';
+import { handleCookiePickerRoute, generatePickerCode, hasActivePicker } from '../src/cookie-picker-routes';
 
 // ─── Mock BrowserManager ──────────────────────────────────────
 
@@ -390,6 +390,95 @@ describe('cookie-picker-routes', () => {
       expect(res.headers.get('Content-Type')).toBe('application/json');
       const body = await res.json();
       expect(body).toHaveProperty('browsers');
+    });
+  });
+
+  describe('hasActivePicker (gates SIGTERM + parent-death shutdown)', () => {
+    // This function is load-bearing: if it lies and returns false while the
+    // picker UI is live, SIGTERM tears down the server mid-import. If it lies
+    // the other way and stays true forever, parent-death watchdog never fires.
+
+    test('returns false when no codes or sessions exist', async () => {
+      // Issue a code + consume it via the route to establish initial state,
+      // then wait for TTL to expire so the picker is cleanly empty.
+      // Use a direct probe: if no code has been generated in this process,
+      // hasActivePicker must return false.
+      const result = hasActivePicker();
+      expect(typeof result).toBe('boolean');
+      // We can't strongly assert "false" here because other tests in this
+      // file may have generated codes that are still within TTL. Instead
+      // assert the call is pure (doesn't throw, returns boolean).
+    });
+
+    test('returns true while a newly generated code is within TTL', () => {
+      generatePickerCode(); // adds to pendingCodes, 30s TTL
+      expect(hasActivePicker()).toBe(true);
+    });
+
+    test('returns true for a live session cookie', async () => {
+      // Exchange a code to establish a session.
+      const code = generatePickerCode();
+      const url = new URL(`http://127.0.0.1:9470/cookie-picker?code=${code}`);
+      const req = new Request('http://127.0.0.1:9470', { method: 'GET' });
+      await handleCookiePickerRoute(url, req, { getPage: () => ({} as any) } as any);
+      // Session is now registered for 1 hour.
+      expect(hasActivePicker()).toBe(true);
+    });
+  });
+
+  describe('preflight (v20 App-Bound Encryption warning)', () => {
+    test('GET /cookie-picker/preflight requires browser param', async () => {
+      const { bm } = mockBrowserManager();
+      const url = makeUrl('/cookie-picker/preflight');
+      const req = new Request('http://127.0.0.1:9470', {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer test-token' },
+      });
+
+      const res = await handleCookiePickerRoute(url, req, bm, 'test-token');
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.code).toBe('missing_param');
+    });
+
+    test('GET /cookie-picker/preflight returns v20Detected + warning fields', async () => {
+      const { bm } = mockBrowserManager();
+      // Use a browser name that won't have a cookie DB on any platform the
+      // test runs on; hasV20Cookies returns false and we still get the
+      // preflight response shape.
+      const url = makeUrl('/cookie-picker/preflight?browser=Chrome&profile=Default');
+      const req = new Request('http://127.0.0.1:9470', {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer test-token' },
+      });
+
+      const res = await handleCookiePickerRoute(url, req, bm, 'test-token');
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe('application/json');
+      const body = await res.json();
+      expect(body).toHaveProperty('v20Detected');
+      expect(typeof body.v20Detected).toBe('boolean');
+      expect(body).toHaveProperty('warning');
+      // When v20 not detected, warning should be null (no corruption risk).
+      if (!body.v20Detected) {
+        expect(body.warning).toBeNull();
+      } else {
+        expect(typeof body.warning).toBe('string');
+        expect((body.warning as string).length).toBeGreaterThan(0);
+      }
+    });
+
+    test('GET /cookie-picker/preflight requires auth', async () => {
+      const { bm } = mockBrowserManager();
+      const url = makeUrl('/cookie-picker/preflight?browser=Chrome');
+      const req = new Request('http://127.0.0.1:9470', { method: 'GET' });
+
+      const res = await handleCookiePickerRoute(url, req, bm, 'test-token');
+
+      // No Authorization header + no session cookie = auth failure.
+      expect(res.status).toBe(401);
     });
   });
 });

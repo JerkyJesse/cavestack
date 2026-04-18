@@ -17,7 +17,7 @@ import { BrowserManager } from './browser-manager';
 import { handleReadCommand } from './read-commands';
 import { handleWriteCommand } from './write-commands';
 import { handleMetaCommand } from './meta-commands';
-import { handleCookiePickerRoute } from './cookie-picker-routes';
+import { handleCookiePickerRoute, hasActivePicker } from './cookie-picker-routes';
 import { sanitizeExtensionUrl } from './sidebar-utils';
 import { COMMAND_DESCRIPTIONS, PAGE_CONTENT_COMMANDS, wrapUntrustedContent } from './commands';
 import {
@@ -757,14 +757,122 @@ const idleCheckInterval = setInterval(() => {
 // server can become an orphan — keeping chrome-headless-shell alive and
 // causing console-window flicker on Windows. Poll the parent PID every 15s
 // and self-terminate if it is gone.
+//
+// PID reuse guard: the OS can recycle the parent's PID to an unrelated
+// new process during the 15s poll window. Without a guard, `process.kill(pid, 0)`
+// would succeed against the new process and keep the server alive forever.
+// We capture the parent's start time at launch and re-check it on every
+// poll; mismatch means the original parent is gone even if the PID is
+// alive. Platform-specific: ps -o lstart= on mac/linux, WMIC on Windows.
 const BROWSE_PARENT_PID = parseInt(process.env.BROWSE_PARENT_PID || '0', 10);
-if (BROWSE_PARENT_PID > 0) {
-  setInterval(() => {
+const IS_HEADED_WATCHDOG = process.env.BROWSE_HEADED === '1';
+
+async function getProcessStartTime(pid: number): Promise<string | null> {
+  // Async so the 15s watchdog tick does not block the event loop waiting
+  // for WMIC / PowerShell / ps to return (can take 50-500ms per call).
+  try {
+    if (process.platform === 'win32') {
+      // WMIC is deprecated on Win11 but still present; fall back to PowerShell.
+      const wmic = Bun.spawn(
+        ['wmic', 'process', 'where', `ProcessId=${pid}`, 'get', 'CreationDate', '/value'],
+        { stdout: 'pipe', stderr: 'ignore' },
+      );
+      const wmicExit = await wmic.exited;
+      if (wmicExit === 0) {
+        const out = await new Response(wmic.stdout).text();
+        const match = out.match(/CreationDate=(\S+)/);
+        if (match) return match[1];
+      }
+      // PowerShell fallback for systems without WMIC.
+      const ps = Bun.spawn(
+        ['powershell', '-NoProfile', '-Command', `(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).StartTime.ToFileTimeUtc()`],
+        { stdout: 'pipe', stderr: 'ignore' },
+      );
+      const psExit = await ps.exited;
+      if (psExit === 0) {
+        const out = (await new Response(ps.stdout).text()).trim();
+        if (out) return out;
+      }
+      return null;
+    }
+    // mac + linux: ps -o lstart= gives a stable full-second timestamp.
+    const ps = Bun.spawn(['ps', '-p', String(pid), '-o', 'lstart='], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+    });
+    const psExit = await ps.exited;
+    if (psExit === 0) {
+      const out = (await new Response(ps.stdout).text()).trim();
+      return out || null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Capture parent start time once at launch. Promise resolves asynchronously,
+// but every watchdog tick awaits the same cached value via `await`.
+const PARENT_START_TIME_PROMISE = BROWSE_PARENT_PID > 0
+  ? getProcessStartTime(BROWSE_PARENT_PID)
+  : Promise.resolve(null);
+
+if (BROWSE_PARENT_PID > 0 && !IS_HEADED_WATCHDOG) {
+  let parentGone = false;
+  let watchdogBusy = false; // guard against overlapping ticks if a probe runs long
+  setInterval(async () => {
+    if (watchdogBusy) return;
+    watchdogBusy = true;
     try {
-      process.kill(BROWSE_PARENT_PID, 0); // signal 0 = existence check only, no signal sent
-    } catch {
-      console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited, shutting down`);
-      shutdown();
+      const startTime = await PARENT_START_TIME_PROMISE;
+
+      // PID reuse guard: if we captured a start time at launch, compare it
+      // against the current process with this PID. Mismatch => PID reuse =>
+      // original parent is gone.
+      let pidReused = false;
+      if (startTime) {
+        const current = await getProcessStartTime(BROWSE_PARENT_PID);
+        if (current && current !== startTime) {
+          pidReused = true;
+        }
+      }
+
+      let parentAlive = true;
+      if (pidReused) {
+        parentAlive = false;
+      } else {
+        try {
+          process.kill(BROWSE_PARENT_PID, 0); // signal 0 = existence check only
+        } catch {
+          parentAlive = false;
+        }
+      }
+
+      if (parentAlive) return;
+
+      // Parent exited (or PID was reused). Resolution order:
+      // 1. Active cookie picker (one-time code or session live)? Stay alive
+      //    regardless of mode — tearing down the server mid-import leaves the
+      //    picker UI with a stale "Failed to fetch" error.
+      // 2. Headed / tunnel mode? Shutdown. The idle timeout doesn't apply in
+      //    these modes (see idleCheckInterval above — both early-return), so
+      //    ignoring parent death here would leak orphan daemons after
+      //    /pair-agent or /open-cavestack-browser sessions.
+      // 3. Normal (headless) mode? Stay alive. Claude Code's Bash tool kills
+      //    the parent shell between invocations. The idle timeout (30 min)
+      //    handles eventual cleanup.
+      if (hasActivePicker()) return;
+      const headed = browserManager.getConnectionMode() === 'headed';
+      const reuseNote = pidReused ? ' (PID reused)' : '';
+      if (headed || tunnelActive) {
+        console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited${reuseNote} in ${headed ? 'headed' : 'tunnel'} mode, shutting down`);
+        shutdown();
+      } else if (!parentGone) {
+        parentGone = true;
+        console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited${reuseNote} (server stays alive, idle timeout will clean up)`);
+      }
+    } finally {
+      watchdogBusy = false;
     }
   }, 15_000);
 }
@@ -1225,8 +1333,36 @@ async function shutdown() {
 }
 
 // Handle signals
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+//
+// Node passes the signal name (e.g. 'SIGTERM') as the first arg to listeners.
+// Wrap calls to shutdown() so it receives no args — otherwise the string gets
+// passed as exitCode and process.exit() coerces it to NaN, exiting with code 1
+// instead of 0.
+//
+// SIGINT (Ctrl+C): user intentionally stopping → shutdown.
+process.on('SIGINT', () => shutdown());
+// SIGTERM behavior depends on mode:
+// - Normal (headless) mode: Claude Code's Bash sandbox fires SIGTERM when the
+//   parent shell exits between tool invocations. Ignoring it keeps the server
+//   alive across $B calls. Idle timeout (30 min) handles eventual cleanup.
+// - Headed / tunnel mode: idle timeout doesn't apply in these modes. Respect
+//   SIGTERM so external tooling (systemd, supervisord, CI) can shut cleanly
+//   without waiting forever. Ctrl+C and /stop still work either way.
+// - Active cookie picker: never tear down mid-import regardless of mode —
+//   would strand the picker UI with "Failed to fetch."
+process.on('SIGTERM', () => {
+  if (hasActivePicker()) {
+    console.log('[browse] Received SIGTERM but cookie picker is active, ignoring to avoid stranding the picker UI');
+    return;
+  }
+  const headed = browserManager.getConnectionMode() === 'headed';
+  if (headed || tunnelActive) {
+    console.log(`[browse] Received SIGTERM in ${headed ? 'headed' : 'tunnel'} mode, shutting down`);
+    shutdown();
+  } else {
+    console.log('[browse] Received SIGTERM (ignoring — use /stop or Ctrl+C for intentional shutdown)');
+  }
+});
 // Windows: taskkill /F bypasses SIGTERM, but 'exit' fires for some shutdown paths.
 // Defense-in-depth — primary cleanup is the CLI's stale-state detection via health check.
 if (process.platform === 'win32') {

@@ -1172,7 +1172,7 @@ Present via AskUserQuestion. Do NOT proceed without user approval.
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 D=""
 [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/cavestack/design/dist/design" ] && D="$_ROOT/.claude/skills/cavestack/design/dist/design"
-[ -z "$D" ] && D=~/.claude/skills/cavestack/design/dist/design
+[ -z "$D" ] && D="$HOME/.claude/skills/cavestack/design/dist/design"
 [ -x "$D" ] && echo "DESIGN_READY" || echo "DESIGN_NOT_AVAILABLE"
 ```
 
@@ -1187,7 +1187,7 @@ Generating visual mockups of the proposed design... (say "skip" if you don't nee
 
 ```bash
 eval "$(~/.claude/skills/cavestack/bin/cavestack-slug 2>/dev/null)"
-_DESIGN_DIR=~/.cavestack/projects/$SLUG/designs/mockup-$(date +%Y%m%d)
+_DESIGN_DIR="$HOME/.cavestack/projects/$SLUG/designs/mockup-$(date +%Y%m%d)"
 mkdir -p "$_DESIGN_DIR"
 echo "DESIGN_DIR: $_DESIGN_DIR"
 ```
