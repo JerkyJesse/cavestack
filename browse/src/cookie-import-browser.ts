@@ -316,6 +316,28 @@ export async function importCookies(
   }
 }
 
+/**
+ * Import cookies with automatic v20 (App-Bound Encryption) CDP fallback.
+ * Shared by the picker route and the CLI direct-import path so the
+ * fallback heuristic stays in one place.
+ *
+ * Heuristic: if every cookie failed to decrypt AND v20 bytes are present
+ * in the DB, assume App-Bound Encryption is blocking the v10 path and
+ * try CDP extraction. On non-Windows, CDP is short-circuited and the
+ * original failure is returned (caller should surface the clear error).
+ */
+export async function importCookiesWithV20Fallback(
+  browserName: string,
+  domains: string[],
+  profile = 'Default',
+): Promise<ImportResult> {
+  const result = await importCookies(browserName, domains, profile);
+  if (result.cookies.length === 0 && result.failed > 0 && hasV20Cookies(browserName, profile)) {
+    return importCookiesViaCdp(browserName, domains, profile);
+  }
+  return result;
+}
+
 // ─── Internal: Browser Resolution ───────────────────────────────
 
 function resolveBrowser(nameOrAlias: string): BrowserInfo {
@@ -453,16 +475,14 @@ function ensureTempDbExitHandler(): void {
     }
     tempDbPaths.clear();
   };
+  // Plain 'exit' runs on normal termination. Attach sweep-only listeners
+  // for uncaught errors too; Node's default handler still fires afterward
+  // and terminates the process with its usual diagnostic. We do NOT
+  // re-throw here — doing so would mask any other listener's behavior
+  // and could double-report the error.
   process.on('exit', sweep);
-  // Uncaught errors: best-effort cleanup then let Node re-throw / exit.
-  process.on('uncaughtException', (err) => {
-    sweep();
-    throw err;
-  });
-  process.on('unhandledRejection', (reason) => {
-    sweep();
-    throw reason;
-  });
+  process.on('uncaughtException', sweep);
+  process.on('unhandledRejection', sweep);
 }
 
 function openDbFromCopy(dbPath: string, browserName: string): Database {
@@ -1023,9 +1043,13 @@ export async function importCookiesViaCdp(
 
   // Now find a page target's WebSocket URL.
   // Network.getAllCookies is only available on page targets, not browser.
+  // Use a fresh 15s budget for the target poll so a slow DevToolsActivePort
+  // write (common on cold Chrome launches) doesn't silently eat the budget
+  // for target discovery.
   let wsUrl: string | null = null;
   let loggedVersion = false;
-  while (Date.now() - startTime < 15_000) {
+  const targetPollStart = Date.now();
+  while (Date.now() - targetPollStart < 15_000) {
     try {
       // One-time version log for future diagnostics when Chrome changes v20 format.
       if (!loggedVersion) {
