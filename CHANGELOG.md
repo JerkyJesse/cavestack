@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.2.1.0] - 2026-04-17 — Resume Protocol rail: every skill ends with a paste-ready handoff
+
+Every cavestack skill now closes with a two-section Resume Protocol: a
+`## Shipped this session` bullet list (what concretely landed) and a
+`## Next session resume prompt` block containing a single ```text fence
+with a prose paragraph you can select-all and paste into a fresh Claude
+session. No more "what was I doing?" when context evaporates.
+
+The paragraph shape is fixed: `Continue <slug>. <state sentence>. Next:
+(1) <step>. (2) <step>. (3) <step>.` — no slash commands, no bullets inside
+the fence, no hedging. One paragraph, one fence, one paste.
+
+Also new: the `cavestack-resume` CLI reconstructs the resume prompt from
+local state when a session dies before the skill emits its Resume Protocol
+section. Pulls the last completed skill from `timeline.jsonl` and the
+latest design doc or checkpoint, then prints both sections to stdout.
+
+### Added
+
+- **Resume Protocol directive** in every tier 2+ cavestack skill. Verbose
+  at tier 2-3 (full anti-pattern list, paragraph shape rules), compact at
+  tier 4 (one-line rule). Tier 1 utility skills skip it.
+- **`cavestack-resume` CLI** at `bin/cavestack-resume`. Run it anywhere
+  and it reconstructs both Resume Protocol sections from your local state.
+  Supports `--branch <name>` and `--project <slug>` flags; falls back to
+  the current branch and most-recently-touched project when omitted.
+  Tolerates missing checkpoints dirs and malformed JSONL lines.
+
+### Changed
+
+- **Office-hours, plan-design-review, plan-devex-review** no longer emit
+  their own next-skill recommendation prose at close. The Resume Protocol
+  supplies the closing pattern uniformly.
+
+### For contributors
+
+- New `RESUME_FULL`, `RESUME_COMPACT`, and `generateResumeProtocol(tier)`
+  in `scripts/resolvers/behavioral-protocols.ts`. Wired into tier 2+
+  composition in `scripts/resolvers/preamble.ts` after the Musk directive.
+- The CLI is pure bash + `bun -e` for JSONL parsing. Reads only. No
+  network, no writes.
+
 ## [1.2.0.0] - 2026-04-17 — Musk 5-step algorithm baked into every skill
 
 Every cavestack skill now applies the Musk 5-step algorithm before scoping

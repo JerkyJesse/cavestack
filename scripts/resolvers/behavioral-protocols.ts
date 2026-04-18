@@ -141,3 +141,54 @@ ${MUSK_RULES_COMPACT.replace('## Musk 5-Step Algorithm', '## Build philosophy\n\
 export function generateMuskAlgorithmDirective(tier: number): string {
   return tier >= 4 ? MUSK_RULES_COMPACT : MUSK_RULES_FULL;
 }
+
+/**
+ * Resume Protocol: universal closing shape for tier-2+ skills.
+ * Ends every skill with two H2 sections (Shipped + Next session resume prompt)
+ * so users can copy one paragraph into a fresh Claude session and reconstruct
+ * full context. Matches gstack-style terminal output pattern.
+ *
+ * Caveman floor: anti-pattern bullets + numbered rule prose stay explicit.
+ * Prose outside fences compressed to pass articlesPerHundred <= 2.0 density floor.
+ */
+export const RESUME_FULL = `## Resume Protocol
+
+End every skill with TWO sections. Non-negotiable.
+
+**Section 1 — Shipped this session**
+
+H2 header: \`## Shipped this session\`. Bulleted list. Each bullet = one concrete deliverable or decision landed this session. Skip attempts that did not ship. Skip TODOs. 2-8 bullets typical.
+
+**Section 2 — Next session resume prompt**
+
+H2 header: \`## Next session resume prompt\`. One \`\`\`text fence wrapping ONE paragraph of prose user pastes into fresh Claude session.
+
+Paragraph shape — match exactly:
+
+\`\`\`text
+Continue <slug>. <state sentence>. Next: (1) <step>. (2) <step>. (3) <step>. [optional (4) (5)].
+\`\`\`
+
+Rules:
+1. First word \`Continue\` + project slug (same slug \`cavestack-slug\` bin prints — e.g. \`JerkyJesse-cavestack\`).
+2. State sentence past/present perfect — "expansion sports built," "tests pass," "migration landed."
+3. Numbered steps use parens \`(1) (2) (3)\` inline, not markdown list. Each step = one concrete action fresh session can execute.
+4. No slash commands in paragraph. No file paths unless load-bearing. No timestamps.
+5. Whole paragraph = 3-5 sentences. Shorter than section around it.
+
+**Anti-patterns (stop + redo if caught):**
+- Bullet list inside fence (must be prose).
+- \`/command\` inside paragraph. User picks command; prose gives context only.
+- "We could also..." / "maybe next..." — every step concrete.
+- More than one code fence — only one \`\`\`text fence.
+- Skipping either section — always ship both.
+
+Reason: paragraph in single fence = one select-all paste into fresh session. No UI-specific format loss.`;
+
+export const RESUME_COMPACT = `## Resume Protocol
+
+End every skill with: \`## Shipped this session\` (bulleted deliverables) + \`## Next session resume prompt\` (one \`\`\`text fence wrapping \`Continue <slug>. <state>. Next: (1) (2) (3).\`). **No slash commands in paragraph. No bullets inside fence. No hedging. Both sections mandatory.**`;
+
+export function generateResumeProtocol(tier: number): string {
+  return tier >= 4 ? RESUME_COMPACT : RESUME_FULL;
+}
