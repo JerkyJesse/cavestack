@@ -15,8 +15,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+// cavestack divergence: lite + ultra removed — locked to full.
 const VALID_MODES = [
-  'off', 'lite', 'full', 'ultra',
+  'off', 'full',
   'wenyan-lite', 'wenyan', 'wenyan-full', 'wenyan-ultra',
   'commit', 'review', 'compress'
 ];

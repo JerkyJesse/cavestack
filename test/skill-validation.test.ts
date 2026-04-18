@@ -1555,7 +1555,7 @@ describe('voice density regression', () => {
 });
 
 describe('Voice profile terminal rule + density thresholds', () => {
-  const CAVEMAN_PROFILES = ['caveman-full', 'caveman-lite', 'caveman-ultra'];
+  const CAVEMAN_PROFILES = ['caveman-full'];
 
   for (const profileName of CAVEMAN_PROFILES) {
     test(`${profileName}.json has ENFORCEMENT clause (voice terminal rule)`, () => {
@@ -1587,18 +1587,6 @@ describe('Voice profile terminal rule + density thresholds', () => {
       expect(profile.density_thresholds.verbosePhraseMax).toBeGreaterThan(0);
     });
   }
-
-  test('caveman-ultra thresholds are strictest; caveman-lite are loosest', () => {
-    const full = JSON.parse(fs.readFileSync(path.join(ROOT, 'voices', 'caveman-full.json'), 'utf-8'));
-    const lite = JSON.parse(fs.readFileSync(path.join(ROOT, 'voices', 'caveman-lite.json'), 'utf-8'));
-    const ultra = JSON.parse(fs.readFileSync(path.join(ROOT, 'voices', 'caveman-ultra.json'), 'utf-8'));
-
-    // lite > full > ultra for every metric (higher = looser floor)
-    expect(lite.density_thresholds.articlesPerHundred).toBeGreaterThan(full.density_thresholds.articlesPerHundred);
-    expect(full.density_thresholds.articlesPerHundred).toBeGreaterThan(ultra.density_thresholds.articlesPerHundred);
-    expect(lite.density_thresholds.fillersPerHundred).toBeGreaterThan(full.density_thresholds.fillersPerHundred);
-    expect(full.density_thresholds.fillersPerHundred).toBeGreaterThan(ultra.density_thresholds.fillersPerHundred);
-  });
 
   test('none.json has no density_thresholds (exempt by design)', () => {
     const none = JSON.parse(fs.readFileSync(path.join(ROOT, 'voices', 'none.json'), 'utf-8'));

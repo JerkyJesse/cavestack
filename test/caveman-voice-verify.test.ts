@@ -239,31 +239,6 @@ Direct. Tight. Ship.`;
     expect(result.exitCode).toBe(0);
   });
 
-  test('scenario 11: caveman-lite profile permits more articles', () => {
-    // Mildly articled prose — should fail caveman-full but pass caveman-lite
-    const mild = `The hook reads the transcript from the path given by Claude Code.
-It extracts the last assistant message. It scores the density against the active
-profile. The profile thresholds determine the floor. Code blocks are stripped
-before scoring. Tables are also stripped if they have a separator row.
-The output writes nothing on pass. On a block, the output is a JSON decision.
-The retry path writes a marker so the user sees what happened.`;
-    const transcript = writeTranscript([
-      makeUserEvent('test'),
-      makeAssistantEvent(mild),
-    ]);
-    const full = runHook({ transcript_path: transcript, stop_hook_active: false });
-    const lite = runHook(
-      { transcript_path: transcript, stop_hook_active: false },
-      { CAVESTACK_VOICE: 'caveman-lite' }
-    );
-    // caveman-full is strict (articles floor 2.0), should block
-    expect(full.exitCode).toBe(2);
-    // caveman-lite is looser (articles floor 3.0) — may or may not pass this
-    // specific sample, but should never be stricter than caveman-full
-    if (full.exitCode === 2 && lite.exitCode === 0) {
-      expect(lite.stdout.trim()).toBe('');
-    }
-  });
 });
 
 describe('caveman-voice-verify latency benchmark', () => {

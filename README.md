@@ -54,7 +54,7 @@ Six judgment-layer skills embody the "think before code" moat:
 |-------|-----------|
 | 40 skills | All installed, all invokable. Hero six featured, others by full name. |
 | Caveman default | No command needed. First response = terse. Automatic. |
-| Intensity dial | `/caveman lite` (gentle), `full` (default), `ultra` (maximum grunt) |
+| Locked to full | No lite/ultra toggles. `stop caveman` disables per session. `/caveman` resumes. |
 | Skill discovery | `cavestack-skills list` or `/help` — no website round-trip |
 | Short aliases | `cs-*` for every `cavestack-*` CLI. Speed over typing. |
 | Tier-2 errors | Every error: what broke + why + exact fix + docs link |
@@ -95,10 +95,7 @@ Also: caveman need fire *before* first prompt. Need SessionStart hook owned by i
 # During session:
 stop caveman          # back to verbose (why though)
 normal mode           # same thing
-/caveman              # re-enable (default: full)
-/caveman lite         # gentle compression
-/caveman full         # classic caveman
-/caveman ultra        # maximum grunt. fragments only.
+/caveman              # re-enable (locked to full)
 ```
 
 ```bash
@@ -204,7 +201,7 @@ CaveStack includes all 40 skills from the CaveStack framework:
 
 Additional CaveStack-specific features:
 
-- **Always-on caveman mode** with three intensity levels: `lite` (gentle compression), `full` (classic caveman, the default), and `ultra` (maximum grunt, fragments only)
+- **Always-on caveman mode** locked to `full` (classic caveman: fragments, no articles, short synonyms). Disable per session with `stop caveman`; resume with `/caveman`.
 - **Windows-first installation** — Bun binaries compile, setup symlinks work under Git Bash, and the statusline is PowerShell-aware
 - **Fully reversible** — `cavestack-uninstall` removes all symlinks, hooks, and state files without touching your project files
 - **Caveman voice on all skill templates** — Not just the chat output, but the skill instructions themselves are compressed, reducing output size across the board. We measure in characters, not tokens, because tokens vary by model (GPT, Claude, Gemini all count differently). Characters are model-agnostic and every terminal can count them.
@@ -214,10 +211,7 @@ Additional CaveStack-specific features:
 During any session, you can adjust or disable caveman mode:
 
 - `stop caveman` or `normal mode` — Return to standard verbose output
-- `/caveman` — Re-enable caveman mode (defaults to `full`)
-- `/caveman lite` — Gentle compression, mostly drops filler words
-- `/caveman full` — Classic caveman: fragments, no articles, short synonyms
-- `/caveman ultra` — Maximum compression, fragments only
+- `/caveman` — Re-enable caveman mode (locked to `full`)
 
 To permanently disable caveman mode, run:
 ```bash

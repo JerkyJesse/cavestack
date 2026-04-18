@@ -845,7 +845,7 @@ if [ "$CAVEMAN_INSTALL" -eq 1 ] && [ "$NO_CAVEMAN" -eq 0 ]; then
         log "  After bun run build:hook, run: $SETTINGS_HOOK install-voice-verify"
       fi
 
-      log "  Toggle per session: /caveman lite | /caveman full | /caveman ultra | stop caveman"
+      log "  Caveman locked to full mode. Disable per session: stop caveman. Resume: /caveman"
       log "  Uninstall: $SETTINGS_HOOK remove-caveman && $SETTINGS_HOOK remove-voice-verify"
     else
       log "Skipped caveman hook registration: Node.js not found (install from https://nodejs.org/)."
