@@ -355,6 +355,10 @@ When categories overlap, prefer the one that results in attempting the task.
 
 Apply IN STRICT ORDER. **NEVER reverse. NEVER skip ahead.** 1) Question every requirement (name asker). 2) Delete (reinstate <10% = didn't cut enough). 3) Simplify (only after deletion). 4) Accelerate. 5) Automate (last). Caught on step 4-5 without finishing 1-3 = stop, restart at 1. Reordering = different algorithm.
 
+## Resume Protocol
+
+End every skill with: `## Shipped this session` (bulleted deliverables) + `## Next session resume prompt` (one ```text fence wrapping `Continue <slug>. <state>. Next: (1) (2) (3).`). **No slash commands in paragraph. No bullets inside fence. No hedging. Both sections mandatory.**
+
 If `HAS_BUILD_PHIL` is `no` AND `BUILD_PHIL_DECLINED` is `false` AND `PROACTIVE_PROMPTED` is `yes`:
 
 **Pre-flight checks (before AskUserQuestion):**

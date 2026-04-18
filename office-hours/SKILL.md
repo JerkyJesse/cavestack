@@ -390,6 +390,40 @@ No partial credit for jumping ahead.
 
 *Adapted from Walter Isaacson's Elon Musk biography (2023).*
 
+## Resume Protocol
+
+End every skill with TWO sections. Non-negotiable.
+
+**Section 1 — Shipped this session**
+
+H2 header: `## Shipped this session`. Bulleted list. Each bullet = one concrete deliverable or decision landed this session. Skip attempts that did not ship. Skip TODOs. 2-8 bullets typical.
+
+**Section 2 — Next session resume prompt**
+
+H2 header: `## Next session resume prompt`. One ```text fence wrapping ONE paragraph of prose user pastes into fresh Claude session.
+
+Paragraph shape — match exactly:
+
+```text
+Continue <slug>. <state sentence>. Next: (1) <step>. (2) <step>. (3) <step>. [optional (4) (5)].
+```
+
+Rules:
+1. First word `Continue` + project slug (same slug `cavestack-slug` bin prints — e.g. `JerkyJesse-cavestack`).
+2. State sentence past/present perfect — "expansion sports built," "tests pass," "migration landed."
+3. Numbered steps use parens `(1) (2) (3)` inline, not markdown list. Each step = one concrete action fresh session can execute.
+4. No slash commands in paragraph. No file paths unless load-bearing. No timestamps.
+5. Whole paragraph = 3-5 sentences. Shorter than section around it.
+
+**Anti-patterns (stop + redo if caught):**
+- Bullet list inside fence (must be prose).
+- `/command` inside paragraph. User picks command; prose gives context only.
+- "We could also..." / "maybe next..." — every step concrete.
+- More than one code fence — only one ```text fence.
+- Skipping either section — always ship both.
+
+Reason: paragraph in single fence = one select-all paste into fresh session. No UI-specific format loss.
+
 If `HAS_BUILD_PHIL` is `no` AND `BUILD_PHIL_DECLINED` is `false` AND `PROACTIVE_PROMPTED` is `yes`:
 
 **Pre-flight checks (before AskUserQuestion):**
@@ -1590,7 +1624,7 @@ Use founder signal count from Phase 4.5 for intensity.
 - **Some signals** (1-2): Acknowledge the work. "Good instincts here. The design doc is solid."
 - **Base**: "Design doc is yours. Go build."
 
-Then proceed to next-skill recommendations below.
+Then end with the Resume Protocol (shipped + next session resume prompt).
 
 ---
 
@@ -1616,7 +1650,7 @@ After check-in, signal reflection (same anti-slop rules).
 
 Design trajectory: "First design was [title]. Now on [latest title]."
 
-Proceed to next-skill recommendations.
+End with the Resume Protocol (shipped + next session resume prompt).
 
 ---
 
@@ -1639,12 +1673,7 @@ Design trajectory: "First design broad. Latest narrows to wedge — PMF pattern.
 "Started as side project. Named users, pushed back, designs sharper each time. Not a side project anymore. Could this be a company?"
 Must feel earned. No evidence? Skip.
 
-**Builder Journey** (session 5+): Generate `~/.cavestack/builder-journey.md` — narrative arc, not data table. Second person, reference specifics. Open it:
-```bash
-open "${CAVESTACK_HOME:-$HOME/.cavestack}/builder-journey.md"
-```
-
-Then proceed to next-skill recommendations below.
+Then end with the Resume Protocol (shipped + next session resume prompt).
 
 ---
 
@@ -1656,21 +1685,7 @@ Data speaks. No pitch needed.
 
 Full accumulated signal summary from profile.
 
-Auto-generate updated `~/.cavestack/builder-journey.md` with narrative arc. Open it.
-
-Then proceed to next-skill recommendations below.
-
----
-
-### Next-skill recommendations
-
-After closing, suggest next step:
-
-- **`/plan-ceo-review`** — ambitious features, rethink problem, 10-star product
-- **`/plan-eng-review`** — lock in architecture, tests, edge cases
-- **`/plan-design-review`** — visual/UX design review
-
-Design doc at `~/.cavestack/projects/` auto-discoverable by downstream skills — read during pre-review audit.
+Then end with the Resume Protocol (shipped + next session resume prompt).
 
 ---
 
