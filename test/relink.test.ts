@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -11,9 +11,17 @@ let tmpDir: string;
 let skillsDir: string;
 let installDir: string;
 
+// Parses a call-site string of the form `<path>/bin/cavestack-<name> arg1 arg2`
+// where <path> may contain spaces (e.g. "Bucket Of Pythons" on Windows).
+// Splitting on whitespace is unsafe when the binary path itself contains
+// spaces, so we anchor on the known binary-name shape.
 function run(cmd: string, env: Record<string, string> = {}, expectFail = false): string {
+  const m = cmd.match(/^(.+?cavestack-[a-z-]+)(?:\s+(.*))?$/);
+  if (!m) throw new Error(`run() cannot parse binary from: ${cmd}`);
+  const [, binary, argsStr] = m;
+  const args = argsStr ? argsStr.trim().split(/\s+/).filter(Boolean) : [];
   try {
-    return execSync(cmd, {
+    return execFileSync('bash', [binary, ...args], {
       cwd: ROOT,
       env: { ...process.env, CAVESTACK_STATE_DIR: tmpDir, ...env },
       encoding: 'utf-8',
