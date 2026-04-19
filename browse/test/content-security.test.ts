@@ -350,7 +350,7 @@ describe('Hidden element stripping', () => {
     baseUrl = testServer.url;
     bm = new BrowserManager();
     await bm.launch();
-  });
+  }, 60000);
 
   afterAll(() => {
     try { testServer.server.stop(); } catch {}
