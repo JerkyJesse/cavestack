@@ -12,8 +12,19 @@ INPUT=$(cat)
 CMD=$(printf '%s' "$INPUT" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*:[[:space:]]*"//;s/"$//' || true)
 
 # Python fallback if grep returned empty (e.g., escaped quotes in command)
+# Windows ships python.exe (no python3 symlink); POSIX typically has python3.
+# Prefer python3 when present, otherwise fall back to python.
 if [ -z "$CMD" ]; then
-  CMD=$(printf '%s' "$INPUT" | python3 -c 'import sys,json; print(json.loads(sys.stdin.read()).get("tool_input",{}).get("command",""))' 2>/dev/null || true)
+  if command -v python3 >/dev/null 2>&1; then
+    PY=python3
+  elif command -v python >/dev/null 2>&1; then
+    PY=python
+  else
+    PY=""
+  fi
+  if [ -n "$PY" ]; then
+    CMD=$(printf '%s' "$INPUT" | "$PY" -c 'import sys,json; print(json.loads(sys.stdin.read()).get("tool_input",{}).get("command",""))' 2>/dev/null || true)
+  fi
 fi
 
 # If we still couldn't extract a command, allow
