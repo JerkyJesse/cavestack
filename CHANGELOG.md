@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.0.1] - 2026-04-19 — v1.3.0.0 docs refresh
+
+The README feature table now lists the three guards that shipped with
+v1.3.0.0: CAVE rails (Cave protocol + Zero-Test-Drift in the preamble),
+the test-scaffold gate (`soft` / `hard` / `off`), and the internet hedge
+guard that blocks unhedged `WebSearch says` claims. The landing page
+footer and JSON-LD both advertise v1.3.0.0 instead of the old 1.0.1.0
+placeholder, and `voices/README.md` documents the `content_floors`
+schema alongside density thresholds so profile authors can add their
+own substance checks.
+
 ## [1.3.0.0] - 2026-04-18 — Think Inside the Cave
 
 CaveStack now owns its own metaphors. Skills lead with cavestack vocabulary
