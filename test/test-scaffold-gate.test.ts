@@ -133,21 +133,31 @@ describe('test-scaffold-gate hook', () => {
   });
 
   test('soft mode silent when test written earlier in same session', () => {
-    // First call: write the test file (session log records it).
+    // The "test logged earlier" state is produced by `appendSessionWrite` in
+    // the hook. Previously this case chained two spawnSync calls, which was
+    // flaky on Windows: spawnSync returns when the child exits, but the
+    // JSONL write the first child performed was occasionally not visible to
+    // the second child under AV / indexer load. Pre-populate the session log
+    // directly so the assertion exercises only the pair-detection path —
+    // session-log write durability is covered by the "session log
+    // accumulates writes across calls" test below.
     const testPath = path.join(TMP_STATE, 'scripts', 'bar.test.ts');
-    runHook(
-      { session_id: SESSION, tool_name: 'Write', tool_input: { file_path: testPath } },
-      'soft'
-    );
-    // Second call: write source — pair exists in session log.
     const sourcePath = path.join(TMP_STATE, 'scripts', 'bar.ts');
+    const sessionLog = path.join(SESSIONS_DIR, `${SESSION}-writes.jsonl`);
+    const logEntry = JSON.stringify({
+      path: testPath.replace(/\\/g, '/'),
+      tool: 'Write',
+      ts: new Date().toISOString(),
+    }) + '\n';
+    fs.writeFileSync(sessionLog, logEntry);
+
     const r = runHook(
       { session_id: SESSION, tool_name: 'Write', tool_input: { file_path: sourcePath } },
       'soft'
     );
     expect(r.exitCode).toBe(0);
     expect(r.stderr).toBe('');
-  }, 15000);
+  });
 
   test('hard mode passes when sibling test exists on disk', () => {
     // Create real files: source + sibling test on disk.
