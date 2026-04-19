@@ -13,9 +13,11 @@
  * All output is shell-safe (single-quoted values, no eval needed).
  */
 
-import { ALL_HOST_CONFIGS, getHostConfig, ALL_HOST_NAMES } from '../hosts/index';
+import { ALL_HOST_CONFIGS, getHostConfig } from '../hosts/index';
 import { validateAllConfigs } from './host-config';
 import { execSync } from 'child_process';
+
+const ALL_HOST_NAMES: string[] = ALL_HOST_CONFIGS.map(c => c.name);
 
 const CLI_REGEX = /^[a-z][a-z0-9_-]*$/;
 const PATH_REGEX = /^[a-zA-Z0-9_.\/${}~-]+$/;
