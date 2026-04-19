@@ -8,12 +8,16 @@ const ROOT = path.resolve(import.meta.dir, '..');
 const CAREFUL_SCRIPT = path.join(ROOT, 'careful', 'bin', 'check-careful.sh');
 const FREEZE_SCRIPT = path.join(ROOT, 'freeze', 'bin', 'check-freeze.sh');
 
+// Bash subprocess spawns on Windows (MSYS) cost ~300-800ms each. Scripts also
+// invoke git/python/date subshells. 5s is too tight on Windows — bump to 20s.
+const HOOK_TIMEOUT_MS = process.platform === 'win32' ? 20000 : 5000;
+
 function runHook(scriptPath: string, input: object, env?: Record<string, string>): { exitCode: number; output: any; raw: string } {
   const result = spawnSync('bash', [scriptPath], {
     input: JSON.stringify(input),
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, ...env },
-    timeout: 5000,
+    timeout: HOOK_TIMEOUT_MS,
   });
   const raw = result.stdout.toString().trim();
   let output: any = {};
@@ -28,7 +32,7 @@ function runHookRaw(scriptPath: string, rawInput: string, env?: Record<string, s
     input: rawInput,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, ...env },
-    timeout: 5000,
+    timeout: HOOK_TIMEOUT_MS,
   });
   const raw = result.stdout.toString().trim();
   let output: any = {};
@@ -337,7 +341,7 @@ describe('check-freeze.sh', () => {
         expect(output.permissionDecision).toBe('deny');
         expect(output.message).toContain('outside');
       });
-    });
+    }, 30000);
   });
 
   describe('no freeze file exists', () => {
