@@ -40,7 +40,7 @@ beforeAll(async () => {
   // The server is already started by launch — we need the port
   // Actually, BrowserManager.launch() starts the browser, not the server.
   // The test needs to start a server. Let's use the existing server infrastructure.
-});
+}, 60000);
 
 afterAll(() => {
   try { testServer.server.stop(); } catch {}

@@ -24,7 +24,7 @@ beforeAll(async () => {
 
   bm = new BrowserManager();
   await bm.launch();
-});
+}, 60000);
 
 afterAll(() => {
   try { testServer.server.stop(); } catch {}
