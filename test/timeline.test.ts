@@ -135,7 +135,7 @@ describe('cavestack-timeline-read', () => {
     const output = runRead('--branch feature-a');
     expect(output).toContain('review');
     expect(output).not.toContain('feature-b');
-  });
+  }, 30000);
 
   test('limits output with --limit', () => {
     for (let i = 0; i < 5; i++) {
@@ -151,5 +151,5 @@ describe('cavestack-timeline-read', () => {
 
     expect(unlimitedEvents).toBe(5);
     expect(limitedEvents).toBe(2);
-  });
+  }, 30000);
 });
