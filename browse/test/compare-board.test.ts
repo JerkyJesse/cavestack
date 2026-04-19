@@ -67,7 +67,7 @@ beforeAll(async () => {
   bm = new BrowserManager();
   await bm.launch();
   await handleWriteCommand('goto', [boardUrl], bm);
-});
+}, 60000);
 
 afterAll(() => {
   try { server.stop(); } catch {}
