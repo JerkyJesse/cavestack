@@ -59,6 +59,11 @@ be everything to everyone.
   (identity, trust model, simplicity) and a Zero-Test-Drift protocol (pair
   sources with tests) alongside Zero-Shortcuts / Try-First / Musk 5-Step.
   Both rails persist regardless of voice profile.
+- **Per-skill smoke test.** `bun test` now runs `test/skill-smoke.test.ts`
+  on every top-level skill directory: parses YAML frontmatter, confirms
+  `name` and `description` are set, and cross-references each skill
+  against `docs/skills.md`. Add a new skill, you get a test for free —
+  a regression in any skill's frontmatter fails the build before ship.
 
 ### Tuning
 
@@ -96,7 +101,39 @@ CAVESTACK_VOICE=none
 - Test timeouts bumped to 10s (voice-verify) / 15s (scaffold-gate multi-spawn)
   to survive Windows Node startup (~2–3s per `spawnSync`).
 - New tests: `test/test-scaffold-gate.test.ts` (13 cases),
-  `test/caveman-voice-verify-internet.test.ts` (7 cases).
+  `test/caveman-voice-verify-internet.test.ts` (7 cases),
+  `test/skill-smoke.test.ts` (dynamic discovery, 1 test per skill).
+- `hosts/` collapsed to `claude.ts` + `index.ts`. Former host configs
+  (`codex.ts`, `cursor.ts`, `factory.ts`, `kiro.ts`, `opencode.ts`,
+  `slate.ts`, `openclaw.ts`) and `scripts/host-adapters/` deleted.
+- `scripts/gen-skill-docs.ts` loses `ALL_HOST_CONFIGS`, `ALL_HOST_NAMES`,
+  `resolveHostArg`, `codex-helpers` imports, `HOST_ARG` parsing, and the
+  `hostsToRun` loop. Single Claude pass; `Host` type is now a `'claude'`
+  literal. `agents/openai.yaml` emission is gone.
+- `./setup` loses `--host`, the `CODEX_CAVESTACK` / `FACTORY_CAVESTACK`
+  branches, and the per-host runtime-root helpers
+  (`create_codex_runtime_root`, `link_codex_skill_dirs`,
+  `create_factory_runtime_root`, `link_factory_skill_dirs`,
+  `create_agents_sidecar`, `migrate_direct_codex_install`).
+- `test/codex-e2e.test.ts`, `test/gemini-e2e.test.ts`,
+  `test/openclaw-native-skills.test.ts`, `test/host-config.test.ts`,
+  `test/helpers/codex-session-runner.ts` removed. Golden fixtures for
+  `codex-ship-SKILL.md` and `factory-ship-SKILL.md` removed; Claude
+  fixture kept.
+- `openclaw/` directory removed (4 native skills + OpenClaw docs). The
+  `cavestack-openclaw-*` skills on ClawHub remain published but are
+  **abandoned** — no further updates, no bug fixes.
+- `contrib/add-host/`, `docs/OPENCLAW.md`, `docs/ADDING_A_HOST.md`,
+  `agents/openai.yaml` removed.
+- `.github/workflows/evals.yml` + `evals-periodic.yml` drop `e2e-codex`
+  / `e2e-gemini` matrix entries and `OPENAI_API_KEY` / `GEMINI_API_KEY`
+  env. `skill-docs.yml` drops its Codex/Factory freshness steps.
+- `package.json` drops `test:codex{,:all}` and `test:gemini{,:all}`
+  scripts and their matching test globs.
+- `bin/cavestack-uninstall` preserves multi-host cleanup for a release
+  window so upgraders from a pre-1.3 install don't carry stale
+  `~/.codex/skills/cavestack*` / `~/.factory/skills/cavestack*` /
+  `~/.kiro/skills/cavestack*` dirs forward.
 
 ## [1.2.2.0] - 2026-04-18 — Windows cookie import, cookie picker survives CLI exit, caveman locked to full
 
