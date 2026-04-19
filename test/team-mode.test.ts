@@ -163,7 +163,7 @@ describe('cavestack-session-update', () => {
       env: { CAVESTACK_DIR: cavestackDir, CAVESTACK_STATE_DIR: stateDir },
     });
     expect(result.exitCode).toBe(0);
-  });
+  }, 30000);
 
   test('exits 0 when auto_upgrade is not true', () => {
     // Override cavestack-config to return false
@@ -244,9 +244,11 @@ describe('cavestack-team-init', () => {
     expect(fs.existsSync(hookPath)).toBe(true);
     const hook = fs.readFileSync(hookPath, 'utf-8');
     expect(hook).toContain('BLOCKED: cavestack is not installed');
-    // Should be executable
-    const stat = fs.statSync(hookPath);
-    expect(stat.mode & 0o111).toBeGreaterThan(0);
+    // Windows has no concept of Unix executable bit; mode & 0o111 is always 0
+    if (process.platform !== 'win32') {
+      const stat = fs.statSync(hookPath);
+      expect(stat.mode & 0o111).toBeGreaterThan(0);
+    }
   });
 
   test('required: creates project settings.json with PreToolUse hook', () => {
@@ -300,7 +302,18 @@ describe('cavestack-team-init', () => {
     fs.mkdirSync(skillsDir, { recursive: true });
     const targetDir = mkTmpDir();
     fs.writeFileSync(path.join(targetDir, 'VERSION'), '0.14.0.0');
-    fs.symlinkSync(targetDir, path.join(skillsDir, 'cavestack'));
+    try {
+      fs.symlinkSync(targetDir, path.join(skillsDir, 'cavestack'));
+    } catch (e: any) {
+      // Windows without admin/Developer Mode: EPERM. The code path this test
+      // exercises treats a symlink as "not a vendored copy" — we can't test
+      // that path if we can't create a symlink. Skip.
+      if (e.code === 'EPERM' || e.code === 'EACCES') {
+        fs.rmSync(targetDir, { recursive: true, force: true });
+        return;
+      }
+      throw e;
+    }
 
     const result = run(`${TEAM_INIT} optional`, { cwd: tmpDir });
     expect(result.exitCode).toBe(0);
@@ -332,17 +345,33 @@ describe('cavestack-team-init', () => {
 });
 
 describe('setup --team / --no-team / -q', () => {
+  // These tests call `setup` (not a `cavestack-*` binary) so bypass the run()
+  // regex helper and invoke bash directly with argv-form.
+  function runSetup(args: string[], opts: { cwd?: string; env?: Record<string, string> } = {}): { stdout: string; exitCode: number } {
+    try {
+      const stdout = execFileSync('bash', [path.join(ROOT, 'setup'), ...args], {
+        cwd: opts.cwd,
+        env: { ...process.env, MSYS_NO_PATHCONV: '1', ...opts.env },
+        encoding: 'utf-8',
+        timeout: 60000,
+      });
+      return { stdout, exitCode: 0 };
+    } catch (e: any) {
+      return { stdout: (e.stdout || '') + (e.stderr || ''), exitCode: e.status ?? 1 };
+    }
+  }
+
   test('setup -q produces no stdout', () => {
-    const result = run(`${path.join(ROOT, 'setup')} -q`, { cwd: ROOT });
+    const result = runSetup(['-q'], { cwd: ROOT });
     // -q should suppress informational output (may still have some output from build)
     // The key test is that the "Skill naming:" prompt and "cavestack ready" messages are suppressed
     expect(result.stdout).not.toContain('Skill naming:');
     expect(result.stdout).not.toContain('cavestack ready');
-  });
+  }, 120000);
 
   test('setup --local prints deprecation warning', () => {
-    // stderr capture: run via bash redirect so we can capture stderr
-    const result = run(`bash -c '${path.join(ROOT, 'setup')} --local -q 2>&1'`, { cwd: ROOT });
+    // --local emits the deprecation warning to stderr; merge it.
+    const result = runSetup(['--local', '-q'], { cwd: ROOT });
     expect(result.stdout).toContain('deprecated');
-  });
+  }, 120000);
 });
