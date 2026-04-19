@@ -123,13 +123,12 @@ export class WorktreeManager {
     // Create detached worktree at current HEAD
     git(['worktree', 'add', '--detach', worktreePath, 'HEAD'], this.repoRoot);
 
-    // Copy gitignored build artifacts that tests need (config-driven)
-    const { getExternalHosts } = require('../hosts/index');
-    for (const hostConfig of getExternalHosts()) {
-      const hostSrc = path.join(this.repoRoot, hostConfig.hostSubdir);
-      if (fs.existsSync(hostSrc)) {
-        copyDirSync(hostSrc, path.join(worktreePath, hostConfig.hostSubdir));
-      }
+    // Copy gitignored build artifacts that tests need (.claude/skills/ etc.)
+    const { getHostConfig } = require('../hosts/index');
+    const hostConfig = getHostConfig();
+    const hostSrc = path.join(this.repoRoot, hostConfig.hostSubdir);
+    if (fs.existsSync(hostSrc)) {
+      copyDirSync(hostSrc, path.join(worktreePath, hostConfig.hostSubdir));
     }
 
     const browseDist = path.join(this.repoRoot, 'browse', 'dist');
