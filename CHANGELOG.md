@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.0.2] - 2026-04-19 — Worktree harvest fixed
+
+E2E test infrastructure no longer crashes the moment a worktree is created.
+`WorktreeManager.create()` was calling `getExternalHosts()`, an export removed
+in v1.3 when cavestack went Claude-only — every call was throwing
+`TypeError: getExternalHosts is not a function`, breaking the harvest
+pipeline the `/ship` and `/batch` skills lean on. The call now uses
+`getHostConfig()` and copies the single active host's `hostSubdir`
+(`.claude/`) into each worktree so gitignored build artifacts survive the
+isolation boundary. All 12 worktree unit tests now pass (was 0/12).
+
 ## [1.3.0.1] - 2026-04-19 — v1.3.0.0 docs refresh
 
 The README feature table now lists the three guards that shipped with
