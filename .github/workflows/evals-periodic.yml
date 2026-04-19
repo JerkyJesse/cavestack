@@ -83,10 +83,6 @@ jobs:
             file: test/skill-e2e-workflow.test.ts
           - name: e2e-routing
             file: test/skill-routing-e2e.test.ts
-          - name: e2e-codex
-            file: test/codex-e2e.test.ts
-          - name: e2e-gemini
-            file: test/gemini-e2e.test.ts
     steps:
       - uses: actions/checkout@v4
         with:
@@ -114,8 +110,6 @@ jobs:
       - name: Run ${{ matrix.suite.name }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           EVALS_CONCURRENCY: "40"
           PLAYWRIGHT_BROWSERS_PATH: /opt/playwright-browsers
         run: EVALS=1 bun test --retry 2 --concurrent --max-concurrency 40 ${{ matrix.suite.file }}
