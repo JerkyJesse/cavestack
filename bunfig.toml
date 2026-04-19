@@ -1,0 +1,5 @@
+[test]
+# setDefaultTimeout lives in test/setup.ts — preloading it applies the higher
+# per-test timeout (needed on Windows for bash → bun subprocess chains) to
+# every test file without per-file setup boilerplate.
+preload = ["./test/setup.ts"]
