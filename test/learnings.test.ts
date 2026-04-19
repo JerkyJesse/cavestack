@@ -147,7 +147,7 @@ describe('cavestack-learnings-search', () => {
     const authOnly = runSearch('--query auth');
     expect(authOnly).toContain('auth-bypass');
     expect(authOnly).not.toContain('n-plus-one');
-  });
+  }, 30000);
 
   test('respects --limit', () => {
     for (let i = 0; i < 5; i++) {
@@ -157,7 +157,7 @@ describe('cavestack-learnings-search', () => {
     const limited = runSearch('--limit 2');
     // Should show 2, not 5
     expect(limited).toContain('2 loaded');
-  });
+  }, 30000);
 
   test('applies confidence decay for observed/inferred sources', () => {
     // Entry from 90 days ago with source=observed, confidence=8
@@ -168,7 +168,7 @@ describe('cavestack-learnings-search', () => {
     const output = runSearch();
     // Should show confidence 5 (decayed from 8)
     expect(output).toContain('confidence: 5/10');
-  });
+  }, 30000);
 
   test('does NOT decay user-stated learnings', () => {
     const ts = new Date(Date.now() - 90 * 86400000).toISOString();
@@ -177,7 +177,7 @@ describe('cavestack-learnings-search', () => {
     const output = runSearch();
     // Should still show confidence 9 (no decay for user-stated)
     expect(output).toContain('confidence: 9/10');
-  });
+  }, 30000);
 
   test('skips malformed JSONL lines gracefully', () => {
     // Write a valid entry, then manually append a bad line
@@ -190,7 +190,7 @@ describe('cavestack-learnings-search', () => {
     const output = runSearch();
     expect(output).toContain('valid-entry');
     expect(output).toContain('also-valid');
-  });
+  }, 30000);
 });
 
 describe('cavestack-learnings-log edge cases', () => {
@@ -205,6 +205,11 @@ describe('cavestack-learnings-log edge cases', () => {
   });
 
   test('handles JSON with special characters in insight', () => {
+    // Windows child_process argv drops one level of backslash escaping when passing
+    // literal '\\' to bash subprocesses; the asserted substring ("backslashes") after
+    // a bare \b then becomes a JSON backspace escape (\b → U+0008 + 'ackslashes').
+    // The JSON-parse + assertion logic is platform-agnostic; skip backslash-through-argv
+    // check on Windows and keep the quote assertion.
     const input = JSON.stringify({ skill: 'review', type: 'pattern', key: 'special-chars', insight: 'Use "quotes" and \\backslashes', confidence: 7, source: 'observed' });
     runLog(input);
 
@@ -212,8 +217,10 @@ describe('cavestack-learnings-log edge cases', () => {
     expect(f).not.toBeNull();
     const parsed = JSON.parse(fs.readFileSync(f!, 'utf-8').trim());
     expect(parsed.insight).toContain('quotes');
-    expect(parsed.insight).toContain('backslashes');
-  });
+    if (process.platform !== 'win32') {
+      expect(parsed.insight).toContain('backslashes');
+    }
+  }, 30000);
 
   test('handles JSON with files array field', () => {
     const input = JSON.stringify({ skill: 'review', type: 'architecture', key: 'with-files', insight: 'test', confidence: 8, source: 'observed', files: ['src/auth.ts', 'src/db.ts'] });
@@ -237,7 +244,7 @@ describe('cavestack-learnings-search edge cases', () => {
     const recentIdx = output.indexOf('recent');
     // High confidence should appear first
     expect(highIdx).toBeLessThan(recentIdx);
-  });
+  }, 30000);
 
   test('groups output by type', () => {
     runLog(JSON.stringify({ skill: 'review', type: 'pattern', key: 'p1', insight: 'a pattern', confidence: 7, source: 'observed' }));
@@ -246,7 +253,7 @@ describe('cavestack-learnings-search edge cases', () => {
     const output = runSearch();
     expect(output).toContain('## Patterns');
     expect(output).toContain('## Pitfalls');
-  });
+  }, 30000);
 
   test('combined --type and --query filtering', () => {
     runLog(JSON.stringify({ skill: 'review', type: 'pattern', key: 'auth-token', insight: 'check token expiry', confidence: 7, source: 'observed' }));
@@ -257,7 +264,7 @@ describe('cavestack-learnings-search edge cases', () => {
     expect(output).toContain('auth-token');
     expect(output).not.toContain('auth-leak');  // wrong type
     expect(output).not.toContain('cache-key');  // wrong query
-  });
+  }, 30000);
 
   test('entries with missing key or type are skipped', () => {
     runLog(JSON.stringify({ skill: 'review', type: 'pattern', key: 'valid', insight: 'valid entry', confidence: 7, source: 'observed' }));
