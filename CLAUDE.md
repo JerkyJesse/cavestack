@@ -124,8 +124,6 @@ cavestack/
 ├── .github/         # CI workflows + Docker image
 │   ├── workflows/   # evals.yml (E2E on Ubicloud), skill-docs.yml, actionlint.yml
 │   └── docker/      # Dockerfile.ci (pre-baked toolchain + Playwright/Chromium)
-├── contrib/         # Contributor-only tools (never installed for users)
-│   └── add-host/    # /cavestack-contrib-add-host skill
 ├── setup            # One-time setup: build binary + symlink skills
 ├── SKILL.md         # Generated from SKILL.md.tmpl (don't edit directly)
 ├── SKILL.md.tmpl    # Template: edit this, run gen:skill-docs

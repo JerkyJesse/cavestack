@@ -230,74 +230,19 @@ For template authoring best practices (natural language over bash-isms, dynamic 
 
 To add a browse command, add it to `browse/src/commands.ts`. To add a snapshot flag, add it to `SNAPSHOT_FLAGS` in `browse/src/snapshot.ts`. Then rebuild.
 
-## Multi-host development
+## Adding a new skill
 
-cavestack generates SKILL.md files for 8 hosts from one set of `.tmpl` templates.
-Each host is a typed config in `hosts/*.ts`. The generator reads these configs
-to produce host-appropriate output (different frontmatter, paths, tool names).
+cavestack generates SKILL.md files from `.tmpl` templates via `scripts/gen-skill-docs.ts`.
+The host config lives in `hosts/claude.ts` (Claude Code is the only supported host as of
+v1.3.0.0 — see CHANGELOG for the multi-host purge rationale).
 
-**Supported hosts:** Claude (primary), Codex, Factory, Kiro, OpenCode, Slate, Cursor, OpenClaw.
-
-### Generating for all hosts
-
-```bash
-# Generate for a specific host
-bun run gen:skill-docs                    # Claude (default)
-bun run gen:skill-docs --host codex       # Codex
-bun run gen:skill-docs --host opencode    # OpenCode
-bun run gen:skill-docs --host all         # All 8 hosts
-
-# Or use build, which does all hosts + compiles binaries
-bun run build
-```
-
-### What changes between hosts
-
-Each host config (`hosts/*.ts`) controls:
-
-| Aspect | Example (Claude vs Codex) |
-|--------|---------------------------|
-| Output directory | `{skill}/SKILL.md` vs `.agents/skills/cavestack-{skill}/SKILL.md` |
-| Frontmatter | Full (name, description, hooks, version) vs minimal (name + description) |
-| Paths | `~/.claude/skills/cavestack` vs `$CAVESTACK_ROOT` |
-| Tool names | "use the Bash tool" vs same (Factory rewrites to "run this command") |
-| Hook skills | `hooks:` frontmatter vs inline safety advisory prose |
-| Suppressed sections | None vs Codex self-invocation sections stripped |
-
-See `scripts/host-config.ts` for the full `HostConfig` interface.
-
-### Testing host output
-
-```bash
-# Run all static tests (includes parameterized smoke tests for all hosts)
-bun test
-
-# Check freshness for all hosts
-bun run gen:skill-docs --host all --dry-run
-
-# Health dashboard covers all hosts
-bun run skill:check
-```
-
-### Adding a new host
-
-See [docs/ADDING_A_HOST.md](docs/ADDING_A_HOST.md) for the full guide. Short version:
-
-1. Create `hosts/myhost.ts` (copy from `hosts/opencode.ts`)
-2. Add to `hosts/index.ts`
-3. Add `.myhost/` to `.gitignore`
-4. Run `bun run gen:skill-docs --host myhost`
-5. Run `bun test` (parameterized tests auto-cover it)
-
-Zero generator, setup, or tooling code changes needed.
-
-### Adding a new skill
-
-When you add a new skill template, all hosts get it automatically:
 1. Create `{skill}/SKILL.md.tmpl`
-2. Run `bun run gen:skill-docs --host all`
-3. The dynamic template discovery picks it up, no static list to update
-4. Commit `{skill}/SKILL.md`, external host output is generated at setup time and gitignored
+2. Run `bun run gen:skill-docs`
+3. Dynamic template discovery picks it up — no static list to update
+4. Commit both `{skill}/SKILL.md.tmpl` and the generated `{skill}/SKILL.md`
+
+See `scripts/host-config.ts` for the `HostConfig` interface and `scripts/resolvers/`
+for the template placeholder resolvers (preamble, design, review, etc.).
 
 ## Conductor workspaces
 
