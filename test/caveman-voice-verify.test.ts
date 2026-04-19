@@ -87,7 +87,7 @@ function runHook(
   const result = spawnSync('node', [HOOK_JS], {
     input: JSON.stringify(input),
     encoding: 'utf-8',
-    timeout: 3000,
+    timeout: 10000,
     env: { ...process.env, ...env },
   });
   return {

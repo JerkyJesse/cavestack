@@ -8,6 +8,8 @@
 #   cavestack-settings-hook remove-caveman          # remove caveman hooks
 #   cavestack-settings-hook install-voice-verify    # register caveman-voice-verify Stop hook
 #   cavestack-settings-hook remove-voice-verify     # remove caveman-voice-verify Stop hook
+#   cavestack-settings-hook install-test-scaffold-gate   # register test-scaffold-gate PreToolUse hook
+#   cavestack-settings-hook remove-test-scaffold-gate    # remove test-scaffold-gate PreToolUse hook
 #
 # Requires: bun (already a cavestack hard dependency)
 # Writes atomically: .tmp + rename to prevent corruption on crash/disk-full.
@@ -20,7 +22,7 @@ HOOK_CMD="${2:-}"
 SETTINGS_FILE="${CAVESTACK_SETTINGS_FILE:-$HOME/.claude/settings.json}"
 
 if [ -z "$ACTION" ]; then
-  echo "Usage: cavestack-settings-hook {add|remove|install-caveman|remove-caveman|install-voice-verify|remove-voice-verify} [hook-command]" >&2
+  echo "Usage: cavestack-settings-hook {add|remove|install-caveman|remove-caveman|install-voice-verify|remove-voice-verify|install-test-scaffold-gate|remove-test-scaffold-gate} [hook-command]" >&2
   exit 1
 fi
 
@@ -264,8 +266,77 @@ case "$ACTION" in
       fs.renameSync(tmp, settingsPath);
     " 2>/dev/null
     ;;
+  install-test-scaffold-gate)
+    CAVESTACK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+    GATE_HOOK="node \"$CAVESTACK_ROOT/hooks/test-scaffold-gate.js\""
+
+    if ! command -v node >/dev/null 2>&1; then
+      echo "Warning: node is not installed — test-scaffold-gate hook requires Node.js." >&2
+      echo "Install Node.js (https://nodejs.org/) then re-run: $(basename "$0") install-test-scaffold-gate" >&2
+      exit 0
+    fi
+
+    if [ ! -f "$CAVESTACK_ROOT/hooks/test-scaffold-gate.js" ]; then
+      echo "Warning: hooks/test-scaffold-gate.js not found." >&2
+      exit 0
+    fi
+
+    mkdir -p "$(dirname "$SETTINGS_FILE")"
+    [ -f "$SETTINGS_FILE" ] && cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup"
+
+    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" CAVESTACK_GATE_CMD="$GATE_HOOK" bun -e "
+      const fs = require('fs');
+      const path = require('path');
+      const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
+      const gateCmd = process.env.CAVESTACK_GATE_CMD;
+
+      let settings = {};
+      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch {}
+
+      if (!settings.hooks) settings.hooks = {};
+      if (!settings.hooks.PreToolUse) settings.hooks.PreToolUse = [];
+
+      const exists = settings.hooks.PreToolUse.some(entry =>
+        entry.hooks && entry.hooks.some(h => h.command && h.command.includes('test-scaffold-gate'))
+      );
+      if (!exists) {
+        settings.hooks.PreToolUse.push({
+          matcher: 'Write|Edit',
+          hooks: [{ type: 'command', command: gateCmd, timeout: 5 }]
+        });
+      }
+
+      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+      const tmp = settingsPath + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
+      fs.renameSync(tmp, settingsPath);
+    " 2>/dev/null
+    ;;
+  remove-test-scaffold-gate)
+    [ -f "$SETTINGS_FILE" ] || exit 0
+    cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup"
+    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" bun -e "
+      const fs = require('fs');
+      const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
+
+      let settings = {};
+      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch { process.exit(0); }
+
+      if (settings.hooks && settings.hooks.PreToolUse) {
+        settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter(entry =>
+          !(entry.hooks && entry.hooks.some(h => h.command && h.command.includes('test-scaffold-gate')))
+        );
+        if (settings.hooks.PreToolUse.length === 0) delete settings.hooks.PreToolUse;
+        if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
+      }
+
+      const tmp = settingsPath + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
+      fs.renameSync(tmp, settingsPath);
+    " 2>/dev/null
+    ;;
   *)
-    echo "Unknown action: $ACTION (expected add, remove, install-caveman, remove-caveman, install-voice-verify, or remove-voice-verify)" >&2
+    echo "Unknown action: $ACTION (expected add, remove, install-caveman, remove-caveman, install-voice-verify, remove-voice-verify, install-test-scaffold-gate, or remove-test-scaffold-gate)" >&2
     exit 1
     ;;
 esac

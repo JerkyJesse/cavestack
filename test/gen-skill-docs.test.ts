@@ -673,6 +673,24 @@ describe('build philosophy directive', () => {
   });
 });
 
+// ─── office-hours Phase 6 narrative boundary ────────────────
+
+describe('office-hours narrative boundary', () => {
+  const oh = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+
+  test('Phase 6 declares narrative boundary so closing does not duplicate Resume Protocol', () => {
+    expect(oh).toContain('Narrative boundary');
+    expect(oh).toContain("`## Shipped this session` bullets own concrete deliverables");
+    expect(oh).toContain("`## Next session resume prompt` owns mechanical step list");
+  });
+
+  test('Assignment rule forbids step list in closing Assignment', () => {
+    expect(oh).toContain('ONE real-world action');
+    expect(oh).toContain('not step list');
+    expect(oh).toContain('NEVER in Assignment section');
+  });
+});
+
 // ─── Test Coverage Audit Resolver Tests ─────────────────────
 
 describe('TEST_COVERAGE_AUDIT placeholders', () => {

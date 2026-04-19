@@ -24,11 +24,13 @@ import { fileURLToPath } from 'url';
 import {
   computeDensity,
   checkThresholds,
+  checkContentFloors,
   extractNonFloorText,
   loadProfile,
   type DensityMetrics,
   type DensityThresholds,
   type ThresholdCheckResult,
+  type ContentFloorResult,
 } from '../scripts/lib/voice-density';
 
 // Hard timeout safety cap — transcripts above this size are skipped (fails open).
@@ -246,6 +248,19 @@ function formatRetryMarker(result: ThresholdCheckResult): string {
   return `[voice: over-floor, shipped as-is — ${failed}]`;
 }
 
+function formatContentFloorBlockReason(result: ContentFloorResult): string {
+  const lines: string[] = ['Content floor failed: unverified internet claim.'];
+  for (const v of result.violations.slice(0, 3)) {
+    lines.push(`  L${v.line}: "${v.trigger}" — context: "${v.context}"`);
+  }
+  lines.push('Rewrite. Treat internet as hypothesis, not fact. Add hedge: "web claims X — needs verification" / "hypothesis: X".');
+  return lines.join('\n');
+}
+
+function formatContentFloorRetryMarker(result: ContentFloorResult): string {
+  return `[voice: ${result.violations.length} unverified-internet-claim violation(s), shipped as-is]`;
+}
+
 // ─── Main ───────────────────────────────────────────────────
 
 async function main(): Promise<number> {
@@ -265,13 +280,29 @@ async function main(): Promise<number> {
 
   const profile = loadProfile(voiceName, root);
   if (!profile) return 0;
-  if (!profile.density_thresholds) return 0;
 
   const last = findLastAssistantMessage(input.transcript_path);
   if (!last) return 0;
 
   const nonFloorText = extractNonFloorText(last.text);
   const wordCount = nonFloorText.split(/\s+/).filter((w) => w.length > 0).length;
+
+  // Content-floor checks (run on original text to preserve trigger context).
+  // Gate on full message so quoted prose inside code fences is skipped via non-floor path.
+  if (profile.content_floors) {
+    const floorResult = checkContentFloors(nonFloorText, profile.content_floors);
+    if (!floorResult.pass) {
+      if (isRetry(input)) {
+        process.stdout.write(formatContentFloorRetryMarker(floorResult));
+        return 0;
+      }
+      const reason = formatContentFloorBlockReason(floorResult);
+      process.stdout.write(JSON.stringify({ decision: 'block', reason }));
+      return 2;
+    }
+  }
+
+  if (!profile.density_thresholds) return 0;
   if (wordCount < WORD_COUNT_MIN) return 0;
 
   const metrics = computeDensity(nonFloorText);

@@ -206,6 +206,61 @@ function loadProfile(name, cavestackRoot) {
     return null;
   }
 }
+var HEDGE_PROXIMITY_CHARS = 200;
+function checkContentFloors(text, floors) {
+  const violations = [];
+  if (!floors)
+    return { pass: true, violations };
+  const internet = floors.unverified_internet_claim;
+  if (internet && internet.enabled && internet.trigger_patterns && internet.trigger_patterns.length > 0) {
+    const hedges = (internet.required_hedges || []).map((h) => h.toLowerCase());
+    const lines = text.split(`
+`);
+    const joined = text;
+    for (const patternStr of internet.trigger_patterns) {
+      let regex;
+      try {
+        regex = new RegExp(patternStr, "g");
+      } catch {
+        continue;
+      }
+      let match;
+      while ((match = regex.exec(joined)) !== null) {
+        const matchIdx = match.index;
+        const windowStart = Math.max(0, matchIdx - HEDGE_PROXIMITY_CHARS);
+        const windowEnd = Math.min(joined.length, matchIdx + match[0].length + HEDGE_PROXIMITY_CHARS);
+        const window = joined.slice(windowStart, windowEnd).toLowerCase();
+        const hedged = hedges.some((h) => window.includes(h));
+        if (!hedged) {
+          let line = 1;
+          let accum = 0;
+          for (let i = 0;i < lines.length; i++) {
+            accum += lines[i].length + 1;
+            if (accum > matchIdx) {
+              line = i + 1;
+              break;
+            }
+          }
+          const contextStart = Math.max(0, matchIdx - 40);
+          const contextEnd = Math.min(joined.length, matchIdx + match[0].length + 40);
+          violations.push({
+            floor: "unverified_internet_claim",
+            trigger: match[0],
+            line,
+            context: joined.slice(contextStart, contextEnd).replace(/\s+/g, " ").trim()
+          });
+        }
+        if (match.index === regex.lastIndex)
+          regex.lastIndex++;
+      }
+    }
+    const maxAllowed = internet.max_violations ?? 0;
+    if (violations.length <= maxAllowed) {
+      return { pass: true, violations };
+    }
+  }
+  return { pass: violations.length === 0, violations };
+}
 
 // hooks/caveman-voice-verify.ts
 var MAX_TRANSCRIPT_BYTES = 50 * 1024 * 1024;
@@ -352,6 +407,18 @@ function formatRetryMarker(result) {
   const failed = result.failedMetrics.map((f) => f.metric).join(", ");
   return `[voice: over-floor, shipped as-is — ${failed}]`;
 }
+function formatContentFloorBlockReason(result) {
+  const lines = ["Content floor failed: unverified internet claim."];
+  for (const v of result.violations.slice(0, 3)) {
+    lines.push(`  L${v.line}: "${v.trigger}" — context: "${v.context}"`);
+  }
+  lines.push('Rewrite. Treat internet as hypothesis, not fact. Add hedge: "web claims X — needs verification" / "hypothesis: X".');
+  return lines.join(`
+`);
+}
+function formatContentFloorRetryMarker(result) {
+  return `[voice: ${result.violations.length} unverified-internet-claim violation(s), shipped as-is]`;
+}
 async function main() {
   if (process.env.CAVESTACK_VOICE_VERIFY === "0")
     return 0;
@@ -366,13 +433,25 @@ async function main() {
   const profile = loadProfile(voiceName, root);
   if (!profile)
     return 0;
-  if (!profile.density_thresholds)
-    return 0;
   const last = findLastAssistantMessage(input.transcript_path);
   if (!last)
     return 0;
   const nonFloorText = extractNonFloorText(last.text);
   const wordCount = nonFloorText.split(/\s+/).filter((w) => w.length > 0).length;
+  if (profile.content_floors) {
+    const floorResult = checkContentFloors(nonFloorText, profile.content_floors);
+    if (!floorResult.pass) {
+      if (isRetry(input)) {
+        process.stdout.write(formatContentFloorRetryMarker(floorResult));
+        return 0;
+      }
+      const reason2 = formatContentFloorBlockReason(floorResult);
+      process.stdout.write(JSON.stringify({ decision: "block", reason: reason2 }));
+      return 2;
+    }
+  }
+  if (!profile.density_thresholds)
+    return 0;
   if (wordCount < WORD_COUNT_MIN)
     return 0;
   const metrics = computeDensity(nonFloorText);

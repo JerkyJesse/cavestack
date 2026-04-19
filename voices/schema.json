@@ -52,6 +52,34 @@
         "hedgesPerHundred": { "type": "number" },
         "verbosePhraseMax": { "type": "number" }
       }
+    },
+    "content_floors": {
+      "type": "object",
+      "description": "Substance-level floors that flag claims requiring hedging or sourcing. Separate from density_thresholds (which count cosmetic tokens).",
+      "properties": {
+        "unverified_internet_claim": {
+          "type": "object",
+          "description": "Flag prose that cites internet/web/WebSearch as authoritative without a hypothesis hedge.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "trigger_patterns": {
+              "type": "array",
+              "description": "Regex patterns that indicate an internet-sourced claim is being asserted.",
+              "items": { "type": "string" }
+            },
+            "required_hedges": {
+              "type": "array",
+              "description": "At least one of these hedge tokens must appear near the trigger to pass.",
+              "items": { "type": "string" }
+            },
+            "max_violations": {
+              "type": "number",
+              "description": "Number of unhedged internet claims allowed per document."
+            }
+          },
+          "required": ["enabled"]
+        }
+      }
     }
   },
   "additionalProperties": false

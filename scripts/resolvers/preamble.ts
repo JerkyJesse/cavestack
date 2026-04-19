@@ -4,6 +4,8 @@ import {
   generateZeroShortcutsDirective,
   generateTryFirstDirective,
   generateMuskAlgorithmDirective,
+  generateCaveProtocol,
+  generateZeroTestDrift,
   generateResumeProtocol,
   BUILD_PHILOSOPHY_CLAUDE_MD_SECTION,
 } from './behavioral-protocols';
@@ -702,7 +704,7 @@ export function generatePreamble(ctx: TemplateContext): string {
     generateVendoringDeprecation(ctx),
     generateSpawnedSessionCheck(),
     generateVoiceDirective(tier, ctx.voiceProfile),
-    ...(tier >= 2 ? [generateContextRecovery(ctx), generateAskUserFormat(ctx), generateZeroShortcutsDirective(), generateTryFirstDirective(), generateMuskAlgorithmDirective(tier), generateResumeProtocol(tier), generateBuildPhilosophyInjection(ctx)] : []),
+    ...(tier >= 2 ? [generateContextRecovery(ctx), generateAskUserFormat(ctx), generateZeroShortcutsDirective(), generateTryFirstDirective(), generateMuskAlgorithmDirective(tier), generateCaveProtocol(tier), generateZeroTestDrift(tier), generateResumeProtocol(tier), generateBuildPhilosophyInjection(ctx)] : []),
     ...(tier >= 3 ? [generateRepoModeSection()] : []),
     generateCompletionStatus(ctx),
   ];

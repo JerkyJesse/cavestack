@@ -845,8 +845,16 @@ if [ "$CAVEMAN_INSTALL" -eq 1 ] && [ "$NO_CAVEMAN" -eq 0 ]; then
         log "  After bun run build:hook, run: $SETTINGS_HOOK install-voice-verify"
       fi
 
+      # Register test-scaffold-gate PreToolUse hook (Zero-Test-Drift Protocol).
+      if [ -f "$SOURCE_CAVESTACK_DIR/hooks/test-scaffold-gate.js" ]; then
+        "$SETTINGS_HOOK" install-test-scaffold-gate 2>/dev/null && \
+          log "Test-scaffold-gate PreToolUse hook registered: Zero-Test-Drift enforcement on Write/Edit." || \
+          log "Test-scaffold-gate registration failed (non-fatal)."
+        log "  Mode (soft default): cavestack-config set test_scaffold_gate {off|soft|hard}"
+      fi
+
       log "  Caveman locked to full mode. Disable per session: stop caveman. Resume: /caveman"
-      log "  Uninstall: $SETTINGS_HOOK remove-caveman && $SETTINGS_HOOK remove-voice-verify"
+      log "  Uninstall: $SETTINGS_HOOK remove-caveman && $SETTINGS_HOOK remove-voice-verify && $SETTINGS_HOOK remove-test-scaffold-gate"
     else
       log "Skipped caveman hook registration: Node.js not found (install from https://nodejs.org/)."
       log "After installing Node.js, run: $SETTINGS_HOOK install-caveman && $SETTINGS_HOOK install-voice-verify"
@@ -858,6 +866,7 @@ if [ "$NO_CAVEMAN" -eq 1 ]; then
   if [ -x "$SETTINGS_HOOK" ]; then
     "$SETTINGS_HOOK" remove-caveman 2>/dev/null || true
     "$SETTINGS_HOOK" remove-voice-verify 2>/dev/null || true
-    log "Caveman hooks removed from Claude Code settings (including voice-verify)."
+    "$SETTINGS_HOOK" remove-test-scaffold-gate 2>/dev/null || true
+    log "Caveman hooks removed from Claude Code settings (including voice-verify + test-scaffold-gate)."
   fi
 fi

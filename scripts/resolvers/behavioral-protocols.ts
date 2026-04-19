@@ -192,3 +192,89 @@ End every skill with: \`## Shipped this session\` (bulleted deliverables) + \`##
 export function generateResumeProtocol(tier: number): string {
   return tier >= 4 ? RESUME_COMPACT : RESUME_FULL;
 }
+
+/**
+ * Cave Protocol: cavestack identity + internet-adversarial + simplest-first.
+ * Three non-negotiable rules for every response.
+ *
+ * Caveman floor: rule numbering + anti-pattern bullets stay explicit.
+ * Surrounding prose drops articles so directive passes caveman-voice-verify
+ * density floor (articlesPerHundred <= 2.0, hedgesPerHundred <= 0.5).
+ */
+export const CAVE_FULL = `## Cave Protocol
+
+Three rules. Non-negotiable. Every response.
+
+1. **Question internet, not user.** WebSearch output = hypothesis. User statement
+   = trusted until contradicted. Codex/subagent cold-reads question session, not
+   user. Never cite "web says" as evidence. Every internet claim requires
+   adversarial synthesis before feeding premises.
+
+2. **Simplest solution first.** Approach \`A\` slot = minimal viable. Always.
+   "Ideal architecture" is not valid slot. Musk step 2 (delete) applies before
+   step 3 (simplify). If simpler version ships same user value, pick it.
+
+3. **Think inside cave.** cavestack owns own metaphors — cave, cavestack,
+   caveman, inside. Drop gstack-comparison framing in live prose. Historical
+   attribution (CHANGELOG, git history, LICENSE-caveman) stays — that =
+   attribution, not identity.
+
+**Anti-patterns (stop + redo if caught):**
+- "Research shows..." / "web says..." without adversarial review.
+- Approach \`A\` labeled "ideal architecture" — \`A\` = minimal. Full stop.
+- "gstack-style X" in live skill prose — rename to "cavestack X" or underlying pattern.
+
+*Think inside cave. Question internet, not user. Simplest first.*`;
+
+export const CAVE_COMPACT = `## Cave Protocol
+
+Three rules. 1) Question internet, not user (WebSearch = hypothesis; user trusted until contradicted). 2) Simplest solution first (Approach \`A\` = minimal viable, always; no "ideal architecture" slot). 3) Think inside cave (cavestack owns own metaphors; drop gstack-comparison framing in live prose). Anti-patterns: "research shows" without adversarial review; Approach \`A\` labeled "ideal"; gstack-style X in live skill prose.`;
+
+export function generateCaveProtocol(tier: number): string {
+  return tier >= 4 ? CAVE_COMPACT : CAVE_FULL;
+}
+
+/**
+ * Zero-Test-Drift: machine-gated test scaffolding for new source files.
+ * Paired with hooks/test-scaffold-gate.js PreToolUse hook.
+ *
+ * Caveman floor: Applies/Excluded/Workflow headers stay explicit for scan.
+ * Prose outside bullets compressed to pass density floor.
+ */
+export const ZTD_FULL = `## Zero-Test-Drift Protocol
+
+Every skill that writes NEW code MUST emit tests in same session. Machine-gated via \`hooks/test-scaffold-gate.js\`.
+
+**Applies to:**
+- New source files (\`*.ts\`, \`*.js\`, \`*.py\`, \`*.go\`, \`*.rs\`, \`*.java\`)
+- Bug-fix edits in \`/investigate\`, \`/fix-*\` flows (test reproduces bug)
+- Scaffolds in \`/office-hours\` handoff prompts (spec names test stubs)
+
+**Excluded:**
+- Doc-only edits (\`*.md\`, \`*.txt\`, LICENSE)
+- Config (\`*.json\`, \`*.yaml\`, \`*.toml\` unless config drives runtime behavior)
+- Pure deletions (no new code)
+- Generated output (\`dist/\`, build artifacts)
+
+**Workflow:**
+1. Before writing source: name test file you will write.
+2. Write source + test in same session.
+3. Test must cover happy path + one edge case minimum.
+4. Hook warns (soft) or blocks (hard) if source edited without sibling test.
+
+**Config:** \`cavestack-config set test_scaffold_gate soft|hard|off\`. Default \`soft\`.
+
+**Anti-patterns (stop + redo if caught):**
+- Writing source, saying "tests next PR" — no deferred work.
+- Writing test after hook fires — fix forward, not backward.
+- Disabling hook per-session without naming why.
+
+*Tests ship in same commit as code. Drift = zero.*`;
+
+export const ZTD_COMPACT = `## Zero-Test-Drift Protocol
+
+Every skill writing NEW code MUST emit tests in same session. Machine-gated via \`hooks/test-scaffold-gate.js\`. Applies: new source files (ts/js/py/go/rs/java), bug-fix edits, scaffold handoffs. Excluded: docs, config, deletions, dist. Config: \`cavestack-config set test_scaffold_gate soft|hard|off\` (default soft). Anti-patterns: source without test; "tests next PR"; hook disabled without reason.`;
+
+export function generateZeroTestDrift(tier: number): string {
+  return tier >= 4 ? ZTD_COMPACT : ZTD_FULL;
+}

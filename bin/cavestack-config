@@ -43,6 +43,12 @@ CONFIG_HEADER='# cavestack configuration — edit freely, changes take effect on
 # cavestack_contributor: false # true = file field reports when cavestack misbehaves
 # skip_eng_review: false    # true = skip eng review gate in /ship (not recommended)
 #
+# ─── Zero-Test-Drift ─────────────────────────────────────────────────
+# test_scaffold_gate: soft  # off | soft | hard
+#                           #   off  — no test-pairing check
+#                           #   soft — stderr warning when source code ships without paired test (default)
+#                           #   hard — blocks Write/Edit on source code with no paired test
+#
 '
 
 case "${1:-}" in
