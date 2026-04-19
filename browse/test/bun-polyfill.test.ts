@@ -1,8 +1,10 @@
 import { describe, test, expect, afterAll } from 'bun:test';
 import * as path from 'path';
 
-// Load the polyfill into a fresh object (don't clobber globalThis.Bun)
-const polyfillPath = path.resolve(import.meta.dir, '../src/bun-polyfill.cjs');
+// Load the polyfill into a fresh object (don't clobber globalThis.Bun).
+// Forward slashes so the path survives interpolation into a JS string literal
+// without backslash escape sequences (Windows).
+const polyfillPath = path.resolve(import.meta.dir, '../src/bun-polyfill.cjs').replace(/\\/g, '/');
 
 describe('bun-polyfill', () => {
   // We test the polyfill by requiring it in a subprocess under Node.js

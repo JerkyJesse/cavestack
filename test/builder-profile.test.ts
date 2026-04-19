@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { execSync, ExecSyncOptionsWithStringEncoding } from 'child_process';
+import { execFileSync, ExecFileSyncOptionsWithStringEncoding } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -10,13 +10,13 @@ const BIN = path.join(ROOT, 'bin');
 let tmpDir: string;
 
 function runProfile(): Record<string, string> {
-  const execOpts: ExecSyncOptionsWithStringEncoding = {
+  const execOpts: ExecFileSyncOptionsWithStringEncoding = {
     cwd: ROOT,
     env: { ...process.env, CAVESTACK_HOME: tmpDir },
     encoding: 'utf-8',
     timeout: 15000,
   };
-  const stdout = execSync(`${BIN}/cavestack-builder-profile`, execOpts).trim();
+  const stdout = execFileSync('bash', [path.join(BIN, 'cavestack-builder-profile')], execOpts).trim();
   const result: Record<string, string> = {};
   for (const line of stdout.split('\n')) {
     const idx = line.indexOf(':');

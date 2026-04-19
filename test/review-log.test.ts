@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { execSync, ExecSyncOptionsWithStringEncoding } from 'child_process';
+import { execFileSync, ExecFileSyncOptionsWithStringEncoding } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -11,14 +11,14 @@ let tmpDir: string;
 let slugDir: string;
 
 function run(input: string, opts: { expectFail?: boolean } = {}): { stdout: string; exitCode: number } {
-  const execOpts: ExecSyncOptionsWithStringEncoding = {
+  const execOpts: ExecFileSyncOptionsWithStringEncoding = {
     cwd: ROOT,
     env: { ...process.env, CAVESTACK_HOME: tmpDir },
     encoding: 'utf-8',
     timeout: 10000,
   };
   try {
-    const stdout = execSync(`${BIN}/cavestack-review-log '${input.replace(/'/g, "'\\''")}'`, execOpts).trim();
+    const stdout = execFileSync('bash', [path.join(BIN, 'cavestack-review-log'), input], execOpts).trim();
     return { stdout, exitCode: 0 };
   } catch (e: any) {
     if (opts.expectFail) {

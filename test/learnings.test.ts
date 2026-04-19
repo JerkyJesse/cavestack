@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { execSync, ExecSyncOptionsWithStringEncoding } from 'child_process';
+import { execFileSync, ExecFileSyncOptionsWithStringEncoding } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -12,14 +12,14 @@ let slugDir: string;
 let learningsFile: string;
 
 function runLog(input: string, opts: { expectFail?: boolean } = {}): { stdout: string; exitCode: number } {
-  const execOpts: ExecSyncOptionsWithStringEncoding = {
+  const execOpts: ExecFileSyncOptionsWithStringEncoding = {
     cwd: ROOT,
     env: { ...process.env, CAVESTACK_HOME: tmpDir },
     encoding: 'utf-8',
     timeout: 15000,
   };
   try {
-    const stdout = execSync(`${BIN}/cavestack-learnings-log '${input.replace(/'/g, "'\\''")}'`, execOpts).trim();
+    const stdout = execFileSync('bash', [path.join(BIN, 'cavestack-learnings-log'), input], execOpts).trim();
     return { stdout, exitCode: 0 };
   } catch (e: any) {
     if (opts.expectFail) {
@@ -30,14 +30,15 @@ function runLog(input: string, opts: { expectFail?: boolean } = {}): { stdout: s
 }
 
 function runSearch(args: string = ''): string {
-  const execOpts: ExecSyncOptionsWithStringEncoding = {
+  const execOpts: ExecFileSyncOptionsWithStringEncoding = {
     cwd: ROOT,
     env: { ...process.env, CAVESTACK_HOME: tmpDir },
     encoding: 'utf-8',
     timeout: 15000,
   };
   try {
-    return execSync(`${BIN}/cavestack-learnings-search ${args}`, execOpts).trim();
+    const argv = args.trim().split(/\s+/).filter(Boolean);
+    return execFileSync('bash', [path.join(BIN, 'cavestack-learnings-search'), ...argv], execOpts).trim();
   } catch {
     return '';
   }

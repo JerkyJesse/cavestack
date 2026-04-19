@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const SETTINGS_HOOK = path.join(ROOT, 'bin', 'cavestack-settings-hook');
@@ -13,11 +13,20 @@ function mkTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-team-test-'));
 }
 
+// Parses a call-site string of the form `<path>/bin/cavestack-<name> arg1 arg2`.
+// The path may contain spaces (Windows), so whitespace-split would misparse;
+// we anchor on the known binary-name shape.
 function run(cmd: string, opts: { cwd?: string; env?: Record<string, string> } = {}): { stdout: string; stderr: string; exitCode: number } {
+  const m = cmd.match(/^(.+?cavestack-[a-z-]+)(?:\s+(.*))?$/);
+  if (!m) throw new Error(`run() cannot parse binary from: ${cmd}`);
+  const [, binary, argsStr] = m;
+  const args = argsStr ? argsStr.trim().split(/\s+/).filter(Boolean) : [];
   try {
-    const stdout = execSync(cmd, {
+    const stdout = execFileSync('bash', [binary, ...args], {
       cwd: opts.cwd,
-      env: { ...process.env, ...opts.env },
+      // MSYS_NO_PATHCONV=1: prevent Git Bash on Windows from auto-converting
+      // POSIX-style args like "/path/to/thing" into "C:/Program Files/Git/path/to/thing".
+      env: { ...process.env, MSYS_NO_PATHCONV: '1', ...opts.env },
       encoding: 'utf-8',
       timeout: 10000,
     });
