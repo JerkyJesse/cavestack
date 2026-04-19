@@ -4,6 +4,7 @@ dist/
 browse/dist/
 design/dist/
 bin/cavestack-global-discover
+bin/cavestack-global-discover.exe
 .cavestack/
 .claude/skills/
 .claude/settings.local.json
