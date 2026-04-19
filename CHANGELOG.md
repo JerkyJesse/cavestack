@@ -29,6 +29,18 @@ protocol body, diagnostic tables) no longer pitches cavestack via comparison
 to gstack or other frameworks. The skills describe what cavestack does on its
 own terms.
 
+**Claude Code only now.** cavestack is done pretending to be a multi-agent
+framework. The Codex, Factory Droid, Kiro, OpenCode, Slate, Cursor, and
+OpenClaw host targets are gone — along with `--host`, the `.agents/` /
+`.factory/` / `.kiro/` sidecars, and the ClawHub publishing flow. If you were
+running cavestack under any of those hosts, pin to `v1.2.2.0` or migrate to
+Claude Code. `./setup` no longer takes `--host`; it just installs for Claude.
+`cavestack-uninstall` still scrubs legacy sidecars when it finds them, so
+upgrading cleans up after itself. Why: the cross-host adapters were a
+constant tax on every new skill, and in practice nearly all usage is under
+Claude. Dropping them lets the skill surface stay sharp instead of trying to
+be everything to everyone.
+
 ### Added
 
 - **Content-floor enforcement** — Voice profiles now support `content_floors`,
