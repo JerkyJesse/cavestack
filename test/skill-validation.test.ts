@@ -877,15 +877,18 @@ describe('CEO review mode validation', () => {
 
 describe('cavestack-slug', () => {
   const SLUG_BIN = path.join(ROOT, 'bin', 'cavestack-slug');
+  const IS_WINDOWS = process.platform === 'win32';
+  const SLUG_ARGV = IS_WINDOWS ? ['bash', SLUG_BIN] : [SLUG_BIN];
 
   test('binary exists and is executable', () => {
     expect(fs.existsSync(SLUG_BIN)).toBe(true);
+    if (IS_WINDOWS) return;
     const stat = fs.statSync(SLUG_BIN);
     expect(stat.mode & 0o111).toBeGreaterThan(0);
   });
 
   test('outputs SLUG and BRANCH lines in a git repo', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
+    const result = Bun.spawnSync(SLUG_ARGV, { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
     expect(result.exitCode).toBe(0);
     const output = result.stdout.toString();
     expect(output).toContain('SLUG=');
@@ -893,21 +896,21 @@ describe('cavestack-slug', () => {
   });
 
   test('SLUG does not contain forward slashes', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
+    const result = Bun.spawnSync(SLUG_ARGV, { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
     const slug = result.stdout.toString().match(/SLUG=(.*)/)?.[1] ?? '';
     expect(slug).not.toContain('/');
     expect(slug.length).toBeGreaterThan(0);
   });
 
   test('BRANCH does not contain forward slashes', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
+    const result = Bun.spawnSync(SLUG_ARGV, { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
     const branch = result.stdout.toString().match(/BRANCH=(.*)/)?.[1] ?? '';
     expect(branch).not.toContain('/');
     expect(branch.length).toBeGreaterThan(0);
   });
 
   test('output is eval-compatible (KEY=VALUE format)', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
+    const result = Bun.spawnSync(SLUG_ARGV, { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
     const lines = result.stdout.toString().trim().split('\n');
     expect(lines.length).toBe(2);
     expect(lines[0]).toMatch(/^SLUG=.+/);
@@ -915,7 +918,7 @@ describe('cavestack-slug', () => {
   });
 
   test('output values contain only safe characters (no shell metacharacters)', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
+    const result = Bun.spawnSync(SLUG_ARGV, { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
     const slug = result.stdout.toString().match(/SLUG=(.*)/)?.[1] ?? '';
     const branch = result.stdout.toString().match(/BRANCH=(.*)/)?.[1] ?? '';
     // Only alphanumeric, dot, dash, underscore are allowed (#133)
@@ -1396,7 +1399,10 @@ describe('Test failure triage in ship skill', () => {
 });
 
 describe('no compiled binaries in git', () => {
+  const IS_WINDOWS = process.platform === 'win32';
+
   test('git tracks no Mach-O or ELF binaries', () => {
+    if (IS_WINDOWS) return; // requires POSIX `file` + pipe; CI on Linux covers this
     const result = require('child_process').execSync(
       'git ls-files -z | xargs -0 file --mime-type 2>/dev/null | grep -E "application/(x-mach-binary|x-executable|x-pie-executable|x-sharedlib)" || true',
       { cwd: ROOT, encoding: 'utf-8' }
@@ -1406,6 +1412,7 @@ describe('no compiled binaries in git', () => {
   });
 
   test('git tracks no files larger than 2MB', () => {
+    if (IS_WINDOWS) return; // requires POSIX `sh`/`wc`; CI on Linux covers this
     const result = require('child_process').execSync(
       'git ls-files -z | xargs -0 -I{} sh -c \'size=$(wc -c < "{}" 2>/dev/null | tr -d " "); [ "$size" -gt 2097152 ] 2>/dev/null && echo "{}:${size}"\' || true',
       { cwd: ROOT, encoding: 'utf-8' }
