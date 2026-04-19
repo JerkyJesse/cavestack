@@ -28,7 +28,8 @@ import {
   type FlaggedItem,
 } from './lib/voice-density';
 
-export { VERBOSE_PHRASES };
+export { VERBOSE_PHRASES, computeDensity };
+export type { DensityMetrics, DensityThresholds, FlaggedItem };
 
 // ─── Types ──────────────────────────────────────────────────
 
