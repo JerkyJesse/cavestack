@@ -215,7 +215,11 @@ function transformFrontmatter(content: string): string {
 const GENERATED_HEADER = `<!-- AUTO-GENERATED from {{SOURCE}} — do not edit directly -->\n<!-- Regenerate: bun run gen:skill-docs -->\n`;
 
 function processTemplate(tmplPath: string): { outputPath: string; content: string } {
-  const tmplContent = fs.readFileSync(tmplPath, 'utf-8');
+  // Normalize CRLF→LF so downstream regexes (voice-triggers, denylist strip)
+  // behave identically on Windows checkouts and Linux CI. Without this, a
+  // CRLF template leaves `voice-triggers:` blocks in the generated SKILL.md
+  // while CI regenerates the file with LF and strips them — freshness fails.
+  const tmplContent = fs.readFileSync(tmplPath, 'utf-8').replace(/\r\n/g, '\n');
   const relTmplPath = path.relative(ROOT, tmplPath);
   const outputPath = tmplPath.replace(/\.tmpl$/, '');
 

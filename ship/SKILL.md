@@ -18,7 +18,6 @@ allowed-tools:
   - Agent
   - AskUserQuestion
   - WebSearch
-sensitive: true
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
