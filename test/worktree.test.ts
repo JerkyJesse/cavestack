@@ -23,10 +23,10 @@ function createTestRepo(): string {
   // Create initial commit so HEAD exists
   fs.writeFileSync(path.join(dir, 'README.md'), '# Test repo\n');
   // Add .gitignore matching real repo (so copied build artifacts don't appear as changes)
-  fs.writeFileSync(path.join(dir, '.gitignore'), '.agents/\nbrowse/dist/\n.cavestack-worktrees/\n');
-  // Create a .agents directory (simulating gitignored build artifacts)
-  fs.mkdirSync(path.join(dir, '.agents', 'skills'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.agents', 'skills', 'test-skill.md'), '# Test skill\n');
+  fs.writeFileSync(path.join(dir, '.gitignore'), '.claude/skills/\nbrowse/dist/\n.cavestack-worktrees/\n');
+  // Create a .claude/skills directory (simulating gitignored build artifacts)
+  fs.mkdirSync(path.join(dir, '.claude', 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude', 'skills', 'test-skill.md'), '# Test skill\n');
   // Create browse/dist (simulating build artifacts)
   fs.mkdirSync(path.join(dir, 'browse', 'dist'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'browse', 'dist', 'browse'), '#!/bin/sh\necho browse\n');
@@ -76,17 +76,17 @@ describe('WorktreeManager', () => {
     mgr.cleanup('test-1');
   });
 
-  test('create() worktree has .agents/skills/ (gitignored artifacts copied)', () => {
+  test('create() worktree has .claude/skills/ (gitignored artifacts copied)', () => {
     const repo = createTestRepo();
     repos.push(repo);
     const mgr = new WorktreeManager(repo);
 
-    const worktreePath = mgr.create('test-agents');
+    const worktreePath = mgr.create('test-claude');
 
-    expect(fs.existsSync(path.join(worktreePath, '.agents', 'skills', 'test-skill.md'))).toBe(true);
+    expect(fs.existsSync(path.join(worktreePath, '.claude', 'skills', 'test-skill.md'))).toBe(true);
     expect(fs.existsSync(path.join(worktreePath, 'browse', 'dist', 'browse'))).toBe(true);
 
-    mgr.cleanup('test-agents');
+    mgr.cleanup('test-claude');
   });
 
   test('create() stores correct originalSha', () => {
