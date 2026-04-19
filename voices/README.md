@@ -28,6 +28,7 @@ Resolution order (first match wins):
 | `directive.full` | Voice block for tier 2-4 (most skills) |
 | `priority_instruction` | Runtime line injected by `caveman-voice-priority.js` |
 | `density_thresholds` | Runtime floor for `caveman-voice-verify.js` Stop hook |
+| `content_floors` | Substance-level floors (unverified internet claims, etc.) that fire before density checks |
 | `verbose_phrases` | Optional per-profile substitution pairs for `--fix` mode |
 
 ## Density thresholds
@@ -52,6 +53,29 @@ Template-level defaults in `scripts/lib/voice-density.ts` (`DEFAULT_THRESHOLDS`)
 If the Stop hook is false-positive blocking on obviously-compressed messages, the threshold is too tight. If genuinely verbose output ships without a block, too loose. Log which metric tripped via `CAVESTACK_VOICE_VERIFY_DEBUG=1` (stderr only — no disk writes), adjust, commit.
 
 Never edit thresholds to silence a single false positive — the shared regex in `scripts/lib/voice-density.ts` is the better lever. Adjust the regex, keep thresholds portable.
+
+## Content floors
+
+`content_floors` catch substance problems density checks miss. Run before density checks — different failure mode, different remediation.
+
+First floor shipped: `unverified_internet_claim`. Triggers on `WebSearch says`, `Google confirms`, `according to the latest docs` — prose citing internet as authoritative without hedge. Required hedge tokens (`hypothesis`, `claim`, `unverified`, `verify before`) must appear within 200 chars of trigger.
+
+Per-voice config in `voices/*.json`:
+
+```json
+"content_floors": {
+  "unverified_internet_claim": {
+    "enabled": true,
+    "trigger_patterns": ["WebSearch says", "Google confirms"],
+    "required_hedges": ["hypothesis", "unverified", "verify"],
+    "max_violations": 0
+  }
+}
+```
+
+`trigger_patterns` are regex strings (compiled via `new RegExp(p, 'g')`). Example above uses literal substrings for clarity — shipping profiles in `voices/caveman-full.json` use word-boundary regex like `\\b[Ww]eb ?[Ss]earch\\s+(?:says|shows|confirms)\\b`.
+
+Runtime logic in `scripts/lib/voice-density.ts` (`checkContentFloors()`). Disable per-session via `CAVESTACK_VOICE=none`.
 
 ## `extractNonFloorText` (runtime)
 

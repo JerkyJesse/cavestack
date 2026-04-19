@@ -67,6 +67,9 @@ Six judgment-layer skills embody the "think before code" moat:
 | Security audit | `/cso` — OWASP Top 10 + STRIDE threat modeling |
 | Zero telemetry | No remote data ever. `/methodology` for how savings are measured. |
 | Chars not tokens | Benchmark measures characters (model-agnostic). Same unit every terminal can count, no API key needed. |
+| CAVE rails | Preamble emits Cave protocol (identity, trust, simplicity) + Zero-Test-Drift. Persist regardless of voice. |
+| Test-scaffold gate | `Write`/`Edit` hook nudges (soft) or blocks (hard) source that ships without paired test. Flip with `cavestack-config set test_scaffold_gate {off\|soft\|hard}`. |
+| Internet hedge guard | Voice-verify blocks unhedged `WebSearch says` / `Google confirms` claims. Hedges like `hypothesis`, `unverified`, `verify before` clear floor. |
 
 ## Try It Live
 
