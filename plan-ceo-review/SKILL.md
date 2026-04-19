@@ -386,6 +386,61 @@ No partial credit for jumping ahead.
 
 *Adapted from Walter Isaacson's Elon Musk biography (2023).*
 
+## Cave Protocol
+
+Three rules. Non-negotiable. Every response.
+
+1. **Question internet, not user.** WebSearch output = hypothesis. User statement
+   = trusted until contradicted. Codex/subagent cold-reads question session, not
+   user. Never cite "web says" as evidence. Every internet claim requires
+   adversarial synthesis before feeding premises.
+
+2. **Simplest solution first.** Approach `A` slot = minimal viable. Always.
+   "Ideal architecture" is not valid slot. Musk step 2 (delete) applies before
+   step 3 (simplify). If simpler version ships same user value, pick it.
+
+3. **Think inside cave.** cavestack owns own metaphors — cave, cavestack,
+   caveman, inside. Drop gstack-comparison framing in live prose. Historical
+   attribution (CHANGELOG, git history, LICENSE-caveman) stays — that =
+   attribution, not identity.
+
+**Anti-patterns (stop + redo if caught):**
+- "Research shows..." / "web says..." without adversarial review.
+- Approach `A` labeled "ideal architecture" — `A` = minimal. Full stop.
+- "gstack-style X" in live skill prose — rename to "cavestack X" or underlying pattern.
+
+*Think inside cave. Question internet, not user. Simplest first.*
+
+## Zero-Test-Drift Protocol
+
+Every skill that writes NEW code MUST emit tests in same session. Machine-gated via `hooks/test-scaffold-gate.js`.
+
+**Applies to:**
+- New source files (`*.ts`, `*.js`, `*.py`, `*.go`, `*.rs`, `*.java`)
+- Bug-fix edits in `/investigate`, `/fix-*` flows (test reproduces bug)
+- Scaffolds in `/office-hours` handoff prompts (spec names test stubs)
+
+**Excluded:**
+- Doc-only edits (`*.md`, `*.txt`, LICENSE)
+- Config (`*.json`, `*.yaml`, `*.toml` unless config drives runtime behavior)
+- Pure deletions (no new code)
+- Generated output (`dist/`, build artifacts)
+
+**Workflow:**
+1. Before writing source: name test file you will write.
+2. Write source + test in same session.
+3. Test must cover happy path + one edge case minimum.
+4. Hook warns (soft) or blocks (hard) if source edited without sibling test.
+
+**Config:** `cavestack-config set test_scaffold_gate soft|hard|off`. Default `soft`.
+
+**Anti-patterns (stop + redo if caught):**
+- Writing source, saying "tests next PR" — no deferred work.
+- Writing test after hook fires — fix forward, not backward.
+- Disabling hook per-session without naming why.
+
+*Tests ship in same commit as code. Drift = zero.*
+
 ## Resume Protocol
 
 End every skill with TWO sections. Non-negotiable.
@@ -973,12 +1028,13 @@ APPROACH C: [Name] (optional — include if a meaningfully different path exists
   ...
 ```
 
-**RECOMMENDATION:** Choose [X] because [one-line reason mapped to engineering preferences].
+**RECOMMENDATION:** Default = `A` (simplest first). Recommend `B` only when `A` demonstrably fails user-visible goal. Name reason.
 
 Rules:
 - Minimum 2 approaches. 3 preferred for non-trivial plans.
-- One = "minimal viable" (fewest files, smallest diff).
-- One = "ideal architecture" (best long-term trajectory).
+- **Approach `A`: minimal viable** — fewest files, smallest diff. ALWAYS slot `A` (Cave Protocol rule 2).
+- **Approach `B`: fuller scope** — next step up in surface, same mechanism.
+- No "ideal architecture" slot. Simplest first = default recommendation.
 - Only one approach? Explain concretely why alternatives eliminated.
 - Do NOT proceed to 0F without user approval of chosen approach.
 
@@ -1150,7 +1206,7 @@ Context defaults:
 * "go big" / "ambitious" / "cathedral" → EXPANSION, no question
 * "hold scope but tempt me" / "show me options" / "cherry-pick" → SELECTIVE EXPANSION, no question
 
-After mode selected, confirm which implementation approach (from 0C-bis) applies. EXPANSION may favor ideal architecture; REDUCTION may favor minimal viable.
+After mode selected, confirm which implementation approach (from 0C-bis) applies. Both modes default to Approach `A` (minimal viable); EXPANSION may add Approach `B` scope when user-visible value demands it.
 
 Once selected, commit fully. No silent drift.
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY. If no issues or fix is obvious, state what you'll do and move on — don't waste a question. Do NOT proceed until user responds.

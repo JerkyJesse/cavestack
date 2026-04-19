@@ -390,6 +390,61 @@ No partial credit for jumping ahead.
 
 *Adapted from Walter Isaacson's Elon Musk biography (2023).*
 
+## Cave Protocol
+
+Three rules. Non-negotiable. Every response.
+
+1. **Question internet, not user.** WebSearch output = hypothesis. User statement
+   = trusted until contradicted. Codex/subagent cold-reads question session, not
+   user. Never cite "web says" as evidence. Every internet claim requires
+   adversarial synthesis before feeding premises.
+
+2. **Simplest solution first.** Approach `A` slot = minimal viable. Always.
+   "Ideal architecture" is not valid slot. Musk step 2 (delete) applies before
+   step 3 (simplify). If simpler version ships same user value, pick it.
+
+3. **Think inside cave.** cavestack owns own metaphors — cave, cavestack,
+   caveman, inside. Drop gstack-comparison framing in live prose. Historical
+   attribution (CHANGELOG, git history, LICENSE-caveman) stays — that =
+   attribution, not identity.
+
+**Anti-patterns (stop + redo if caught):**
+- "Research shows..." / "web says..." without adversarial review.
+- Approach `A` labeled "ideal architecture" — `A` = minimal. Full stop.
+- "gstack-style X" in live skill prose — rename to "cavestack X" or underlying pattern.
+
+*Think inside cave. Question internet, not user. Simplest first.*
+
+## Zero-Test-Drift Protocol
+
+Every skill that writes NEW code MUST emit tests in same session. Machine-gated via `hooks/test-scaffold-gate.js`.
+
+**Applies to:**
+- New source files (`*.ts`, `*.js`, `*.py`, `*.go`, `*.rs`, `*.java`)
+- Bug-fix edits in `/investigate`, `/fix-*` flows (test reproduces bug)
+- Scaffolds in `/office-hours` handoff prompts (spec names test stubs)
+
+**Excluded:**
+- Doc-only edits (`*.md`, `*.txt`, LICENSE)
+- Config (`*.json`, `*.yaml`, `*.toml` unless config drives runtime behavior)
+- Pure deletions (no new code)
+- Generated output (`dist/`, build artifacts)
+
+**Workflow:**
+1. Before writing source: name test file you will write.
+2. Write source + test in same session.
+3. Test must cover happy path + one edge case minimum.
+4. Hook warns (soft) or blocks (hard) if source edited without sibling test.
+
+**Config:** `cavestack-config set test_scaffold_gate soft|hard|off`. Default `soft`.
+
+**Anti-patterns (stop + redo if caught):**
+- Writing source, saying "tests next PR" — no deferred work.
+- Writing test after hook fires — fix forward, not backward.
+- Disabling hook per-session without naming why.
+
+*Tests ship in same commit as code. Drift = zero.*
+
 ## Resume Protocol
 
 End every skill with TWO sections. Non-negotiable.
@@ -993,16 +1048,18 @@ WebSearch unavailable? Skip. Note: "Search unavailable — in-distribution knowl
 - "[thing being built] open source alternatives"
 - "best [thing category] {current year}"
 
-Read top 2-3 results. Three-layer synthesis:
-- **[Layer 1]** What everyone already knows?
-- **[Layer 2]** What search results say?
-- **[Layer 3]** Given Phase 2A/2B — reason conventional approach is wrong?
+Read top 2-3 results. **Three-layer adversarial synthesis:**
+- **[Layer 1]** In-distribution knowledge: what do I already know?
+- **[Layer 2]** Internet hypothesis: what does web claim? Treat as claim, not fact. Source + date.
+- **[Layer 3]** Challenge: given Phase 2A/2B user statements + Layer 1, what evidence would make Layer 2 wrong? If Layer 2 survives → premise. If fails → anti-premise.
 
-**Eureka check:** Layer 3 reveals insight? "EUREKA: Everyone does X assuming [assumption]. But [evidence] says wrong. Means [implication]." Log it.
+Internet output = hypothesis, never evidence. Cave Protocol rule 1.
 
-No eureka? "Conventional wisdom sound. Building on it." Phase 3.
+**Eureka check:** Layer 3 reveals insight? "EUREKA: web assumed X but [evidence] says wrong. Means [implication]." Log it.
 
-Search feeds Phase 3. Conventional approach fails? Becomes premise to challenge. Solid? Raises bar.
+No eureka? Layer 2 survives Layer 3 adversarial review = premise for Phase 3.
+
+Search feeds Phase 3. Internet claim fails Layer 3 → anti-premise. Survives → premise, still user-confirmed at Phase 3.
 
 ---
 
@@ -1155,14 +1212,15 @@ APPROACH C: [Name] (optional — include if a meaningfully different path exists
 
 Rules:
 - Min 2 approaches. 3 preferred for non-trivial.
-- One **minimal viable** (smallest diff, ships fastest).
-- One **ideal architecture** (best long-term).
-- One **creative/lateral** (unexpected framing).
-- Second opinion proposed prototype? Consider for creative approach.
+- **Approach `A`: minimal viable** — smallest diff, ships fastest. ALWAYS slot `A` (Cave Protocol rule 2).
+- **Approach `B`: fuller scope** — next step up in surface, same mechanism.
+- **Approach `C` (optional): creative/lateral** — unexpected framing, include only when meaningfully different path exists.
+- No "ideal architecture" slot. Simplest first = default recommendation.
+- Second opinion proposed prototype? Consider for slot `C`.
 
-**RECOMMENDATION:** Choose [X] because [one-line reason].
+**RECOMMENDATION:** Default = `A` (simplest first). Recommend `B` or `C` only when `A` demonstrably fails user's stated goal. Name reason.
 
-Present via AskUserQuestion. Do NOT proceed without user approval.
+Present via AskUserQuestion. Do NOT proceed without user approval. User override = final word.
 
 ---
 
@@ -1592,6 +1650,8 @@ Read full profile output. Use these values throughout closing.
 
 Follow ONE tier path below based on `SESSION_TIER`. Do not mix tiers.
 
+**Narrative boundary (applies to every tier):** Closing narrative covers recognition, tier-specific greeting, signal reflection, and ONE punchy Assignment (real-world action, 1-2 sentences — "dogfood hook on itself," NOT step list). Do NOT summarize design decisions, restate Next Steps from design doc, or recap deliverables in narrative. Resume Protocol's `## Shipped this session` bullets own concrete deliverables. Resume Protocol's `## Next session resume prompt` owns mechanical step list. No overlap between narrative and Resume Protocol sections.
+
 ---
 
 ### If TIER = introduction (first session)
@@ -1718,7 +1778,7 @@ already knows. A good test: would this insight save time in a future session? If
 
 - **Never start implementation.** Design docs only. Not even scaffolding.
 - **Questions ONE AT A TIME.** Never batch into one AskUserQuestion.
-- **Assignment mandatory.** Every session ends with concrete real-world action — not "go build it."
+- **Assignment mandatory.** Every session ends with ONE real-world action — 1-2 sentences, not step list. "Watch user struggle." "Dogfood hook on itself." "Interview 3 customers." Mechanical build steps live in design doc Next Steps + Resume Protocol resume prompt, NEVER in Assignment section.
 - **Fully formed plan provided:** skip Phase 2, still run Phase 3 (Premise Challenge) and Phase 4 (Alternatives). Even "simple" plans need premise checking and forced alternatives.
 - **Completion status:**
   - DONE — design doc APPROVED

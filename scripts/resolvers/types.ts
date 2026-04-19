@@ -1,11 +1,10 @@
 import { ALL_HOST_CONFIGS } from '../../hosts/index';
 
 /**
- * Host type — derived from host configs in hosts/*.ts.
- * Adding a new host: create hosts/myhost.ts + add to hosts/index.ts.
- * Do NOT hardcode host names here.
+ * Host type — CaveStack is Claude Code only. Kept as a literal to preserve
+ * the shape of resolver signatures that used to branch on host.
  */
-export type Host = (typeof ALL_HOST_CONFIGS)[number]['name'];
+export type Host = 'claude';
 
 export interface HostPaths {
   skillRoot: string;
@@ -16,31 +15,19 @@ export interface HostPaths {
 }
 
 /**
- * HOST_PATHS — derived from host configs.
- * Each config's globalRoot/localSkillRoot determines the path structure.
- * Non-Claude hosts use $CAVESTACK_ROOT env vars (set by preamble).
+ * HOST_PATHS — derived from the Claude host config.
  */
 function buildHostPaths(): Record<string, HostPaths> {
   const paths: Record<string, HostPaths> = {};
   for (const config of ALL_HOST_CONFIGS) {
-    if (config.usesEnvVars) {
-      paths[config.name] = {
-        skillRoot: '$CAVESTACK_ROOT',
-        localSkillRoot: config.localSkillRoot,
-        binDir: '$CAVESTACK_BIN',
-        browseDir: '$CAVESTACK_BROWSE',
-        designDir: '$CAVESTACK_DESIGN',
-      };
-    } else {
-      const root = `~/${config.globalRoot}`;
-      paths[config.name] = {
-        skillRoot: root,
-        localSkillRoot: config.localSkillRoot,
-        binDir: `${root}/bin`,
-        browseDir: `${root}/browse/dist`,
-        designDir: `${root}/design/dist`,
-      };
-    }
+    const root = `~/${config.globalRoot}`;
+    paths[config.name] = {
+      skillRoot: root,
+      localSkillRoot: config.localSkillRoot,
+      binDir: `${root}/bin`,
+      browseDir: `${root}/browse/dist`,
+      designDir: `${root}/design/dist`,
+    };
   }
   return paths;
 }
@@ -53,8 +40,8 @@ export interface TemplateContext {
   benefitsFrom?: string[];
   host: Host;
   paths: HostPaths;
-  preambleTier?: number;  // 1-4, controls which preamble sections are included
-  voiceProfile?: string;  // Voice profile name override for this skill (from skill_voice_overrides config)
+  preambleTier?: number;
+  voiceProfile?: string;
 }
 
 /** Resolver function signature. args is populated for parameterized placeholders like {{INVOKE_SKILL:name}}. */

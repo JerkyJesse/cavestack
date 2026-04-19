@@ -36,6 +36,17 @@ export interface DensityThresholds {
   verbosePhraseMax: number;
 }
 
+export interface UnverifiedInternetClaimFloor {
+  enabled: boolean;
+  trigger_patterns?: string[];
+  required_hedges?: string[];
+  max_violations?: number;
+}
+
+export interface ContentFloors {
+  unverified_internet_claim?: UnverifiedInternetClaimFloor;
+}
+
 export interface VoiceProfile {
   name: string;
   description?: string;
@@ -43,6 +54,19 @@ export interface VoiceProfile {
   priority_instruction?: string;
   density_thresholds?: DensityThresholds;
   verbose_phrases?: [string, string][];
+  content_floors?: ContentFloors;
+}
+
+export interface ContentFloorViolation {
+  floor: 'unverified_internet_claim';
+  trigger: string;
+  line: number;
+  context: string;
+}
+
+export interface ContentFloorResult {
+  pass: boolean;
+  violations: ContentFloorViolation[];
 }
 
 export interface ThresholdCheckResult {
@@ -346,4 +370,67 @@ export function loadProfile(name: string, cavestackRoot: string): VoiceProfile |
   } catch {
     return null;
   }
+}
+
+// ─── Content Floors (substance-level checks) ────────────────
+
+const HEDGE_PROXIMITY_CHARS = 200;
+
+export function checkContentFloors(
+  text: string,
+  floors?: ContentFloors,
+): ContentFloorResult {
+  const violations: ContentFloorViolation[] = [];
+  if (!floors) return { pass: true, violations };
+
+  const internet = floors.unverified_internet_claim;
+  if (internet && internet.enabled && internet.trigger_patterns && internet.trigger_patterns.length > 0) {
+    const hedges = (internet.required_hedges || []).map(h => h.toLowerCase());
+    const lines = text.split('\n');
+    const joined = text;
+
+    for (const patternStr of internet.trigger_patterns) {
+      let regex: RegExp;
+      try {
+        regex = new RegExp(patternStr, 'g');
+      } catch {
+        continue;
+      }
+
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(joined)) !== null) {
+        const matchIdx = match.index;
+        const windowStart = Math.max(0, matchIdx - HEDGE_PROXIMITY_CHARS);
+        const windowEnd = Math.min(joined.length, matchIdx + match[0].length + HEDGE_PROXIMITY_CHARS);
+        const window = joined.slice(windowStart, windowEnd).toLowerCase();
+
+        const hedged = hedges.some(h => window.includes(h));
+        if (!hedged) {
+          let line = 1;
+          let accum = 0;
+          for (let i = 0; i < lines.length; i++) {
+            accum += lines[i].length + 1;
+            if (accum > matchIdx) { line = i + 1; break; }
+          }
+          const contextStart = Math.max(0, matchIdx - 40);
+          const contextEnd = Math.min(joined.length, matchIdx + match[0].length + 40);
+          violations.push({
+            floor: 'unverified_internet_claim',
+            trigger: match[0],
+            line,
+            context: joined.slice(contextStart, contextEnd).replace(/\s+/g, ' ').trim(),
+          });
+        }
+
+        if (match.index === regex.lastIndex) regex.lastIndex++;
+      }
+    }
+
+    const maxAllowed = internet.max_violations ?? 0;
+    if (violations.length <= maxAllowed) {
+      return { pass: true, violations };
+    }
+  }
+
+  return { pass: violations.length === 0, violations };
 }

@@ -217,12 +217,13 @@ APPROACH C: [Name] (optional — include if a meaningfully different path exists
   ...
 ```
 
-**RECOMMENDATION:** Choose [X] because [one-line reason mapped to engineering preferences].
+**RECOMMENDATION:** Default = `A` (simplest first). Recommend `B` only when `A` demonstrably fails user-visible goal. Name reason.
 
 Rules:
 - Minimum 2 approaches. 3 preferred for non-trivial plans.
-- One = "minimal viable" (fewest files, smallest diff).
-- One = "ideal architecture" (best long-term trajectory).
+- **Approach `A`: minimal viable** — fewest files, smallest diff. ALWAYS slot `A` (Cave Protocol rule 2).
+- **Approach `B`: fuller scope** — next step up in surface, same mechanism.
+- No "ideal architecture" slot. Simplest first = default recommendation.
 - Only one approach? Explain concretely why alternatives eliminated.
 - Do NOT proceed to 0F without user approval of chosen approach.
 
@@ -334,7 +335,7 @@ Context defaults:
 * "go big" / "ambitious" / "cathedral" → EXPANSION, no question
 * "hold scope but tempt me" / "show me options" / "cherry-pick" → SELECTIVE EXPANSION, no question
 
-After mode selected, confirm which implementation approach (from 0C-bis) applies. EXPANSION may favor ideal architecture; REDUCTION may favor minimal viable.
+After mode selected, confirm which implementation approach (from 0C-bis) applies. Both modes default to Approach `A` (minimal viable); EXPANSION may add Approach `B` scope when user-visible value demands it.
 
 Once selected, commit fully. No silent drift.
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY. If no issues or fix is obvious, state what you'll do and move on — don't waste a question. Do NOT proceed until user responds.

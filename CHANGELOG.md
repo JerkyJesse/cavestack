@@ -1,5 +1,140 @@
 # Changelog
 
+## [1.3.0.0] - 2026-04-18 — Think Inside the Cave
+
+CaveStack now owns its own metaphors. Skills lead with cavestack vocabulary
+(skills, dashboards, gates) instead of comparing to external tools. Credits and
+CHANGELOG still name upstream projects where attribution matters. Prose is ours.
+
+**Ship smaller first.** Plan skills now surface three-tier options where
+Approach **A** is the simplest viable slot — the thing that solves the stated
+problem and nothing else. B adds one rail. C is the full buildout. Shortcuts
+are still labeled, but "complete" no longer means "maximal."
+
+**Internet flagged as hypothesis.** When your session mentions `WebSearch says`,
+`Google confirms`, `according to the latest docs`, or similar internet-sourced
+claims without a hedge nearby, the voice-verify hook now blocks the message and
+asks you to reframe: the web is a starting point, not a verdict. Hedges like
+`hypothesis`, `claim`, `unverified`, `verify before` clear the floor. Disable
+per-session with `CAVESTACK_VOICE=none`.
+
+**Caught when you skip tests.** New `test_scaffold_gate` hook watches `Write`
+and `Edit` tool calls. When source code ships without a paired test file,
+soft mode prints a stderr warning; hard mode blocks the call and names the
+expected test path. Default is **soft** — visible nudge, no friction. Flip
+to **hard** for strict CI-like enforcement locally, or **off** to disable.
+
+**Less gstack-style framing.** Live skill prose (AskUserQuestion text, CAVE
+protocol body, diagnostic tables) no longer pitches cavestack via comparison
+to gstack or other frameworks. The skills describe what cavestack does on its
+own terms.
+
+**Claude Code only now.** cavestack is done pretending to be a multi-agent
+framework. The Codex, Factory Droid, Kiro, OpenCode, Slate, Cursor, and
+OpenClaw host targets are gone — along with `--host`, the `.agents/` /
+`.factory/` / `.kiro/` sidecars, and the ClawHub publishing flow. If you were
+running cavestack under any of those hosts, pin to `v1.2.2.0` or migrate to
+Claude Code. `./setup` no longer takes `--host`; it just installs for Claude.
+`cavestack-uninstall` still scrubs legacy sidecars when it finds them, so
+upgrading cleans up after itself. Why: the cross-host adapters were a
+constant tax on every new skill, and in practice nearly all usage is under
+Claude. Dropping them lets the skill surface stay sharp instead of trying to
+be everything to everyone.
+
+### Added
+
+- **Content-floor enforcement** — Voice profiles now support `content_floors`,
+  substance-level checks that fire before density checks. First floor shipped:
+  `unverified_internet_claim`. Trigger patterns, required hedges, and violation
+  thresholds are configurable per-voice in `voices/*.json`.
+- **Test-scaffold gate** — `hooks/test-scaffold-gate.js` runs as a `PreToolUse`
+  hook on `Write|Edit`. Detects source files without paired tests (sibling,
+  `__tests__/`, `test/`, `scripts-mirror`, browse/design sub-repos, hooks/
+  patterns). Session-scoped write log at `~/.cavestack/sessions/${id}-writes.jsonl`
+  clears pairings once the test lands in the same session.
+- **`cavestack-config set test_scaffold_gate {off|soft|hard}`** — three-mode
+  config knob registered in the header annotation block. Hook reads live on
+  every invocation, no restart needed.
+- **CAVE behavioral rails** — Preamble resolver now emits a Cave protocol
+  (identity, trust model, simplicity) and a Zero-Test-Drift protocol (pair
+  sources with tests) alongside Zero-Shortcuts / Try-First / Musk 5-Step.
+  Both rails persist regardless of voice profile.
+- **Per-skill smoke test.** `bun test` now runs `test/skill-smoke.test.ts`
+  on every top-level skill directory: parses YAML frontmatter, confirms
+  `name` and `description` are set, and cross-references each skill
+  against `docs/skills.md`. Add a new skill, you get a test for free —
+  a regression in any skill's frontmatter fails the build before ship.
+
+### Tuning
+
+Enable hard-mode test scaffolding:
+
+```bash
+~/.claude/skills/cavestack/bin/cavestack-config set test_scaffold_gate hard
+```
+
+Disable entirely:
+
+```bash
+~/.claude/skills/cavestack/bin/cavestack-config set test_scaffold_gate off
+```
+
+Disable voice-verify content floors for one session:
+
+```bash
+CAVESTACK_VOICE=none
+```
+
+### For contributors
+
+- `voices/schema.json` gains `content_floors` object with
+  `unverified_internet_claim.{enabled, trigger_patterns, required_hedges, max_violations}`.
+- `scripts/lib/voice-density.ts` exports `checkContentFloors()` with a 200-char
+  hedge-proximity window and per-violation line/context reporting.
+- `hooks/caveman-voice-verify.ts` runs content-floor checks before density
+  checks; build artifact at `hooks/caveman-voice-verify.js` via `bun run build:hook`.
+- `hooks/test-scaffold-gate.js` is ESM (package.json declares `"type": "module"`);
+  reads config via `cavestack-config get test_scaffold_gate`; resolves pair
+  candidates via the Test-Match Table in the hook body.
+- `bin/cavestack-settings-hook` gains `install-test-scaffold-gate` and
+  `remove-test-scaffold-gate` actions; `setup` wires them during CAVEMAN_INSTALL.
+- Test timeouts bumped to 10s (voice-verify) / 15s (scaffold-gate multi-spawn)
+  to survive Windows Node startup (~2–3s per `spawnSync`).
+- New tests: `test/test-scaffold-gate.test.ts` (13 cases),
+  `test/caveman-voice-verify-internet.test.ts` (7 cases),
+  `test/skill-smoke.test.ts` (dynamic discovery, 1 test per skill).
+- `hosts/` collapsed to `claude.ts` + `index.ts`. Former host configs
+  (`codex.ts`, `cursor.ts`, `factory.ts`, `kiro.ts`, `opencode.ts`,
+  `slate.ts`, `openclaw.ts`) and `scripts/host-adapters/` deleted.
+- `scripts/gen-skill-docs.ts` loses `ALL_HOST_CONFIGS`, `ALL_HOST_NAMES`,
+  `resolveHostArg`, `codex-helpers` imports, `HOST_ARG` parsing, and the
+  `hostsToRun` loop. Single Claude pass; `Host` type is now a `'claude'`
+  literal. `agents/openai.yaml` emission is gone.
+- `./setup` loses `--host`, the `CODEX_CAVESTACK` / `FACTORY_CAVESTACK`
+  branches, and the per-host runtime-root helpers
+  (`create_codex_runtime_root`, `link_codex_skill_dirs`,
+  `create_factory_runtime_root`, `link_factory_skill_dirs`,
+  `create_agents_sidecar`, `migrate_direct_codex_install`).
+- `test/codex-e2e.test.ts`, `test/gemini-e2e.test.ts`,
+  `test/openclaw-native-skills.test.ts`, `test/host-config.test.ts`,
+  `test/helpers/codex-session-runner.ts` removed. Golden fixtures for
+  `codex-ship-SKILL.md` and `factory-ship-SKILL.md` removed; Claude
+  fixture kept.
+- `openclaw/` directory removed (4 native skills + OpenClaw docs). The
+  `cavestack-openclaw-*` skills on ClawHub remain published but are
+  **abandoned** — no further updates, no bug fixes.
+- `contrib/add-host/`, `docs/OPENCLAW.md`, `docs/ADDING_A_HOST.md`,
+  `agents/openai.yaml` removed.
+- `.github/workflows/evals.yml` + `evals-periodic.yml` drop `e2e-codex`
+  / `e2e-gemini` matrix entries and `OPENAI_API_KEY` / `GEMINI_API_KEY`
+  env. `skill-docs.yml` drops its Codex/Factory freshness steps.
+- `package.json` drops `test:codex{,:all}` and `test:gemini{,:all}`
+  scripts and their matching test globs.
+- `bin/cavestack-uninstall` preserves multi-host cleanup for a release
+  window so upgraders from a pre-1.3 install don't carry stale
+  `~/.codex/skills/cavestack*` / `~/.factory/skills/cavestack*` /
+  `~/.kiro/skills/cavestack*` dirs forward.
+
 ## [1.2.2.0] - 2026-04-18 — Windows cookie import, cookie picker survives CLI exit, caveman locked to full
 
 Windows cookie import works now. Chrome 80+ moved cookies from

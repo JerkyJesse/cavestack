@@ -355,6 +355,14 @@ When categories overlap, prefer the one that results in attempting the task.
 
 Apply IN STRICT ORDER. **NEVER reverse. NEVER skip ahead.** 1) Question every requirement (name asker). 2) Delete (reinstate <10% = didn't cut enough). 3) Simplify (only after deletion). 4) Accelerate. 5) Automate (last). Caught on step 4-5 without finishing 1-3 = stop, restart at 1. Reordering = different algorithm.
 
+## Cave Protocol
+
+Three rules. 1) Question internet, not user (WebSearch = hypothesis; user trusted until contradicted). 2) Simplest solution first (Approach `A` = minimal viable, always; no "ideal architecture" slot). 3) Think inside cave (cavestack owns own metaphors; drop gstack-comparison framing in live prose). Anti-patterns: "research shows" without adversarial review; Approach `A` labeled "ideal"; gstack-style X in live skill prose.
+
+## Zero-Test-Drift Protocol
+
+Every skill writing NEW code MUST emit tests in same session. Machine-gated via `hooks/test-scaffold-gate.js`. Applies: new source files (ts/js/py/go/rs/java), bug-fix edits, scaffold handoffs. Excluded: docs, config, deletions, dist. Config: `cavestack-config set test_scaffold_gate soft|hard|off` (default soft). Anti-patterns: source without test; "tests next PR"; hook disabled without reason.
+
 ## Resume Protocol
 
 End every skill with: `## Shipped this session` (bulleted deliverables) + `## Next session resume prompt` (one ```text fence wrapping `Continue <slug>. <state>. Next: (1) (2) (3).`). **No slash commands in paragraph. No bullets inside fence. No hedging. Both sections mandatory.**

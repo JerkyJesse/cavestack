@@ -11,5 +11,28 @@
     "fillersPerHundred": 1.0,
     "hedgesPerHundred": 0.5,
     "verbosePhraseMax": 3
+  },
+  "content_floors": {
+    "unverified_internet_claim": {
+      "enabled": true,
+      "trigger_patterns": [
+        "\\b[Ww]eb ?[Ss]earch\\s+(?:says|shows|confirms|proves|reveals|tells us)\\b",
+        "\\b[Ii]nternet\\s+(?:says|shows|confirms|proves)\\b",
+        "\\baccording to (?:the )?(?:web|internet|search results|latest docs)\\b",
+        "\\b[Gg]oogle\\s+(?:says|shows|confirms|proves)\\b",
+        "\\b(?:the )?[Ww]eb\\s+(?:says|confirms|claims)\\b"
+      ],
+      "required_hedges": [
+        "hypothesis",
+        "claim",
+        "unverified",
+        "needs verification",
+        "treat as",
+        "may be wrong",
+        "could be stale",
+        "verify before"
+      ],
+      "max_violations": 0
+    }
   }
 }

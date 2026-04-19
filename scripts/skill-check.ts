@@ -79,60 +79,20 @@ for (const file of SKILL_FILES) {
   }
 }
 
-// ─── External Host Skills (config-driven) ───────────────────
+// ─── Freshness ──────────────────────────────────────────────
 
-import { getExternalHosts } from '../hosts/index';
-
-for (const hostConfig of getExternalHosts()) {
-  const hostDir = path.join(ROOT, hostConfig.hostSubdir, 'skills');
-  if (fs.existsSync(hostDir)) {
-    console.log(`\n  ${hostConfig.displayName} Skills (${hostConfig.hostSubdir}/skills/):`);
-    const dirs = fs.readdirSync(hostDir).sort();
-    let count = 0;
-    let missing = 0;
-    for (const dir of dirs) {
-      const skillMd = path.join(hostDir, dir, 'SKILL.md');
-      if (fs.existsSync(skillMd)) {
-        count++;
-        const content = fs.readFileSync(skillMd, 'utf-8');
-        const hasClaude = content.includes('.claude/skills');
-        if (hasClaude) {
-          hasErrors = true;
-          console.log(`  \u274c ${dir.padEnd(30)} — contains .claude/skills reference`);
-        } else {
-          console.log(`  \u2705 ${dir.padEnd(30)} — OK`);
-        }
-      } else {
-        missing++;
-        hasErrors = true;
-        console.log(`  \u274c ${dir.padEnd(30)} — SKILL.md missing`);
-      }
-    }
-    console.log(`  Total: ${count} skills, ${missing} missing`);
-  } else {
-    console.log(`\n  ${hostConfig.displayName} Skills: ${hostConfig.hostSubdir}/skills/ not found (run: bun run gen:skill-docs --host ${hostConfig.name})`);
+console.log('\n  Freshness:');
+try {
+  execSync('bun run scripts/gen-skill-docs.ts --dry-run', { cwd: ROOT, stdio: 'pipe' });
+  console.log('  \u2705 All generated files are fresh');
+} catch (err: any) {
+  hasErrors = true;
+  const output = err.stdout?.toString() || '';
+  console.log('  \u274c Generated files are stale:');
+  for (const line of output.split('\n').filter((l: string) => l.startsWith('STALE'))) {
+    console.log(`      ${line}`);
   }
-}
-
-// ─── Freshness (config-driven) ──────────────────────────────
-
-import { ALL_HOST_CONFIGS } from '../hosts/index';
-
-for (const hostConfig of ALL_HOST_CONFIGS) {
-  const hostFlag = hostConfig.name === 'claude' ? '' : ` --host ${hostConfig.name}`;
-  console.log(`\n  Freshness (${hostConfig.displayName}):`);
-  try {
-    execSync(`bun run scripts/gen-skill-docs.ts${hostFlag} --dry-run`, { cwd: ROOT, stdio: 'pipe' });
-    console.log(`  \u2705 All ${hostConfig.displayName} generated files are fresh`);
-  } catch (err: any) {
-    hasErrors = true;
-    const output = err.stdout?.toString() || '';
-    console.log(`  \u274c ${hostConfig.displayName} generated files are stale:`);
-    for (const line of output.split('\n').filter((l: string) => l.startsWith('STALE'))) {
-      console.log(`      ${line}`);
-    }
-    console.log(`      Run: bun run gen:skill-docs${hostFlag}`);
-  }
+  console.log('      Run: bun run gen:skill-docs');
 }
 
 console.log('');

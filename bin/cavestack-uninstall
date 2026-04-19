@@ -9,16 +9,15 @@
 # What gets REMOVED:
 #   ~/.claude/skills/cavestack       — global Claude skill install (git clone or vendored)
 #   ~/.claude/skills/{skill}      — per-skill symlinks created by setup
-#   ~/.codex/skills/cavestack*       — Codex skill install + per-skill symlinks
-#   ~/.factory/skills/cavestack*     — Factory Droid skill install + per-skill symlinks
-#   ~/.kiro/skills/cavestack*        — Kiro skill install + per-skill symlinks
 #   ~/.cavestack/                    — global state (config, analytics, sessions, projects,
 #                                   repos, installation-id, browse error logs)
 #   .claude/skills/cavestack*        — project-local skill install (--local installs)
 #   .cavestack/                      — per-project browse state (in current git repo)
 #   .cavestack-worktrees/            — per-project test worktrees (in current git repo)
-#   .agents/skills/cavestack*        — Codex/Gemini/Cursor sidecar (in current git repo)
 #   Running browse daemons        — stopped via SIGTERM before cleanup
+#   (legacy) ~/.codex/skills/cavestack*, ~/.factory/skills/cavestack*,
+#            ~/.kiro/skills/cavestack*, .agents/skills/cavestack*, .factory/skills/cavestack*
+#            — only present if upgrading from a pre-1.3 multi-host install.
 #
 # What is NOT REMOVED:
 #   ~/Library/Caches/ms-playwright/  — Playwright Chromium (shared, may be used by other tools)
@@ -63,9 +62,12 @@ done
 if [ "$FORCE" -eq 0 ]; then
   echo "This will remove cavestack from your system:"
   { [ -d "$HOME/.claude/skills/cavestack" ] || [ -L "$HOME/.claude/skills/cavestack" ]; } && echo "  ~/.claude/skills/cavestack (+ per-skill symlinks)"
-  [ -d "$HOME/.codex/skills" ] && echo "  ~/.codex/skills/cavestack*"
-  [ -d "$HOME/.factory/skills" ] && echo "  ~/.factory/skills/cavestack*"
-  [ -d "$HOME/.kiro/skills" ] && echo "  ~/.kiro/skills/cavestack*"
+  # Legacy multi-host previews — cavestack is Claude-only since v1.3 but old
+  # installs may leave stale dirs under other hosts. Preview them so the user
+  # knows they'll be removed.
+  [ -d "$HOME/.codex/skills" ] && echo "  ~/.codex/skills/cavestack* (legacy)"
+  [ -d "$HOME/.factory/skills" ] && echo "  ~/.factory/skills/cavestack* (legacy)"
+  [ -d "$HOME/.kiro/skills" ] && echo "  ~/.kiro/skills/cavestack* (legacy)"
   [ "$KEEP_STATE" -eq 0 ] && [ -d "$STATE_DIR" ] && echo "  $STATE_DIR"
 
   if [ -n "$_GIT_ROOT" ]; then
@@ -161,7 +163,10 @@ if [ -n "$_GIT_ROOT" ] && [ -d "$_GIT_ROOT/.claude/skills" ]; then
   fi
 fi
 
-# ─── Remove Codex skills ────────────────────────────────────
+# ─── Legacy multi-host cleanup ───────────────────────────────
+# cavestack is Claude-only since v1.3, but older installs may have dropped
+# cavestack skills under other hosts' skill dirs. Scrub them so upgraders
+# don't carry stale symlinks forward.
 CODEX_SKILLS="$HOME/.codex/skills"
 if [ -d "$CODEX_SKILLS" ]; then
   for _ITEM in "$CODEX_SKILLS"/cavestack*; do
