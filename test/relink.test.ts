@@ -25,7 +25,9 @@ function run(cmd: string, env: Record<string, string> = {}, expectFail = false):
       cwd: ROOT,
       env: { ...process.env, CAVESTACK_STATE_DIR: tmpDir, ...env },
       encoding: 'utf-8',
-      timeout: 10000,
+      // 30s: bash→bun spawns cost ~500ms-1s each on Windows and this file has
+      // tests that chain 4-8 run() calls back-to-back; 10s was not enough.
+      timeout: 30000,
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
   } catch (e: any) {
