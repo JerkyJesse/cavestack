@@ -6,6 +6,27 @@ import * as os from 'os';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const BIN = path.join(ROOT, 'bin');
+const IS_WINDOWS = process.platform === 'win32';
+
+// Windows: fs.symlinkSync requires admin or Developer Mode. cavestack-relink
+// creates symlinks, so without the privilege the binary itself fails before any
+// assertion runs. Probe once and skip relink/patch-names/migration describes
+// that depend on symlink creation.
+function canSymlink(): boolean {
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-relink-symprobe-'));
+  try {
+    const src = path.join(probeDir, 'src');
+    fs.writeFileSync(src, 'x');
+    fs.symlinkSync(src, path.join(probeDir, 'lnk'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+
+const SYMLINK_OK = canSymlink();
 
 let tmpDir: string;
 let skillsDir: string;
@@ -75,7 +96,7 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-describe('cavestack-relink (#578)', () => {
+(SYMLINK_OK ? describe : describe.skip)('cavestack-relink (#578)', () => {
   // Test 11: prefixed symlinks when skill_prefix=true
   test('creates cavestack-* symlinks when skill_prefix=true', () => {
     setupMockInstall(['qa', 'ship', 'review']);
@@ -389,9 +410,11 @@ describe('upgrade migrations', () => {
     expect(scripts.length).toBeGreaterThan(0);
     for (const script of scripts) {
       const fullPath = path.join(MIGRATIONS_DIR, script);
-      // Must be executable
-      const stat = fs.statSync(fullPath);
-      expect(stat.mode & 0o111).toBeGreaterThan(0);
+      // Must be executable (skip on Windows — no POSIX exec bit)
+      if (!IS_WINDOWS) {
+        const stat = fs.statSync(fullPath);
+        expect(stat.mode & 0o111).toBeGreaterThan(0);
+      }
       // Must parse without syntax errors (bash -n is a syntax check, doesn't execute)
       const result = execSync(`bash -n "${fullPath}" 2>&1`, { encoding: 'utf-8', timeout: 5000 });
       // bash -n outputs nothing on success
@@ -411,6 +434,7 @@ describe('upgrade migrations', () => {
   });
 
   test('v0.15.2.0 migration fixes stale directory symlinks', () => {
+    if (!SYMLINK_OK) return;
     setupMockInstall(['qa', 'ship', 'review']);
     // Simulate old state: directory symlinks (pre-v0.15.2.0 pattern)
     fs.symlinkSync(path.join(installDir, 'qa'), path.join(skillsDir, 'qa'));
@@ -439,7 +463,7 @@ describe('upgrade migrations', () => {
   });
 });
 
-describe('cavestack-patch-names (#620/#578)', () => {
+(SYMLINK_OK ? describe : describe.skip)('cavestack-patch-names (#620/#578)', () => {
   // Helper to read name: from SKILL.md frontmatter
   function readSkillName(skillDir: string): string | null {
     const content = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');

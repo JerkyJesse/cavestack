@@ -89,13 +89,14 @@ describe('preamble local analytics', () => {
     }
   });
 
-  test('proactive prompt gates on LAKE_INTRO, not TEL_PROMPTED', () => {
+  test('proactive prompt gates on PROACTIVE_PROMPTED, not TEL_PROMPTED', () => {
     const preamble = fs.readFileSync(path.join(ROOT, 'scripts', 'resolvers', 'preamble.ts'), 'utf-8');
-    // generateProactivePrompt should NOT reference TEL_PROMPTED
+    // generateProactivePrompt must NOT reference the old TEL_PROMPTED gate.
+    // It should gate on PROACTIVE_PROMPTED (marker file ~/.cavestack/.proactive-prompted).
     const proactiveStart = preamble.indexOf('function generateProactivePrompt');
     const proactiveEnd = preamble.indexOf('\n}', proactiveStart);
     const proactiveBody = preamble.slice(proactiveStart, proactiveEnd);
     expect(proactiveBody).not.toContain('TEL_PROMPTED');
-    expect(proactiveBody).toContain('LAKE_INTRO');
+    expect(proactiveBody).toContain('PROACTIVE_PROMPTED');
   });
 });

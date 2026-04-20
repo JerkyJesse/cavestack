@@ -150,7 +150,14 @@ let importCookies: any;
 let CookieImportError: any;
 let originalSpawn: typeof Bun.spawn;
 
+// Windows: cookie-import targets macOS Keychain / Linux libsecret — the
+// mocked spawn pipeline and fixture SQLite paths aren't portable. Skip on
+// Windows; Linux CI covers this path.
+const isWindows = process.platform === 'win32';
+const describeBrowser = isWindows ? describe.skip : describe;
+
 beforeAll(async () => {
+  if (isWindows) return;
   createMacFixtureDb();
   createLinuxFixtureDb();
 
@@ -203,6 +210,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  if (isWindows) return;
   // Restore Bun.spawn
   // @ts-ignore - monkey-patching for test
   Bun.spawn = originalSpawn;
@@ -255,7 +263,7 @@ async function withInstalledProfile<T>(
 
 // ─── Tests ──────────────────────────────────────────────────────
 
-describe('Cookie Import Browser', () => {
+describeBrowser('Cookie Import Browser', () => {
 
   describe('Decryption Pipeline', () => {
     test('encrypts and decrypts round-trip correctly', () => {

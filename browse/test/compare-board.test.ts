@@ -28,6 +28,10 @@ let boardUrl: string;
 let server: ReturnType<typeof Bun.serve>;
 let tmpDir: string;
 
+// Windows: Playwright chrome-headless-shell launch hangs (see handoff.test.ts).
+const isWindows = process.platform === 'win32';
+const describeBrowser = isWindows ? describe.skip : describe;
+
 // Create a minimal 1x1 pixel PNG for test variants
 function createTestPng(filePath: string): void {
   // Minimal valid PNG: 1x1 red pixel
@@ -39,6 +43,7 @@ function createTestPng(filePath: string): void {
 }
 
 beforeAll(async () => {
+  if (isWindows) return;
   // Create test PNG files
   tmpDir = '/tmp/compare-board-test-' + Date.now();
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -67,9 +72,10 @@ beforeAll(async () => {
   bm = new BrowserManager();
   await bm.launch();
   await handleWriteCommand('goto', [boardUrl], bm);
-});
+}, 60000);
 
 afterAll(() => {
+  if (isWindows) return;
   try { server.stop(); } catch {}
   fs.rmSync(tmpDir, { recursive: true, force: true });
   setTimeout(() => process.exit(0), 500);
@@ -77,7 +83,7 @@ afterAll(() => {
 
 // ─── DOM Structure ──────────────────────────────────────────────
 
-describe('Comparison board DOM structure', () => {
+describeBrowser('Comparison board DOM structure', () => {
   test('has hidden status element', async () => {
     const status = await handleReadCommand('js', [
       'document.getElementById("status").textContent'
@@ -130,7 +136,7 @@ describe('Comparison board DOM structure', () => {
 
 // ─── Submit Flow ────────────────────────────────────────────────
 
-describe('Submit feedback flow', () => {
+describeBrowser('Submit feedback flow', () => {
   test('submit without interaction returns empty preferred', async () => {
     // Reset page state
     await handleWriteCommand('goto', [boardUrl], bm);
@@ -227,7 +233,7 @@ describe('Submit feedback flow', () => {
 
 // ─── Regenerate Flow ────────────────────────────────────────────
 
-describe('Regenerate flow', () => {
+describeBrowser('Regenerate flow', () => {
   test('regenerate button sets status to "regenerate"', async () => {
     // Fresh page
     await handleWriteCommand('goto', [boardUrl], bm);
@@ -301,7 +307,7 @@ describe('Regenerate flow', () => {
 
 // ─── Agent Polling Pattern ──────────────────────────────────────
 
-describe('Agent polling pattern (simulates what $B eval does)', () => {
+describeBrowser('Agent polling pattern (simulates what $B eval does)', () => {
   test('status is empty before user action', async () => {
     // Fresh page — simulates agent's first poll
     await handleWriteCommand('goto', [boardUrl], bm);

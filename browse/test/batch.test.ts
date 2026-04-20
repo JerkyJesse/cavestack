@@ -14,6 +14,10 @@ let bm: BrowserManager;
 let baseUrl: string;
 let serverPort: number;
 
+// Windows: Playwright chrome-headless-shell launch hangs (see handoff.test.ts).
+const isWindows = process.platform === 'win32';
+const describeBrowser = isWindows ? describe.skip : describe;
+
 // Helper to send batch requests to the browse server
 async function batch(commands: any[], opts: { timeout?: number; stream?: boolean } = {}): Promise<any> {
   const res = await fetch(`http://127.0.0.1:${serverPort}/batch`, {
@@ -28,6 +32,7 @@ async function batch(commands: any[], opts: { timeout?: number; stream?: boolean
 }
 
 beforeAll(async () => {
+  if (isWindows) return;
   testServer = startTestServer(0);
   baseUrl = testServer.url;
 
@@ -40,9 +45,10 @@ beforeAll(async () => {
   // The server is already started by launch — we need the port
   // Actually, BrowserManager.launch() starts the browser, not the server.
   // The test needs to start a server. Let's use the existing server infrastructure.
-});
+}, 60000);
 
 afterAll(() => {
+  if (isWindows) return;
   try { testServer.server.stop(); } catch {}
   setTimeout(() => process.exit(0), 500);
 });
@@ -62,7 +68,7 @@ const handleReadCommand = (cmd: string, args: string[], b: BrowserManager) =>
 const handleWriteCommand = (cmd: string, args: string[], b: BrowserManager) =>
   _handleWriteCommand(cmd, args, b.getActiveSession(), b);
 
-describe('Batch execution', () => {
+describeBrowser('Batch execution', () => {
   test('multi-tab parallel: goto + text on different tabs', async () => {
     // Create two tabs
     const tab1 = await bm.newTab(baseUrl + '/basic.html');

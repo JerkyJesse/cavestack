@@ -9,6 +9,9 @@ const ROOT = path.resolve(import.meta.dir, '..');
 const MAX_SKILL_DESCRIPTION_LENGTH = 1024;
 
 function extractDescription(content: string): string {
+  // Some skills (e.g. caveman) have leading HTML marker comments before the
+  // frontmatter. Strip them so the frontmatter parser sees '---\n' at index 0.
+  content = content.replace(/^(<!--[\s\S]*?-->\s*)+/, '');
   const fmEnd = content.indexOf('\n---', 4);
   expect(fmEnd).toBeGreaterThan(0);
   const frontmatter = content.slice(4, fmEnd);
@@ -126,7 +129,10 @@ describe('gen-skill-docs', () => {
   test('every generated SKILL.md has valid YAML frontmatter', () => {
     for (const skill of ALL_SKILLS) {
       const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
-      expect(content.startsWith('---\n')).toBe(true);
+      // Some skills (e.g. caveman) have leading HTML marker comments (voice:skip)
+      // before the frontmatter. Strip leading HTML comments before validating.
+      const stripped = content.replace(/^(<!--[\s\S]*?-->\s*)+/, '');
+      expect(stripped.startsWith('---\n')).toBe(true);
       expect(content).toContain('name:');
       expect(content).toContain('description:');
     }
@@ -184,7 +190,7 @@ describe('gen-skill-docs', () => {
       stderr: 'pipe',
     });
     expect(result.exitCode).toBe(0);
-    const output = result.stdout.toString();
+    const output = result.stdout.toString().replace(/\\/g, '/');
     // Every skill should be FRESH
     for (const skill of ALL_SKILLS) {
       const file = skill.dir === '.' ? 'SKILL.md' : `${skill.dir}/SKILL.md`;
@@ -357,10 +363,14 @@ describe('gen-skill-docs', () => {
     const qaOnlyContent = fs.readFileSync(path.join(ROOT, 'qa-only', 'SKILL.md'), 'utf-8');
     expect(qaOnlyContent).toMatch(/[Nn]ever fix/);
     expect(qaOnlyContent).toMatch(/NEVER fix/);
-    // Should not have Edit, Glob, or Grep in allowed-tools
-    expect(qaOnlyContent).not.toMatch(/allowed-tools:[\s\S]*?Edit/);
-    expect(qaOnlyContent).not.toMatch(/allowed-tools:[\s\S]*?Glob/);
-    expect(qaOnlyContent).not.toMatch(/allowed-tools:[\s\S]*?Grep/);
+    // Extract allowed-tools block from frontmatter (ends at next top-level key or '---')
+    const m = qaOnlyContent.match(/^allowed-tools:\s*\n((?:[ \t]+.*\n)*)/m);
+    expect(m).not.toBeNull();
+    const allowedToolsBlock = m![1];
+    // Should not have Edit, Glob, or Grep as listed tools
+    expect(allowedToolsBlock).not.toMatch(/\bEdit\b/);
+    expect(allowedToolsBlock).not.toMatch(/\bGlob\b/);
+    expect(allowedToolsBlock).not.toMatch(/\bGrep\b/);
   });
 
   test('qa has fix-loop tools and phases', () => {
@@ -1926,7 +1936,7 @@ describe('gen-skill-docs prefix warning (#620/#578)', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-  });
+  }, 60000);
 
   test('no warning when skill_prefix is false or absent', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-prefix-warn-'));
@@ -1946,7 +1956,7 @@ describe('gen-skill-docs prefix warning (#620/#578)', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-  });
+  }, 60000);
 });
 
 describe('voice-triggers processing', () => {

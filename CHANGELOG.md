@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.3.1.0] - 2026-04-19 — Windows test triage phase 2
+
+Running `bun test` on Windows no longer fails 50+ ways. The full suite now
+passes cleanly across Linux, macOS, and Windows, so you can ship from any
+machine without wondering whether a red result means your code broke or
+just that some test assumed `/tmp`, `/etc/passwd`, or a working symlink.
+
+### Fixed
+
+- `find-browse` now discovers `browse.exe` on Windows instead of failing
+  silently. Every skill invocation on Windows was printing
+  `ERROR: browse binary not found` because the locator only checked for a
+  bare `browse` file. The bash shim fallback picks up the same `.exe`
+  suffix.
+- `isProcessAlive` waits up to 10 seconds for `tasklist` on Windows (was
+  3s), so the process-alive check stops returning false negatives under
+  Windows Defender scans or pagefile thrash.
+- Skill preambles that use `careful python3` now fall back to `python`
+  when `python3` is not on PATH — matches the Python 3 install on most
+  Windows boxes.
+
+### Changed
+
+- About 20 test files on Windows skip platform-specific assertions via
+  `describeBrowser`, `describePosix`, or `testUnix` guards instead of
+  silently timing out. Linux and macOS CI still run every test. What was
+  previously ~50 Windows test failures is now 676 intentional skips and
+  0 failures.
+
+### For contributors
+
+- Symlink-capable Windows dev machines (Developer Mode on) run the full
+  suite including the symlink-dependent tests. Non-admin boxes cleanly
+  skip them via a module-load probe.
+- `browse/src/find-browse.ts` locator now only accepts `.exe` on win32
+  (dropped the empty-suffix fallback that could match a directory of the
+  same name).
+
 ## [1.3.0.2] - 2026-04-19 — Worktree harvest fixed
 
 E2E test infrastructure no longer crashes the moment a worktree is created.

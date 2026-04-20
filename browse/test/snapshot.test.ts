@@ -23,22 +23,28 @@ let bm: BrowserManager;
 let baseUrl: string;
 const shutdown = async () => {};
 
+// Windows: Playwright chrome-headless-shell launch hangs (see handoff.test.ts).
+const isWindows = process.platform === 'win32';
+const describeBrowser = isWindows ? describe.skip : describe;
+
 beforeAll(async () => {
+  if (isWindows) return;
   testServer = startTestServer(0);
   baseUrl = testServer.url;
 
   bm = new BrowserManager();
   await bm.launch();
-});
+}, 60000);
 
 afterAll(() => {
+  if (isWindows) return;
   try { testServer.server.stop(); } catch {}
   setTimeout(() => process.exit(0), 500);
 });
 
 // ─── Snapshot Output ────────────────────────────────────────────
 
-describe('Snapshot', () => {
+describeBrowser('Snapshot', () => {
   test('snapshot returns accessibility tree with refs', async () => {
     await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
     const result = await handleMetaCommand('snapshot', [], bm, shutdown);
@@ -107,7 +113,7 @@ describe('Snapshot', () => {
 
 // ─── Ref-Based Interaction ──────────────────────────────────────
 
-describe('Ref resolution', () => {
+describeBrowser('Ref resolution', () => {
   test('click @ref works after snapshot', async () => {
     await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
     const snap = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
@@ -180,7 +186,7 @@ describe('Ref resolution', () => {
 
 // ─── Ref Invalidation ───────────────────────────────────────────
 
-describe('Ref invalidation', () => {
+describeBrowser('Ref invalidation', () => {
   test('stale ref after goto returns clear error', async () => {
     await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
     await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
@@ -209,7 +215,7 @@ describe('Ref invalidation', () => {
 
 // ─── Ref Staleness Detection ────────────────────────────────────
 
-describe('Ref staleness detection', () => {
+describeBrowser('Ref staleness detection', () => {
   test('ref metadata stores role and name', async () => {
     await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
     await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
@@ -257,7 +263,7 @@ describe('Ref staleness detection', () => {
 
 // ─── Snapshot Diffing ──────────────────────────────────────────
 
-describe('Snapshot diff', () => {
+describeBrowser('Snapshot diff', () => {
   test('first snapshot -D stores baseline', async () => {
     // Clear any previous snapshot
     bm.setLastSnapshot(null);
@@ -295,7 +301,7 @@ describe('Snapshot diff', () => {
 
 // ─── Annotated Screenshots ─────────────────────────────────────
 
-describe('Annotated screenshots', () => {
+describeBrowser('Annotated screenshots', () => {
   test('snapshot -a creates annotated screenshot', async () => {
     const screenshotPath = '/tmp/browse-test-annotated.png';
     await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
@@ -340,7 +346,7 @@ describe('Annotated screenshots', () => {
 
 // ─── Cursor-Interactive ────────────────────────────────────────
 
-describe('Cursor-interactive', () => {
+describeBrowser('Cursor-interactive', () => {
   test('snapshot -C finds cursor:pointer elements', async () => {
     await handleWriteCommand('goto', [baseUrl + '/cursor-interactive.html'], bm);
     const result = await handleMetaCommand('snapshot', ['-C'], bm, shutdown);
@@ -405,7 +411,7 @@ describe('Cursor-interactive', () => {
 
 // ─── Dropdown/Popover Detection ─────────────────────────────────
 
-describe('Dropdown/popover detection', () => {
+describeBrowser('Dropdown/popover detection', () => {
   test('snapshot -i auto-enables cursor scan and finds dropdown items', async () => {
     await handleWriteCommand('goto', [baseUrl + '/dropdown.html'], bm);
     const result = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
@@ -464,7 +470,7 @@ describe('Dropdown/popover detection', () => {
 
 // ─── Snapshot Error Paths ───────────────────────────────────────
 
-describe('Snapshot errors', () => {
+describeBrowser('Snapshot errors', () => {
   test('unknown flag throws', async () => {
     try {
       await handleMetaCommand('snapshot', ['--bogus'], bm, shutdown);
@@ -514,7 +520,7 @@ describe('Snapshot errors', () => {
 
 // ─── Combined Flags ─────────────────────────────────────────────
 
-describe('Snapshot combined flags', () => {
+describeBrowser('Snapshot combined flags', () => {
   test('-i -c -d 2 combines all filters', async () => {
     await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
     const result = await handleMetaCommand('snapshot', ['-i', '-c', '-d', '2'], bm, shutdown);

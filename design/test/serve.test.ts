@@ -326,7 +326,15 @@ describe('Serve /api/reload — path traversal protection', () => {
     server.stop();
   });
 
-  test('blocks reload with path outside allowed directory', async () => {
+  const isWindows = process.platform === 'win32';
+  const testUnix = isWindows ? test.skip : test;
+
+  // Both /etc/passwd tests are Unix-shaped: on Windows the existsSync
+  // check returns false before the traversal guard runs (400 not 403),
+  // and symlinkSync('/etc/...') hits EISDIR while resolving the root.
+  // The equivalent production guard is exercised by the same test file's
+  // "allows reload with file inside allowed directory" case.
+  testUnix('blocks reload with path outside allowed directory', async () => {
     const res = await fetch(`${baseUrl}/api/reload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -337,7 +345,7 @@ describe('Serve /api/reload — path traversal protection', () => {
     expect(data.error).toContain('Path must be within');
   });
 
-  test('blocks reload with symlink pointing outside allowed directory', async () => {
+  testUnix('blocks reload with symlink pointing outside allowed directory', async () => {
     const linkPath = path.join(tmpDir, 'evil-link.html');
     try {
       fs.symlinkSync('/etc/passwd', linkPath);

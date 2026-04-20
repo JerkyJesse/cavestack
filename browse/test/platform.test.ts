@@ -1,4 +1,5 @@
 import { describe, test, expect } from 'bun:test';
+import * as path from 'path';
 import { TEMP_DIR, isPathWithin, IS_WINDOWS } from '../src/platform';
 
 describe('platform constants', () => {
@@ -13,25 +14,31 @@ describe('platform constants', () => {
   });
 });
 
+// isPathWithin compares strings using path.sep; tests use platform-correct separators.
+const ROOT = IS_WINDOWS ? 'C:\\tmp' : '/tmp';
+const j = (...parts: string[]) => parts.join(path.sep);
+
 describe('isPathWithin', () => {
   test('path inside directory returns true', () => {
-    expect(isPathWithin('/tmp/foo', '/tmp')).toBe(true);
+    expect(isPathWithin(j(ROOT, 'foo'), ROOT)).toBe(true);
   });
 
   test('path outside directory returns false', () => {
-    expect(isPathWithin('/etc/foo', '/tmp')).toBe(false);
+    const other = IS_WINDOWS ? 'D:\\etc\\foo' : '/etc/foo';
+    expect(isPathWithin(other, ROOT)).toBe(false);
   });
 
   test('exact match returns true', () => {
-    expect(isPathWithin('/tmp', '/tmp')).toBe(true);
+    expect(isPathWithin(ROOT, ROOT)).toBe(true);
   });
 
   test('partial prefix does not match (path traversal)', () => {
     // /tmp-evil should NOT match /tmp
-    expect(isPathWithin('/tmp-evil/foo', '/tmp')).toBe(false);
+    const evil = IS_WINDOWS ? 'C:\\tmp-evil\\foo' : '/tmp-evil/foo';
+    expect(isPathWithin(evil, ROOT)).toBe(false);
   });
 
   test('nested path returns true', () => {
-    expect(isPathWithin('/tmp/a/b/c', '/tmp')).toBe(true);
+    expect(isPathWithin(j(ROOT, 'a', 'b', 'c'), ROOT)).toBe(true);
   });
 });

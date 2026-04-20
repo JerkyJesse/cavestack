@@ -42,7 +42,7 @@ export function isProcessAlive(pid: number): boolean {
     try {
       const result = Bun.spawnSync(
         ['tasklist', '/FI', `PID eq ${pid}`, '/NH', '/FO', 'CSV'],
-        { stdout: 'pipe', stderr: 'pipe', timeout: 3000 }
+        { stdout: 'pipe', stderr: 'pipe', timeout: 10_000 }
       );
       return result.stdout.toString().includes(`"${pid}"`);
     } catch {

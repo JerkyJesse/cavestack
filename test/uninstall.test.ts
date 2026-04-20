@@ -7,6 +7,25 @@ import * as os from 'os';
 const ROOT = path.resolve(import.meta.dir, '..');
 const UNINSTALL = path.join(ROOT, 'bin', 'cavestack-uninstall');
 
+// Windows: fs.symlinkSync requires admin or Developer Mode. Without it, tests
+// that set up the mock install layout die with EPERM in beforeEach. Probe once
+// and skip the integration describe block if symlinks aren't available.
+function canSymlink(): boolean {
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-uninstall-symprobe-'));
+  try {
+    const src = path.join(probeDir, 'src');
+    fs.writeFileSync(src, 'x');
+    fs.symlinkSync(src, path.join(probeDir, 'lnk'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+
+const SYMLINK_OK = canSymlink();
+
 describe('cavestack-uninstall', () => {
   test('syntax check passes', () => {
     const result = spawnSync('bash', ['-n', UNINSTALL], { stdio: 'pipe' });
@@ -31,7 +50,7 @@ describe('cavestack-uninstall', () => {
     expect(result.stderr.toString()).toContain('Unknown option');
   });
 
-  describe('integration tests with mock layout', () => {
+  (SYMLINK_OK ? describe : describe.skip)('integration tests with mock layout', () => {
     let tmpDir: string;
     let mockHome: string;
     let mockGitRoot: string;

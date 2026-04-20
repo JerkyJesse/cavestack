@@ -340,7 +340,13 @@ describe('Chain security', () => {
 
 // ─── 7. Hidden Element Stripping (functional) ───────────────────
 
-describe('Hidden element stripping', () => {
+// Windows: Playwright chrome-headless-shell --remote-debugging-pipe
+// handshake hangs indefinitely. Direct chromium.launch() times out at
+// 180s default even headed with sandbox disabled. Skip on Windows;
+// Linux CI covers this path.
+const describeBrowser = process.platform === 'win32' ? describe.skip : describe;
+
+describeBrowser('Hidden element stripping', () => {
   let testServer: ReturnType<typeof startTestServer>;
   let bm: BrowserManager;
   let baseUrl: string;
@@ -350,7 +356,7 @@ describe('Hidden element stripping', () => {
     baseUrl = testServer.url;
     bm = new BrowserManager();
     await bm.launch();
-  });
+  }, 60000);
 
   afterAll(() => {
     try { testServer.server.stop(); } catch {}

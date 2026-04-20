@@ -7,11 +7,33 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync, mkdirSync, symlinkSync, utimesSync } from 'fs';
+import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync, mkdirSync, symlinkSync, utimesSync, copyFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
 const SCRIPT = join(import.meta.dir, '..', '..', 'bin', 'cavestack-update-check');
+
+// Windows without Developer Mode / admin cannot create symlinks (EPERM).
+// Probe once at module load; fall back to copyFileSync when symlinks unavailable.
+let symlinksSupported = true;
+try {
+  const probeDir = mkdtempSync(join(tmpdir(), 'symlink-probe-'));
+  const probeTarget = join(probeDir, 'target');
+  const probeLink = join(probeDir, 'link');
+  writeFileSync(probeTarget, 'x');
+  symlinkSync(probeTarget, probeLink);
+  rmSync(probeDir, { recursive: true, force: true });
+} catch {
+  symlinksSupported = false;
+}
+
+function linkOrCopy(target: string, linkPath: string) {
+  if (symlinksSupported) {
+    symlinkSync(target, linkPath);
+  } else {
+    copyFileSync(target, linkPath);
+  }
+}
 
 let cavestackDir: string;
 let stateDir: string;
@@ -41,7 +63,7 @@ beforeEach(() => {
   // Link real cavestack-config so update_check config check works
   const binDir = join(cavestackDir, 'bin');
   mkdirSync(binDir);
-  symlinkSync(join(import.meta.dir, '..', '..', 'bin', 'cavestack-config'), join(binDir, 'cavestack-config'));
+  linkOrCopy(join(import.meta.dir, '..', '..', 'bin', 'cavestack-config'), join(binDir, 'cavestack-config'));
 });
 
 afterEach(() => {
