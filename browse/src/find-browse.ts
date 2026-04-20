@@ -28,7 +28,10 @@ export function locateBinary(): string | null {
   const root = getGitRoot();
   const home = homedir();
   const markers = ['.codex', '.agents', '.claude'];
-  const suffixes = process.platform === 'win32' ? ['.exe', ''] : [''];
+  // Windows: only accept the .exe suffix. The empty-suffix fallback would
+  // match a directory named `browse/` in the same path (existsSync is true
+  // for dirs), and the compiled output is always `browse.exe` on win32.
+  const suffixes = process.platform === 'win32' ? ['.exe'] : [''];
 
   // Workspace-local takes priority (for development)
   if (root) {
