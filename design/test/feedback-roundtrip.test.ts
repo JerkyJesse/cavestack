@@ -28,6 +28,11 @@ let tmpDir: string;
 let boardHtmlPath: string;
 let serverState: string;
 
+// Windows: Playwright chrome-headless-shell --remote-debugging-pipe handshake
+// hangs indefinitely. Skip browser-driving tests on Windows; Linux CI covers them.
+const isWindows = process.platform === 'win32';
+const describeBrowser = isWindows ? describe.skip : describe;
+
 function createTestPng(filePath: string): void {
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/58BAwAI/AL+hc2rNAAAAABJRU5ErkJggg==',
@@ -37,6 +42,7 @@ function createTestPng(filePath: string): void {
 }
 
 beforeAll(async () => {
+  if (isWindows) return;
   tmpDir = '/tmp/feedback-roundtrip-' + Date.now();
   fs.mkdirSync(tmpDir, { recursive: true });
 
@@ -126,6 +132,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  if (isWindows) return;
   try { server.stop(); } catch {}
   fs.rmSync(tmpDir, { recursive: true, force: true });
   setTimeout(() => process.exit(0), 500);
@@ -133,7 +140,7 @@ afterAll(() => {
 
 // ─── The critical test: browser click → file on disk ─────────────
 
-describe('Submit: browser click → feedback.json on disk', () => {
+describeBrowser('Submit: browser click → feedback.json on disk', () => {
   test('clicking Submit writes feedback.json that the agent can poll for', async () => {
     // Clean up any prior files
     const feedbackPath = path.join(tmpDir, 'feedback.json');
@@ -206,7 +213,7 @@ describe('Submit: browser click → feedback.json on disk', () => {
   });
 });
 
-describe('Regenerate: browser click → feedback-pending.json on disk', () => {
+describeBrowser('Regenerate: browser click → feedback-pending.json on disk', () => {
   test('clicking Regenerate writes feedback-pending.json that the agent can poll for', async () => {
     // Clean up
     const pendingPath = path.join(tmpDir, 'feedback-pending.json');
@@ -285,7 +292,7 @@ describe('Regenerate: browser click → feedback-pending.json on disk', () => {
   });
 });
 
-describe('Full regeneration round-trip: regen → reload → submit', () => {
+describeBrowser('Full regeneration round-trip: regen → reload → submit', () => {
   test('agent can reload board after regeneration, user submits on round 2', async () => {
     // Clean start
     const pendingPath = path.join(tmpDir, 'feedback-pending.json');
