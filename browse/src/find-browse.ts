@@ -28,19 +28,24 @@ export function locateBinary(): string | null {
   const root = getGitRoot();
   const home = homedir();
   const markers = ['.codex', '.agents', '.claude'];
+  const suffixes = process.platform === 'win32' ? ['.exe', ''] : [''];
 
   // Workspace-local takes priority (for development)
   if (root) {
     for (const m of markers) {
-      const local = join(root, m, 'skills', 'cavestack', 'browse', 'dist', 'browse');
-      if (existsSync(local)) return local;
+      for (const suffix of suffixes) {
+        const local = join(root, m, 'skills', 'cavestack', 'browse', 'dist', 'browse' + suffix);
+        if (existsSync(local)) return local;
+      }
     }
   }
 
   // Global fallback
   for (const m of markers) {
-    const global = join(home, m, 'skills', 'cavestack', 'browse', 'dist', 'browse');
-    if (existsSync(global)) return global;
+    for (const suffix of suffixes) {
+      const global = join(home, m, 'skills', 'cavestack', 'browse', 'dist', 'browse' + suffix);
+      if (existsSync(global)) return global;
+    }
   }
 
   return null;
@@ -58,4 +63,6 @@ function main() {
   console.log(bin);
 }
 
-main();
+if (import.meta.main) {
+  main();
+}
