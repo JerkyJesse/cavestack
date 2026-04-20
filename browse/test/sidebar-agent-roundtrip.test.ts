@@ -11,6 +11,12 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+// Windows: mock bash scripts + subprocess process signaling not reliable.
+// claude crash test expects SIGTERM-style close event that Windows doesn't
+// deliver deterministically. Skip round-trip tests; Linux CI covers this path.
+const isWindows = process.platform === 'win32';
+const describeRoundtrip = isWindows ? describe.skip : describe;
+
 let serverProc: Subprocess | null = null;
 let agentProc: Subprocess | null = null;
 let serverPort: number = 0;
@@ -58,6 +64,7 @@ function writeMockClaude(script: string) {
 }
 
 beforeAll(async () => {
+  if (isWindows) return;
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sidebar-roundtrip-'));
   stateFile = path.join(tmpDir, 'browse.json');
   queueFile = path.join(tmpDir, 'sidebar-queue.jsonl');
@@ -123,12 +130,13 @@ echo '{"type":"result","result":"Done."}'
 }, 20000);
 
 afterAll(() => {
+  if (isWindows) return;
   if (agentProc) { try { agentProc.kill(); } catch {} }
   if (serverProc) { try { serverProc.kill(); } catch {} }
   try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
 });
 
-describe('sidebar-agent round-trip', () => {
+describeRoundtrip('sidebar-agent round-trip', () => {
   test('full message round-trip with mock claude', async () => {
     await resetState();
 
