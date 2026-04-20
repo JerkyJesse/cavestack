@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.1.1] - 2026-04-19 — Voice-audit polish
+
+Tiny voice slips in three skill descriptions caught by a voice pass. Pure
+cosmetic — no behavior change.
+
+### Changed
+
+- `/browse` description now reads "Use when testing features..." instead
+  of "Use for testing features..." — matches the "use when X" trigger
+  convention the other skills follow.
+- `/document-release` description leads with "Proactively suggest after
+  PR merged" instead of "Suggest proactively after PR merged" — same
+  meaning, less stilted.
+- Workflow tip #3 in the root SKILL.md uses a real `→` arrow between
+  "Baseline / action / diff" steps instead of the `->` ASCII stand-in.
+
 ## [1.3.1.0] - 2026-04-19 — Windows test triage phase 2
 
 Running `bun test` on Windows no longer fails 50+ ways. The full suite now

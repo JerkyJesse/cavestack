@@ -7,7 +7,7 @@ description: |
   updates README/ARCHITECTURE/CONTRIBUTING/CLAUDE.md to match what shipped,
   polishes CHANGELOG voice, cleans up TODOS, optionally bumps VERSION. Use when:
   "update docs", "sync documentation", "post-ship docs".
-  Suggest proactively after PR merged or code shipped. (cavestack)
+  Proactively suggest after PR merged or code shipped. (cavestack)
 allowed-tools:
   - Bash
   - Read
