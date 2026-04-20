@@ -451,7 +451,10 @@ describe('browser→sidebar tab sync', () => {
     // The server must call syncActiveTabByUrl before getActiveTabId
     // so the agent targets the correct tab
     const cmdIdx = serverSrc.indexOf("url.pathname === '/sidebar-command'");
-    const handler = serverSrc.slice(cmdIdx, cmdIdx + 1200);
+    // Window sized for CRLF line endings on Windows — handler spans ~1200
+    // chars on LF, ~1300 on CRLF. 2000 gives headroom without reaching the
+    // next endpoint.
+    const handler = serverSrc.slice(cmdIdx, cmdIdx + 2000);
     const syncIdx = handler.indexOf('syncActiveTabByUrl');
     const getIdIdx = handler.indexOf('getActiveTabId');
     expect(syncIdx).toBeGreaterThan(0);
@@ -715,7 +718,9 @@ describe('CSP fallback basic picker', () => {
   test('content.js contains CSSOM iteration with cross-origin try/catch', () => {
     expect(contentSrc).toContain('document.styleSheets');
     expect(contentSrc).toContain('cssRules');
-    expect(contentSrc).toContain('cross-origin');
+    // Cross-origin stylesheet access throws DOMException (SecurityError) —
+    // the guard below is what prevents the picker crashing on third-party CSS.
+    expect(contentSrc).toContain('DOMException');
   });
 
   test('content.js saves and restores outline on elements', () => {
