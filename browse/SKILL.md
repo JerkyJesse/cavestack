@@ -5,7 +5,7 @@ version: 1.1.0
 description: |
   Fast headless browser for QA + dogfooding. Navigate URLs, interact with elements,
   verify state, diff before/after, take annotated screenshots, check responsive layouts,
-  test forms/uploads, handle dialogs, assert element states. ~100ms/command. Use for
+  test forms/uploads, handle dialogs, assert element states. ~100ms/command. Use when
   testing features, verifying deploys, dogfooding flows, filing bugs with evidence.
   Triggers: "open in browser", "test the site", "take a screenshot", "dogfood this". (cavestack)
 allowed-tools:
