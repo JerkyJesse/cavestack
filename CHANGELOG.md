@@ -1,5 +1,74 @@
 # Changelog
 
+## [2.0.0.0] - 2026-08-12 — Multi-Host + Feature Parity
+
+CaveStack is no longer Claude-only. Kiro joins as a first-class host target,
+and 11 new skills bring feature parity with gstack's latest capabilities. The
+multi-host architecture returns with a clean declarative config system — one
+TypeScript file per host, zero per-host code in the generator or setup.
+
+### Added
+
+- **Kiro host support** — `./setup --host kiro` installs skills to
+  `~/.kiro/skills/cavestack`. Path rewrites, frontmatter trimming, and tool
+  name translations handled automatically by the host config system.
+  Claude-specific skills (caveman hooks, codex) are excluded from Kiro builds.
+- **`--host` flag on setup** — `./setup --host claude` (default),
+  `./setup --host kiro`, or `./setup --host all` to install for every
+  detected host in one pass.
+- **`--host` flag on gen:skill-docs** — `bun run gen:skill-docs --host kiro`
+  or `--host all` generates host-specific SKILL.md files with correct paths.
+- **`hosts/kiro.ts`** — declarative Kiro host config: skills root, path
+  rewrites, skipped skills, tool rewrites, frontmatter allowlist.
+- **`/spec`** — Turn vague intent into a precise, executable spec in five
+  phases (why, scope, technical, draft, file). Quality gate at 7/10, secret
+  redaction, optional `--execute` to spawn implementation agent.
+- **`/scrape`** — Browser data extraction. First call prototypes via `$B`;
+  subsequent calls on matching intent run codified browser-skill in ~200ms.
+- **`/skillify`** — Codify a `/scrape` prototype into a permanent, tested
+  browser-skill with script + test + fixture.
+- **`/context-save`** — Save working state (branch, decisions, remaining work,
+  failed approaches) to a WIP commit or state file for session resumption.
+- **`/context-restore`** — Resume from saved context across session boundaries.
+  Reads WIP commits with `[cavestack-context]` body, reconstructs state.
+- **`/make-pdf`** — Markdown → publication-quality PDF. Mermaid/excalidraw
+  fences render as vector SVGs. `--to html` or `--to docx` for other formats.
+- **`/diagram`** — English in, diagram triplet out (mermaid + .excalidraw +
+  rendered SVG/PNG). Fully offline, zero network.
+- **`/document-generate`** — Generate missing docs using Diataxis framework
+  (tutorial / how-to / reference / explanation). Researches code first.
+- **`/plan-tune`** — Self-tune AskUserQuestion sensitivity: never-ask,
+  always-ask, only-for-one-way, ask-first-time per question type.
+- **`/landing-report`** — Read-only ship queue dashboard. Active branches,
+  status, version slot claims.
+- **`/benchmark-models`** — Cross-model benchmark (Claude vs GPT vs Gemini).
+  Latency, tokens, cost, optional LLM-judge quality score.
+- **`ETHOS.md`** — Builder philosophy injected into skill preambles: Boil the
+  Ocean, Search Before Building, User Sovereignty, Ship Small Learn Fast,
+  Caveman Clarity.
+
+### Changed
+
+- **Multi-host registry restored** — `hosts/index.ts` is now a proper registry
+  with `ALL_HOST_CONFIGS`, `HOST_CONFIG_MAP`, and `getHostConfig(name)` that
+  supports any registered host. The v1.3 "Claude-only" shim is gone.
+- **Host type widened** — `scripts/resolvers/types.ts` `Host` type is now
+  `'claude' | 'kiro'` instead of the literal `'claude'`.
+- **package.json** — version 2.0.0.0, added `marked`, `html-to-docx`, `socks`
+  dependencies, added `make-pdf` binary, added `gen:skill-docs:kiro` and
+  `gen:skill-docs:all` convenience scripts.
+- **README** — documents Kiro installation, lists 50+ skills, updated feature
+  table with multi-host and new capabilities.
+
+### For contributors
+
+- Adding a new host: create `hosts/myhost.ts` implementing `HostConfig`,
+  register in `hosts/index.ts`, add to `.gitignore`. Run
+  `bun run gen:skill-docs --host myhost` to verify. See `hosts/kiro.ts` as
+  the minimal example.
+- New skill directories follow the standard pattern: `skillname/SKILL.md` with
+  YAML frontmatter (name, preamble-tier, version, description, allowed-tools).
+
 ## [1.3.1.1] - 2026-04-19 — Voice-audit polish
 
 Tiny voice slips in three skill descriptions caught by a voice pass. Pure

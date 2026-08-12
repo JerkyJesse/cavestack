@@ -16,7 +16,7 @@
 
 ## What This
 
-AI builder framework. Caveman mode = default. Every response: short, direct, no fluff. Same 40 skills. Same power. 75% fewer words.
+AI builder framework. Caveman mode = default. Every response: short, direct, no fluff. 50+ skills. Same power. 75% fewer words. Now runs on **Claude Code** and **Kiro**.
 
 Other AI tools: walls of text. Filler words. "I'd be happy to help you with that." Apologies for things that aren't wrong. Summaries of what you just said back to you.
 
@@ -24,14 +24,33 @@ CaveStack: answer. Done.
 
 ## Install (one line)
 
-Need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) + Git.
+Need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Kiro](https://kiro.dev) + Git.
 Bun auto-installs if missing (with SHA256-verified installer).
+
+### Claude Code
 
 ```bash
 curl -fsSL https://cavestack.jerkyjesse.com/install | sh
 ```
 
 Open new Claude Code session. Caveman mode active. No `/caveman` needed. Just works.
+
+### Kiro
+
+```bash
+git clone https://github.com/JerkyJesse/cavestack.git ~/.kiro/skills/cavestack
+cd ~/.kiro/skills/cavestack && ./setup --host kiro
+```
+
+Open new Kiro session. All skills available. Caveman hooks are skipped for Kiro
+(Kiro has its own interaction model).
+
+### Both (install for all detected hosts)
+
+```bash
+git clone https://github.com/JerkyJesse/cavestack.git ~/cavestack
+cd ~/cavestack && ./setup --host all
+```
 
 ## Hero Six (featured in v1.0)
 
@@ -46,14 +65,15 @@ Six judgment-layer skills embody the "think before code" moat:
 | `/plan-devex-review` | Developer experience critique with personas + benchmarks. |
 | `/cso` | Security audit: OWASP Top 10, STRIDE, supply chain. |
 
-**34 more skills** ship alongside — `/ship`, `/review`, `/qa`, `/checkpoint`, `/health`, `/retro`, `/browse`, `/autoplan`, `/codex`, and more. Invoke any by full name. Run `cavestack-skills list` in the terminal or `/help` inside Claude Code to see all 40.
+**34 more skills** ship alongside — `/ship`, `/review`, `/qa`, `/checkpoint`, `/health`, `/retro`, `/browse`, `/autoplan`, `/codex`, and more. Invoke any by full name. Run `cavestack-skills list` in the terminal or `/help` inside Claude Code to see all 50+.
 
 ## What You Get
 
 | Thing | What It Do |
 |-------|-----------|
-| 40 skills | All installed, all invokable. Hero six featured, others by full name. |
-| Caveman default | No command needed. First response = terse. Automatic. |
+| 50+ skills | All installed, all invokable. Hero six featured, others by full name. |
+| Multi-host | Claude Code + Kiro. `./setup --host kiro` or `--host all`. |
+| Caveman default | No command needed. First response = terse. Automatic. (Claude only) |
 | Locked to full | No lite/ultra toggles. `stop caveman` disables per session. `/caveman` resumes. |
 | Skill discovery | `cavestack-skills list` or `/help` — no website round-trip |
 | Short aliases | `cs-*` for every `cavestack-*` CLI. Speed over typing. |
@@ -65,6 +85,9 @@ Six judgment-layer skills embody the "think before code" moat:
 | Headless browser | `/browse` for QA, screenshots, page testing. Built in. |
 | Design tools | `/design-consultation`, `/design-review`, `/design-shotgun` |
 | Security audit | `/cso` — OWASP Top 10 + STRIDE threat modeling |
+| Document generation | `/make-pdf`, `/diagram`, `/document-generate` — docs from code |
+| Spec workflow | `/spec` — vague intent → precise, executable spec in 5 phases |
+| Context persistence | `/context-save`, `/context-restore` — resume across sessions |
 | Zero telemetry | No remote data ever. `/methodology` for how savings are measured. |
 | Chars not tokens | Benchmark measures characters (model-agnostic). Same unit every terminal can count, no API key needed. |
 | CAVE rails | Preamble emits Cave protocol (identity, trust, simplicity) + Zero-Test-Drift. Persist regardless of voice. |
@@ -123,21 +146,47 @@ cavestack-settings-hook install-caveman  # re-enable
 /plan-ceo-review     CEO-mode plan review
 /plan-eng-review     architecture + test review
 /plan-design-review  UI/UX design review
+/plan-devex-review   developer experience review
 /autoplan        run all reviews in sequence
 /checkpoint      save/resume work state
 /health          code quality dashboard
-...and 25 more. Full list: /caveman-help
+/spec            vague intent → precise executable spec
+/scrape          extract structured data from web pages
+/skillify        codify a scrape into reusable skill
+/context-save    save session state for later resume
+/context-restore resume from saved context
+/make-pdf        markdown → publication-quality PDF/HTML/DOCX
+/diagram         English → mermaid + excalidraw + SVG
+/document-generate  generate Diataxis docs from code
+/document-release   update docs to match shipped code
+/plan-tune       tune question sensitivity in plan skills
+/landing-report  ship queue dashboard (read-only)
+/benchmark-models   cross-model AI benchmark
+/design-consultation  design system from scratch
+/design-shotgun  generate + compare design variants
+/design-html     mockup → production HTML (Pretext)
+/devex-review    live developer experience audit
+/land-and-deploy merge PR, deploy, verify production
+/canary          post-deploy monitoring loop
+/benchmark       page load + Core Web Vitals baseline
+/pair-agent      share browser with remote AI agents
+/careful         warn before destructive commands
+/freeze          restrict edits to one directory
+/guard           /careful + /freeze combined
+/unfreeze        remove edit restriction
+/learn           manage cross-session learnings
+...and more. Full list: /help or cavestack-skills list
 ```
 
 ## Trouble?
 
-**Skill not show up?** `cd ~/.claude/skills/cavestack && ./setup`
+**Skill not show up?** `cd ~/.claude/skills/cavestack && ./setup` (Claude) or `cd ~/.kiro/skills/cavestack && ./setup --host kiro` (Kiro)
 
 **`/browse` fail?** `cd ~/.claude/skills/cavestack && bun install && bun run build`
 
 **Stale install?** `/cavestack-upgrade` — or `auto_upgrade: true` in `~/.cavestack/config.yaml`.
 
-**Caveman not fire on new session?** Check `~/.claude/settings.json` has `hooks.SessionStart` pointing at `caveman-activate.js` and `hooks.UserPromptSubmit` pointing at `caveman-mode-tracker.js`. Re-register: `cavestack-settings-hook install-caveman`. Need Node.js on PATH — hooks run under Node, not Bun.
+**Caveman not fire on new session?** Check `~/.claude/settings.json` has `hooks.SessionStart` pointing at `caveman-activate.js` and `hooks.UserPromptSubmit` pointing at `caveman-mode-tracker.js`. Re-register: `cavestack-settings-hook install-caveman`. Need Node.js on PATH — hooks run under Node, not Bun. (Claude only — Kiro doesn't use caveman hooks.)
 
 **Windows?** Works on Windows 10/11 via Git Bash or WSL. Both `bun` and `node` on PATH. Bun has known Playwright pipe issue ([bun#4253](https://github.com/oven-sh/bun/issues/4253)), `browse` falls back to Node for server.
 
@@ -168,6 +217,8 @@ MIT. Caveman hooks: [Julius Brussee](https://github.com/JuliusBrussee/caveman). 
 
 CaveStack is an AI builder framework that ships with "caveman mode" enabled by default. Caveman mode compresses AI responses by approximately 75% without losing technical accuracy. Instead of opting into terse responses, CaveStack makes them the default behavior from the very first prompt.
 
+As of v2.0, CaveStack supports multiple AI hosts: **Claude Code** (primary, with caveman hooks) and **Kiro** (full skill support without caveman-specific hooks). The multi-host system uses a declarative config architecture — each host is defined in `hosts/*.ts` and the generator, setup, and tooling all read from those configs.
+
 ### Why does this exist?
 
 Every AI coding tool ships with verbose output as the default. Users who prefer concise responses must remember to configure terse mode each session — adding `/caveman` commands, writing custom instructions in `CLAUDE.md`, or manually requesting brevity. Most don't bother. The tool stays verbose. Senior engineers close the window and go back to grepping.
@@ -176,18 +227,31 @@ CaveStack solves this by forking the upstream framework and making terse the bas
 
 ### Installation
 
-CaveStack requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/), and Git. To install:
+CaveStack requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Kiro](https://kiro.dev), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/) (Claude Code hooks), and Git.
 
+**Claude Code:**
 ```bash
 git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
 cd ~/.claude/skills/cavestack && ./setup
 ```
 
-After setup, open a new Claude Code session in any project directory. Caveman mode will be active automatically — no additional commands or configuration needed.
+**Kiro:**
+```bash
+git clone https://github.com/JerkyJesse/cavestack.git ~/.kiro/skills/cavestack
+cd ~/.kiro/skills/cavestack && ./setup --host kiro
+```
+
+**Both hosts:**
+```bash
+git clone https://github.com/JerkyJesse/cavestack.git ~/cavestack
+cd ~/cavestack && ./setup --host all
+```
+
+After setup, open a new session in your preferred host. For Claude Code, caveman mode will be active automatically. For Kiro, all workflow skills are available without the caveman voice layer.
 
 ### Features
 
-CaveStack includes all 40 skills from the CaveStack framework:
+CaveStack includes 50+ skills from the CaveStack framework:
 
 - **Code Review** (`/review`) — Analyze diffs for bugs, security issues, and style problems
 - **Ship** (`/ship`) — Test, review, version bump, push, and create PR in one command
@@ -195,12 +259,17 @@ CaveStack includes all 40 skills from the CaveStack framework:
 - **Investigation** (`/investigate`) — Structured root-cause debugging with four phases
 - **Office Hours** (`/office-hours`) — Brainstorm ideas with startup diagnostic or builder mode
 - **Security Audit** (`/cso`) — OWASP Top 10 and STRIDE threat modeling
-- **Design Tools** (`/design-consultation`, `/design-review`, `/design-shotgun`) — Design system creation, visual QA, and variant exploration
+- **Design Tools** (`/design-consultation`, `/design-review`, `/design-shotgun`, `/design-html`) — Design system creation, visual QA, variant exploration, production HTML
 - **Headless Browser** (`/browse`) — Navigate pages, take screenshots, test interactions
 - **Retrospective** (`/retro`) — Weekly engineering retrospective with trend tracking
-- **Plan Reviews** (`/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`) — Multi-perspective plan review pipeline
+- **Plan Reviews** (`/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/plan-devex-review`) — Multi-perspective plan review pipeline
 - **Deploy** (`/land-and-deploy`, `/canary`, `/benchmark`) — Merge, deploy, and monitor
-- **And 25+ more** — Run `/caveman-help` for the full list
+- **Spec** (`/spec`) — Turn vague intent into precise, executable specifications
+- **Scrape + Skillify** (`/scrape`, `/skillify`) — Extract web data, codify into reusable skills
+- **Documents** (`/make-pdf`, `/diagram`, `/document-generate`, `/document-release`) — PDFs, diagrams, Diataxis docs
+- **Context** (`/context-save`, `/context-restore`) — Save/resume session state across boundaries
+- **Benchmarks** (`/benchmark-models`) — Cross-model AI comparison (Claude vs GPT vs Gemini)
+- **And more** — `/plan-tune`, `/landing-report`, `/health`, `/learn`, `/pair-agent`, `/careful`, `/freeze`, etc.
 
 Additional CaveStack-specific features:
 
