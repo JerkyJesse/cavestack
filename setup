@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cavestack setup — build browser binary + register skills with Claude Code
+# cavestack setup — build browser binary + register skills with Claude Code / Kiro / other hosts
 set -e
 umask 077  # Restrict new files to owner-only (0o600 files, 0o700 dirs)
 
@@ -36,6 +36,7 @@ TEAM_MODE=0
 NO_TEAM_MODE=0
 CAVEMAN_INSTALL=1
 NO_CAVEMAN=0
+HOST_TARGET=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --local) LOCAL_INSTALL=1; shift ;;
@@ -45,6 +46,7 @@ while [ $# -gt 0 ]; do
     --no-team) NO_TEAM_MODE=1; shift ;;
     --caveman)    CAVEMAN_INSTALL=1; NO_CAVEMAN=0; shift ;;
     --no-caveman) CAVEMAN_INSTALL=0; NO_CAVEMAN=1; shift ;;
+    --host) HOST_TARGET="$2"; shift 2 ;;
     -q|--quiet) QUIET=1; shift ;;
     *) shift ;;
   esac
@@ -311,10 +313,69 @@ cleanup_prefixed_claude_symlinks() {
   fi
 }
 
-# 4. Install for Claude
+# 4. Install for target host(s)
+# When --host is specified, install only for that host.
+# Default (no --host): Claude. Use --host kiro for Kiro.
+# Use --host all to install for all detected hosts.
 SKILLS_BASENAME="$(basename "$INSTALL_SKILLS_DIR")"
 
-if true; then
+# ─── Helper: install for Kiro ─────────────────────────────────────────────────
+install_for_kiro() {
+  local kiro_skills_dir="$HOME/.kiro/skills"
+  local kiro_cavestack_dir="$kiro_skills_dir/cavestack"
+  mkdir -p "$kiro_skills_dir"
+
+  # Symlink cavestack source into Kiro skills directory
+  if [ -L "$kiro_cavestack_dir" ]; then
+    rm -f "$kiro_cavestack_dir"
+  elif [ -d "$kiro_cavestack_dir" ] && [ ! -L "$kiro_cavestack_dir" ]; then
+    rm -rf "$kiro_cavestack_dir"
+  fi
+  ln -snf "$SOURCE_CAVESTACK_DIR" "$kiro_cavestack_dir"
+
+  # Generate Kiro-specific SKILL.md files (path-rewritten, frontmatter-trimmed)
+  if [ -f "$SOURCE_CAVESTACK_DIR/scripts/gen-skill-docs.ts" ]; then
+    (cd "$SOURCE_CAVESTACK_DIR" && bun run gen:skill-docs --host kiro 2>/dev/null) || true
+  fi
+
+  # Link individual skill directories into Kiro's skills folder
+  for skill_dir in "$SOURCE_CAVESTACK_DIR"/*/; do
+    if [ -f "$skill_dir/SKILL.md" ]; then
+      dir_name="$(basename "$skill_dir")"
+      # Skip node_modules, caveman-specific skills, codex
+      case "$dir_name" in
+        node_modules|caveman|caveman-commit|caveman-help|caveman-review|codex) continue ;;
+      esac
+      skill_name=$(grep -m1 '^name:' "$skill_dir/SKILL.md" 2>/dev/null | sed 's/^name:[[:space:]]*//' | tr -d '[:space:]')
+      [ -z "$skill_name" ] && skill_name="$dir_name"
+      target="$kiro_skills_dir/$skill_name"
+      mkdir -p "$target"
+      if [ -L "$target/SKILL.md" ]; then rm "$target/SKILL.md"; fi
+      ln -snf "$SOURCE_CAVESTACK_DIR/$dir_name/SKILL.md" "$target/SKILL.md"
+    fi
+  done
+
+  log "cavestack ready (kiro)."
+  log "  skills: $kiro_skills_dir"
+  log "  browse: $BROWSE_BIN"
+}
+
+# ─── Determine which hosts to install ─────────────────────────────────────────
+INSTALL_CLAUDE=0
+INSTALL_KIRO=0
+
+case "$HOST_TARGET" in
+  ""|claude) INSTALL_CLAUDE=1 ;;
+  kiro)      INSTALL_KIRO=1; CAVEMAN_INSTALL=0 ;;
+  all)       INSTALL_CLAUDE=1; INSTALL_KIRO=1 ;;
+  *)
+    echo "Error: unsupported --host '$HOST_TARGET'. Supported: claude, kiro, all" >&2
+    exit 1
+    ;;
+esac
+
+# ─── Install for Claude ───────────────────────────────────────────────────────
+if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   if [ "$SKILLS_BASENAME" = "skills" ]; then
     # Clean up stale symlinks from the opposite prefix mode
     if [ "$SKILL_PREFIX" -eq 1 ]; then
@@ -379,6 +440,11 @@ if true; then
     log "cavestack ready (claude)."
     log "  browse: $BROWSE_BIN"
   fi
+fi
+
+# ─── Install for Kiro ─────────────────────────────────────────────────────────
+if [ "$INSTALL_KIRO" -eq 1 ]; then
+  install_for_kiro
 fi
 
 # 5. Run pending version migrations

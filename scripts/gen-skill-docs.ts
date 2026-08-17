@@ -24,8 +24,22 @@ const ROOT = path.resolve(import.meta.dir, '..');
 const DRY_RUN = process.argv.includes('--dry-run');
 
 // ─── Host Detection ─────────────────────────────────────────
-// CaveStack is Claude Code only. Host is a literal for signature compatibility.
-const HOST: Host = 'claude';
+// --host=<name> selects a target host. Default: claude.
+// --host all generates for all registered hosts.
+const HOST_ARG = process.argv.find(a => a.startsWith('--host'));
+let HOST_TARGETS: Host[] = ['claude'];
+if (HOST_ARG) {
+  const val = HOST_ARG.includes('=') ? HOST_ARG.split('=')[1] : process.argv[process.argv.indexOf(HOST_ARG) + 1];
+  if (val === 'all') {
+    const { ALL_HOST_CONFIGS } = require('../hosts/index');
+    HOST_TARGETS = ALL_HOST_CONFIGS.map((c: any) => c.name as Host);
+  } else if (val) {
+    // Validate host exists
+    try { getHostConfig(val); } catch (e: any) { console.error(e.message); process.exit(1); }
+    HOST_TARGETS = [val as Host];
+  }
+}
+const HOST: Host = HOST_TARGETS[0];
 
 // ─── Voice Profile Detection ───────────────────────────────
 // --voice=<name> selects a voice profile from voices/*.json.

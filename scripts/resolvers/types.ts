@@ -1,10 +1,9 @@
 import { ALL_HOST_CONFIGS } from '../../hosts/index';
 
 /**
- * Host type — CaveStack is Claude Code only. Kept as a literal to preserve
- * the shape of resolver signatures that used to branch on host.
+ * Host type — supported AI coding agents that CaveStack can install for.
  */
-export type Host = 'claude';
+export type Host = 'claude' | 'kiro';
 
 export interface HostPaths {
   skillRoot: string;
