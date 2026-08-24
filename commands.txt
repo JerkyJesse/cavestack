@@ -138,3 +138,11 @@ git stash pop
 
 
 bun test test/setup-windows-fallback.test.ts test/setup-runtime-lib-command.test.ts test/setup-windows-rerun-refresh.test.ts test/workflow-concurrency.test.ts --timeout 30000
+
+# 2026-08-24 — honor CAVESTACK_SKIP_PLAYWRIGHT in ./setup
+rg -n "CAVESTACK_SKIP_PLAYWRIGHT|ensure_playwright_browser|CAVESTACK_SKIP_FONTS" setup .github/workflows/windows-setup-e2e.yml
+
+# 2026-08-24 — commit Playwright skip gate
+git add setup commands.txt
+git commit -m "fix: honor CAVESTACK_SKIP_PLAYWRIGHT in setup"
+git push -u origin mechapip/cloud-agent-1787580158725-j7j21

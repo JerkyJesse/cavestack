@@ -409,6 +409,10 @@ ensure_playwright_browser() {
   # Windows), and bound the probe with a 90s deadline — a wedged probe now
   # reports failure (which routes to the install path) instead of hanging
   # setup.
+  #
+  # Skip entirely with CAVESTACK_SKIP_PLAYWRIGHT=1 (CI smoke that only needs
+  # binaries and skill layout; Windows runners where the Chromium probe hangs).
+  [ "${CAVESTACK_SKIP_PLAYWRIGHT:-0}" = "1" ] && return 0
   local probe_cmd
   if command -v node >/dev/null 2>&1; then
     probe_cmd='node -e "const { chromium } = require((process.cwd()) + \"/node_modules/playwright\"); (async () => { const b = await chromium.launch(); await b.close(); })().then(() => process.exit(0), () => process.exit(1))"'
