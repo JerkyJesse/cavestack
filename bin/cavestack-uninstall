@@ -163,9 +163,13 @@ if [ -x "$SETTINGS_HOOK" ]; then
   if "$SETTINGS_HOOK" prune-stale --all | grep -q "removed [1-9]"; then
     REMOVED+=("stray cavestack hook entries")
   fi
-  "$SETTINGS_HOOK" remove-caveman 2>/dev/null && REMOVED+=("caveman hooks") || true
-  "$SETTINGS_HOOK" remove-voice-verify 2>/dev/null || true
-  "$SETTINGS_HOOK" remove-test-scaffold-gate 2>/dev/null || true
+  # remove-caveman exits 0 even when ~/.claude/settings.json is absent (nothing
+  # to do). Only record a removal when a settings file actually exists.
+  if [ -f "$HOME/.claude/settings.json" ]; then
+    "$SETTINGS_HOOK" remove-caveman 2>/dev/null && REMOVED+=("caveman hooks") || true
+    "$SETTINGS_HOOK" remove-voice-verify 2>/dev/null || true
+    "$SETTINGS_HOOK" remove-test-scaffold-gate 2>/dev/null || true
+  fi
 fi
 
 # ─── Remove global Claude skills ────────────────────────────

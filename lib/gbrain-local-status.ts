@@ -221,7 +221,12 @@ export function hasRemoteOnlyGbrainMcp(
       const entries = gbrainEntries((proj as { mcpServers?: unknown }).mcpServers);
       if (Object.keys(entries).length === 0) continue;
       const isAncestor =
-        cwd === key || cwd.startsWith(`${key}/`) || cwd.startsWith(`${key}\\`);
+        cwd === key
+        || cwd.startsWith(`${key}/`)
+        || cwd.startsWith(`${key}\\`)
+        // Root project keys: `${key}/` becomes `//`, which never matches.
+        || key === '/'
+        || key === '\\';
       if (!isAncestor) continue;
       if (bestKey === null || key.length > bestKey.length) {
         bestKey = key;
