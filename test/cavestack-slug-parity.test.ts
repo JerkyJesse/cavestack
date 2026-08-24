@@ -75,7 +75,19 @@ function slugOf(r: SpawnSyncReturns<string>): string {
 }
 
 function git(args: string[], opts: { cwd?: string } = {}): void {
-  const r = spawnSync('git', args, { encoding: 'utf8', timeout: 10_000, ...opts });
+  const gitNull = process.platform === 'win32' ? 'NUL' : '/dev/null';
+  const r = spawnSync('git', ['-c', 'commit.gpgsign=false', '-c', `core.hooksPath=${gitNull}`, ...args], {
+    encoding: 'utf8',
+    timeout: 10_000,
+    env: {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: gitNull,
+      GIT_CONFIG_SYSTEM: gitNull,
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_ASKPASS: 'true',
+    },
+    ...opts,
+  });
   if (r.status !== 0) {
     throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
   }
