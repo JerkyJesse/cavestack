@@ -23,9 +23,11 @@ live in [CLAUDE.md](CLAUDE.md) and `package.json` scripts (`bun test`, `bun run 
   chromium`) into `~/.cache/ms-playwright`, not by `bun install`. If the browser is missing,
   rerun that command.
 - **`browse` security guards bite during local testing:** it only accepts `http:`/`https:`
-  URLs (no `file://`), and screenshot / snapshot output paths must be under `/tmp` or
-  `/workspace`. To exercise a local HTML page, serve it over HTTP (e.g. `python3 -m
-  http.server`) and write artifacts to `/tmp`.
+  URLs (no `file://`), and screenshot / snapshot output paths are restricted to
+  `SAFE_DIRECTORIES` — the temp dir (`/tmp`) plus the browse server's current working
+  directory (so `/workspace` works when you launch it from the repo root). To exercise a
+  local HTML page, serve it over HTTP (e.g. `python3 -m http.server`) and write artifacts
+  to `/tmp`.
 - **`bun run build` compiles binaries** into `browse/dist/` and `design/dist/` (gitignored).
   Rebuild after editing `browse/src/*` or `design/src/*`. `build` also runs `gen:skill-docs`.
 - **Tier-1 `bun test` has 52 pre-existing failures on a fresh clone**, all from `bin/*`
