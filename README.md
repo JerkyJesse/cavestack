@@ -204,7 +204,7 @@ cavestack-settings-hook install-caveman  # re-enable
 
 ## Trouble?
 
-**Skill not show up?** `cd ~/cavestack && ./setup` (Claude), `./setup --host cursor --prefix` (Cursor), or `./setup --host kiro` (Kiro)
+**Skill not show up?** `cd ~/.claude/skills/cavestack && ./setup` (Claude), `cd ~/cavestack && ./setup --host cursor --prefix` (Cursor), or `cd ~/.kiro/skills/cavestack && ./setup --host kiro` (Kiro)
 
 **`/browse` fail?** `cd ~/.claude/skills/cavestack && bun install && bun run build`
 
@@ -333,7 +333,7 @@ To re-enable it later:
 
 | Problem | Solution |
 |---------|----------|
-| Skills not showing up | `cd ~/cavestack && ./setup` (or `./setup --host cursor --prefix` / `--host kiro`) |
+| Skills not showing up | Claude: `cd ~/.claude/skills/cavestack && ./setup`. Cursor: `cd ~/cavestack && ./setup --host cursor --prefix`. Kiro: `cd ~/.kiro/skills/cavestack && ./setup --host kiro`. |
 | `/browse` fails | `cd ~/.claude/skills/cavestack && bun install && bun run build` |
 | Stale install | Run `/cavestack-upgrade` or set `auto_upgrade: true` in `~/.cavestack/config.yaml` |
 | Caveman not firing | Verify `~/.claude/settings.json` has `SessionStart` and `UserPromptSubmit` hooks pointing at `caveman-activate.js` and `caveman-mode-tracker.js`. Re-register with `cavestack-settings-hook install-caveman`. Ensure Node.js is on PATH. |

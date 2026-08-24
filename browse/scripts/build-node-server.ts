@@ -5,8 +5,9 @@
  * and even `Bun.file().text()` get EUNKNOWN / Permission denied). Build in
  * memory, splice the polyfill header, write once.
  */
-import { copyFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from "fs";
+import { copyFileSync, existsSync, renameSync, unlinkSync } from "fs";
 import path from "path";
+import { mkdirpSync } from "../../lib/mkdirp";
 import { splicePolyfill } from "./inject-node-polyfill";
 
 const ROOT = path.resolve(import.meta.dir, "../..");
@@ -46,7 +47,7 @@ export async function writeWithRetry(file: string, contents: string, attempts = 
 }
 
 export async function buildNodeServer(): Promise<void> {
-  mkdirSync(DIST, { recursive: true });
+  mkdirpSync(DIST);
   const result = await Bun.build({
     entrypoints: [ENTRY],
     target: "node",

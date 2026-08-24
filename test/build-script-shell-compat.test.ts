@@ -65,4 +65,14 @@ describe('browse/scripts/build-node-server.sh — Windows head lock', () => {
     expect(SCRIPT).not.toMatch(/perl -pi/);
     expect(SCRIPT).not.toContain('--outfile');
   });
+
+  test('TypeScript builder uses mkdirpSync so a second Windows build does not EEXIST', () => {
+    const ts = fs.readFileSync(
+      path.join(ROOT, 'browse', 'scripts', 'build-node-server.ts'),
+      'utf-8',
+    );
+    expect(ts).toContain('mkdirpSync');
+    expect(ts).toContain('from "../../lib/mkdirp"');
+    expect(ts).not.toMatch(/mkdirSync\(\s*DIST/);
+  });
 });
