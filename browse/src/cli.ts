@@ -1644,12 +1644,6 @@ Refs:           After 'snapshot', use @e1, @e2... as selectors:
         if (!fs.existsSync(browseBin)) {
           browseBin = process.execPath;
         }
-        try {
-          const { spawnSync } = require('child_process');
-          spawnSync('pkill', ['-f', 'sidebar-agent\\.ts'], { stdio: 'ignore', timeout: 3000, windowsHide: true });
-        } catch (err: any) {
-          if (err?.code !== 'ENOENT') throw err;
-        }
         const agentProc = Bun.spawn(['bun', 'run', agentScript], {
           cwd: config.projectDir,
           env: {
