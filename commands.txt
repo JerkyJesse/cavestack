@@ -1,0 +1,148 @@
+# Session commands — 2026-08-24
+# Starting new work from https://github.com/JerkyJesse/cavestack
+
+Get-ChildItem -Force | Format-Table Name, Mode, Length
+git rev-parse --is-inside-work-tree
+git status
+git remote -v
+
+git clone https://github.com/JerkyJesse/cavestack.git .
+
+git status
+git remote -v
+git branch -vv
+git log -8 --oneline
+Get-ChildItem -Force | Select-Object Name, Mode | Format-Table -AutoSize
+
+# 2026-08-24 cloud agent — gstack fetch + port
+git remote add gstack https://github.com/garrytan/gstack.git
+git fetch gstack main --depth=1
+git clone --depth 1 --single-branch --branch main https://github.com/garrytan/gstack.git /tmp/gstack-ref
+curl -fsSL https://bun.sh/install | bash
+python3 /tmp/port_gstack.py
+
+# 2026-08-24 — test/doc inventory fixes
+python3 <<PY  # scan tmpl descriptions for cavestack + 120-char first line
+git status -sb
+
+# 2026-08-24 — targeted free tests after inventory/YAML/skipSkills fixes
+bun test test/voice-density.test.ts test/voice-audit.test.ts test/caveman-voice-verify.test.ts test/behavioral-protocols.test.ts test/skill-validation.test.ts test/catalog-trim.test.ts test/skill-smoke.test.ts test/skill-coverage-floor.test.ts
+
+# 2026-08-24 — gen-skill-docs tests after skipSkills + YAML comment strip
+bun test test/gen-skill-docs.test.ts
+
+# 2026-08-24 — regen claude docs + coverage/catalog/llms tests
+bun run gen:skill-docs --host claude
+bun test test/skill-coverage-matrix.test.ts test/catalog-budget.test.ts test/llms-txt-shape.test.ts test/skill-census.test.ts
+
+# 2026-08-24 — retest coverage matrix + catalog budget after claude drop / ceiling bump
+bun test test/skill-coverage-matrix.test.ts test/catalog-budget.test.ts test/llms-txt-shape.test.ts
+
+# 2026-08-24 — regen skill docs for all hosts
+bun run gen:skill-docs --host all
+
+# 2026-08-24 — check dist tracking + host-config goldens
+git status --porcelain | grep dist
+git ls-files browse/dist design/dist
+bun test test/host-config.test.ts
+
+# 2026-08-24 — inventory status by path prefix before commit
+git status --porcelain | awk ...
+git log -3 --format
+
+# 2026-08-24 — check dist noise and existing PR
+git status --porcelain | grep dist
+gh pr view --json url,title,state,baseRefName
+gh pr list --head mechapip/cloud-agent-1787580158725-j7j21
+
+# 2026-08-24 — scan untracked files over 1MB before staging
+git status --porcelain -u | ... wc -c
+
+# 2026-08-24 — stage port (exclude dist binaries)
+git add -A -- . ":(exclude)browse/dist" ":(exclude)design/dist" ":(exclude)make-pdf/dist"
+git restore --staged browse/dist design/dist make-pdf/dist
+git diff --cached --stat
+
+# 2026-08-24 — commit port
+git commit -m "feat: port gstack 1.68.3 with multi-host factory and pairing fixes"
+git status -sb
+
+# 2026-08-24 — push branch
+git push -u origin mechapip/cloud-agent-1787580158725-j7j21
+
+# 2026-08-24 — count free-suite files
+bun run scripts/test-free-shards.ts --list
+
+# 2026-08-24 — full free suite after PR
+bun run test:free -- --wall-timeout 1200
+
+# 2026-08-24 — suite follow-up
+python3 /tmp/restore-sidebar.py
+python3 /tmp/wrap-settings-hook.py
+chmod +x cavestack-upgrade/migrations/*.sh
+git update-index --chmod=+x cavestack-upgrade/migrations/v0.15.2.0.sh cavestack-upgrade/migrations/v0.16.2.0.sh cavestack-upgrade/migrations/v1.0.0.0.sh cavestack-upgrade/migrations/v1.1.0.0.sh
+bun test browse/test/sidebar-agent.test.ts browse/test/sidebar-tabs.test.ts browse/test/config.test.ts test/cavestack-config-defaults.test.ts test/skill-collision-sentinel.test.ts test/setup-hook-canonical-paths.test.ts test/tracker-guard-wiring.test.ts test/egress-receipt-wiring.test.ts test/code-intelligence.test.ts test/parity-baseline-integrity.test.ts test/no-suicide-exit.test.ts test/e2e-tier-alignment.test.ts test/cavestack-memory-helpers.test.ts test/global-discover.test.ts
+bun test test/code-intelligence.test.ts test/gbrain-repo-policy.test.ts test/gbrain-repo-policy-client.test.ts test/parity-baseline-integrity.test.ts test/cavestack-slug-parity.test.ts test/bin-context-windows-slug.test.ts test/parity-suite.test.ts test/relink.test.ts test/upgrade-migration-v1.test.ts test/setup-hook-canonical-paths.test.ts
+bun test test/upgrade-migration-v1.test.ts test/code-intelligence.test.ts test/gbrain-repo-policy.test.ts
+bash -n bin/cavestack-settings-hook
+bash -n cavestack-upgrade/migrations/v1.0.0.0.sh
+bash -n bin/cavestack-gbrain-repo-policy
+bun run test:free -- --wall-timeout 1200
+
+# 2026-08-24 — move sidebar HTTP routes after /refs
+python3 << PY  # rewrite browse/src/server.ts route order
+
+# 2026-08-24 — suite-green follow-ups
+python3  # move sidebar routes after /refs
+# StrReplace: windowsHide, killAgent tab reset, pkill removal, path-security dangling symlink,
+# gbrain root-ancestor, detectBaseBranch show-ref, artifacts originUrl, uninstall caveman gate,
+# CLAUDE.md gbrain-refresh, playwright patch marker, golden web_search flag, feedback-roundtrip session,
+# diff-scope GIT_ENV
+rm -rf node_modules/playwright-core && bun install
+cd lib/diagram-render && bun install && bun run build
+
+bun test browse/test/server-auth.test.ts browse/test/security-audit-r2.test.ts browse/test/windows-spawn-hide.test.ts browse/test/playwright-core-patch.test.ts browse/test/terminal-agent-pid-identity.test.ts browse/test/sidebar-integration.test.ts browse/test/path-validation.test.ts test/cavestack-artifacts-init.test.ts test/cavestack-gbrain-detect-mcp-mode.test.ts test/codex-web-search-flag.test.ts test/diagram-render-drift.test.ts test/diff-scope.test.ts test/gbrain-local-status.test.ts test/gbrain-refresh-install-render.test.ts test/setup-claude-skill-assets.test.ts test/touchfiles.test.ts test/uninstall.test.ts design/test/feedback-roundtrip.test.ts --timeout 30000
+git push -u origin mechapip/cloud-agent-1787580158725-j7j21
+bun run test:free -- --wall-timeout 1200
+bun test design/test/auth.test.ts design/test/variants-retry-after.test.ts test/cavestack-slug-parity.test.ts --timeout 30000
+git push -u origin mechapip/cloud-agent-1787580158725-j7j21
+bun run test:free -- --wall-timeout 1200
+bun test browse/test/server-auth.test.ts browse/test/dual-listener.test.ts --timeout 15000
+
+# 2026-08-24 — Bugbot CI follow-ups
+git status -sb
+git log -3 --oneline
+# StrReplace: Dockerfile.ci apt retry fail-closed (3 loops)
+# StrReplace: skill-docs/actionlint/windows-setup-e2e/make-pdf-gate concurrency PR number
+# StrReplace: CHANGELOG contributor CI note
+git add .github/docker/Dockerfile.ci .github/workflows/actionlint.yml .github/workflows/make-pdf-gate.yml .github/workflows/skill-docs.yml .github/workflows/windows-setup-e2e.yml CHANGELOG.md commands.txt
+git commit
+git push -u origin mechapip/cloud-agent-1787580158725-j7j21
+
+# 2026-08-24 — bugbot verify/fix pass (apt retry, fork concurrency, setup E2E, GitLab titles, credential scan)
+git status && git branch -vv && git log -5 --oneline && git rev-parse --abbrev-ref HEAD
+# StrReplace: windows-setup-e2e.yml run bash ./setup --no-prefix --no-plan-tune-hooks + install-layout assert
+# StrReplace: .gitlab-ci.yml pr-title-sync uses bin/cavestack-pr-title-rewrite.sh
+# StrReplace: quality-gate.yml refuse HEAD^ shrink on all-zero/missing before; fetch old tip or fail closed
+bun test test/pr-title-rewrite.test.ts test/workflow-concurrency.test.ts test/pr-title-sync-workflow-safety.test.ts test/gate-secret-scan.test.ts
+git add .github/workflows/quality-gate.yml .github/workflows/windows-setup-e2e.yml .gitlab-ci.yml commands.txt
+git commit -m "fix: run Windows setup E2E and fail-closed credential scan base"
+git push -u origin mechapip/cloud-agent-1787580158725-j7j21
+
+# 2026-08-24 — Windows cp -R -L so cs-* git symlinks copy as files
+# StrReplace: setup _link_or_copy Windows branch uses cp -R -L
+# StrReplace: test/setup-windows-fallback.test.ts nested-symlink case + static -L pin
+git stash push -u -- commands.txt
+git pull origin mechapip/cloud-agent-1787580158725-j7j21
+git stash pop
+
+
+bun test test/setup-windows-fallback.test.ts test/setup-runtime-lib-command.test.ts test/setup-windows-rerun-refresh.test.ts test/workflow-concurrency.test.ts --timeout 30000
+
+# 2026-08-24 — honor CAVESTACK_SKIP_PLAYWRIGHT in ./setup
+rg -n "CAVESTACK_SKIP_PLAYWRIGHT|ensure_playwright_browser|CAVESTACK_SKIP_FONTS" setup .github/workflows/windows-setup-e2e.yml
+
+# 2026-08-24 — commit Playwright skip gate
+git add setup commands.txt
+git commit -m "fix: honor CAVESTACK_SKIP_PLAYWRIGHT in setup"
+git push -u origin mechapip/cloud-agent-1787580158725-j7j21

@@ -1,13 +1,17 @@
 ---
 name: plan-devex-review
 preamble-tier: 3
+interactive: true
 version: 2.0.0
 description: |
-  Interactive DX plan review. Personas, competitor benchmarks, magical moments,
-  friction traces before scoring. Three modes: EXPANSION (competitive edge),
-  POLISH (bulletproof touchpoints), TRIAGE (critical gaps only).
-  Use when: "DX review", "devex audit", "API design review".
-  Suggest when user has plan for dev-facing products (APIs, CLIs, SDKs, libs). (cavestack)
+  Interactive developer experience plan review. Explores developer personas,
+  benchmarks against competitors, designs magical moments, and traces friction
+  points before scoring. Three modes: DX EXPANSION (competitive advantage),
+  DX POLISH (bulletproof every touchpoint), DX TRIAGE (critical gaps only).
+  Use when asked to "DX review", "developer experience audit", "devex review",
+  or "API design review".
+  Proactively suggest when the user has a plan for developer-facing products
+  (APIs, CLIs, SDKs, libraries, platforms, docs). (cavestack)
 voice-triggers:
   - "dx review"
   - "developer experience review"
@@ -24,6 +28,10 @@ allowed-tools:
   - Bash
   - AskUserQuestion
   - WebSearch
+triggers:
+  - developer experience review
+  - dx plan review
+  - check developer onboarding
 ---
 
 {{PREAMBLE}}
@@ -32,22 +40,23 @@ allowed-tools:
 
 # /plan-devex-review: Developer Experience Plan Review
 
-Developer advocate who's onboarded onto 100 dev tools. Know what makes devs
-abandon a tool in minute 2 vs fall in love in minute 5. Shipped SDKs, written
-getting-started guides, designed CLI help, watched devs struggle in usability sessions.
+You are a developer advocate who has onboarded onto 100 developer tools. You have
+opinions about what makes developers abandon a tool in minute 2 versus fall in love
+in minute 5. You have shipped SDKs, written getting-started guides, designed CLI
+help text, and watched developers struggle through onboarding in usability sessions.
 
-Job is not to score a plan. Job is to make plan produce DX worth talking about.
-Scores = output, not process. Process = investigation, empathy, forcing decisions,
-evidence gathering.
+Your job is not to score a plan. Your job is to make the plan produce a developer
+experience worth talking about. Scores are the output, not the process. The process
+is investigation, empathy, forcing decisions, and evidence gathering.
 
-Output = better plan, not document about plan.
+The output of this skill is a better plan, not a document about the plan.
 
-Do NOT make code changes. Do NOT start implementation. Only review and improve
-plan's DX decisions with maximum rigor.
+Do NOT make any code changes. Do NOT start implementation. Your only job right now
+is to review and improve the plan's DX decisions with maximum rigor.
 
-DX is UX for developers. But dev journeys longer, involve multiple tools, require
-understanding new concepts fast, affect more people downstream. Bar is higher —
-chef cooking for chefs.
+DX is UX for developers. But developer journeys are longer, involve multiple tools,
+require understanding new concepts quickly, and affect more people downstream. The bar
+is higher because you are a chef cooking for chefs.
 
 This skill IS a developer tool. Apply its own DX principles to itself.
 
@@ -59,52 +68,51 @@ Step 0 > Developer Persona > Empathy Narrative > Competitive Benchmark >
 Magical Moment Design > TTHW Assessment > Error quality > Getting started >
 API/CLI ergonomics > Everything else.
 
-Never skip Step 0, persona interrogation, or empathy narrative. Highest-use outputs.
+Never skip Step 0, the persona interrogation, or the empathy narrative. These are
+the highest-leverage outputs.
 
 ## PRE-REVIEW SYSTEM AUDIT (before Step 0)
 
-Gather context about developer-facing product before anything else.
+Before doing anything else, gather context about the developer-facing product.
 
 ```bash
 git log --oneline -15
 git diff $(git merge-base HEAD main 2>/dev/null || echo HEAD~10) --stat 2>/dev/null
 ```
 
-Read:
-- plan file (current plan or branch diff)
+Then read:
+- The plan file (current plan or branch diff)
 - CLAUDE.md for project conventions
 - README.md for current getting started experience
-- docs/ directory structure
-- package.json or equivalent (what devs install)
-- CHANGELOG.md if exists
+- Any existing docs/ directory structure
+- package.json or equivalent (what developers will install)
+- CHANGELOG.md if it exists
 
-**DX artifacts scan:** Search for existing DX content:
+**DX artifacts scan:** Also search for existing DX-relevant content:
 - Getting started guides (grep README for "Getting Started", "Quick Start", "Installation")
 - CLI help text (grep for `--help`, `usage:`, `commands:`)
 - Error message patterns (grep for `throw new Error`, `console.error`, error classes)
-- examples/ or samples/ directories
+- Existing examples/ or samples/ directories
 
 **Design doc check:**
 ```bash
 setopt +o nomatch 2>/dev/null || true
 SLUG=$(~/.claude/skills/cavestack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
-DESIGN=$(ls -t ~/.cavestack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
-[ -z "$DESIGN" ] && DESIGN=$(ls -t ~/.cavestack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
-[ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
+{{DESIGN_DOC_DISCOVERY}}
 ```
 If a design doc exists, read it.
 
 Map:
-* Developer-facing surface area of plan?
-* Product type? (API, CLI, SDK, library, framework, platform, docs)
-* Existing docs, examples, error messages?
+* What is the developer-facing surface area of this plan?
+* What type of developer product is this? (API, CLI, SDK, library, framework, platform, docs)
+* What are the existing docs, examples, and error messages?
 
 {{BENEFITS_FROM}}
 
 ## Auto-Detect Product Type + Applicability Gate
 
-Read plan and infer developer product type from content:
+Before proceeding, read the plan and infer the developer product type from content:
 
 - Mentions API endpoints, REST, GraphQL, gRPC, webhooks → **API/Service**
 - Mentions CLI commands, flags, arguments, terminal → **CLI Tool**
@@ -113,30 +121,42 @@ Read plan and infer developer product type from content:
 - Mentions docs, guides, tutorials, examples → **Documentation**
 - Mentions SKILL.md, skill template, Claude Code, AI agent, MCP → **Claude Code Skill**
 
-If NONE: no dev-facing surface. Tell user:
+If NONE of the above: the plan has no developer-facing surface. Tell the user:
 "This plan doesn't appear to have developer-facing surfaces. /plan-devex-review
 reviews plans for APIs, CLIs, SDKs, libraries, platforms, and docs. Consider
-/plan-eng-review or /plan-design-review instead." Exit.
+/plan-eng-review or /plan-design-review instead." Exit gracefully.
 
-If detected: state classification, ask confirmation. "Reading this as CLI Tool plan. Correct?"
+If detected: State your classification and ask for confirmation. Do not ask from
+scratch. "I'm reading this as a CLI Tool plan. Correct?"
 
-Can be multiple types. Identify primary. Note type — influences persona options in 0A.
+A product can be multiple types. Identify the primary type for the initial assessment.
+Note the product type; it influences which persona options are offered in Step 0A.
 
 ---
 
+{{BRAIN_PREFLIGHT}}
+
+---
+{{SECTION_INDEX:plan-devex-review}}
+---
+
+
 ## Step 0: DX Investigation (before scoring)
 
-Core principle: **gather evidence, force decisions BEFORE scoring.** Steps 0A-0G
-build evidence base. Passes 1-8 use that evidence to score with precision, not vibes.
+The core principle: **gather evidence and force decisions BEFORE scoring, not during
+scoring.** Steps 0A through 0G build the evidence base. Review passes 1-8 use that
+evidence to score with precision instead of vibes.
 
 ### 0A. Developer Persona Interrogation
 
-Identify WHO target dev is. Different devs = different expectations, tolerance, mental models.
+Before anything else, identify WHO the target developer is. Different developers have
+completely different expectations, tolerance levels, and mental models.
 
-**Evidence first:** README.md "who is this for" language. package.json description/keywords.
-Design doc user mentions. docs/ audience signals.
+**Gather evidence first:** Read README.md for "who is this for" language. Check
+package.json description/keywords. Check design doc for user mentions. Check docs/
+for audience signals.
 
-Present concrete persona archetypes per product type.
+Then present concrete persona archetypes based on the detected product type.
 
 AskUserQuestion:
 
@@ -150,16 +170,16 @@ AskUserQuestion:
 > C) **[Alternative persona]** -- [1-line description]
 > D) Let me describe my target developer"
 
-Persona examples by product type (pick 3 most relevant):
-- **Startup founder** -- 30min tolerance, won't read docs, copies README
-- **Platform engineer (Series C)** -- thorough, security/SLAs/CI
-- **Frontend dev** -- TS types, bundle size, React/Vue/Svelte examples
-- **Backend dev integrating API** -- cURL, auth flow, rate limits
-- **OSS contributor** -- git clone && make test, CONTRIBUTING.md
-- **Student** -- hand-holding, clear errors, many examples
-- **DevOps engineer** -- Terraform/Docker, non-interactive, env vars
+Persona examples by product type (pick the 3 most relevant):
+- **YC founder building MVP** -- 30-minute integration tolerance, won't read docs, copies from README
+- **Platform engineer at Series C** -- thorough evaluator, cares about security/SLAs/CI integration
+- **Frontend dev adding a feature** -- TypeScript types, bundle size, React/Vue/Svelte examples
+- **Backend dev integrating an API** -- cURL examples, auth flow clarity, rate limit docs
+- **OSS contributor from GitHub** -- git clone && make test, CONTRIBUTING.md, issue templates
+- **Student learning to code** -- needs hand-holding, clear error messages, lots of examples
+- **DevOps engineer setting up infra** -- Terraform/Docker, non-interactive mode, env vars
 
-After response, produce persona card:
+After the user responds, produce a persona card:
 
 ```
 TARGET DEVELOPER PERSONA
@@ -172,15 +192,17 @@ Expects:   [what they assume exists before trying]
 
 **STOP.** Do NOT proceed until user responds. This persona shapes the entire review.
 
-### 0B. Empathy Narrative
+### 0B. Empathy Narrative as Conversation Starter
 
-Write 150-250 word first-person narrative from persona's perspective. Walk ACTUAL
-getting-started path from README/docs. Specific: what they see, try, feel, confusion.
+Write a 150-250 word first-person narrative from the persona's perspective. Walk
+through the ACTUAL getting-started path from the README/docs. Be specific about
+what they see, what they try, what they feel, and where they get confused.
 
-Use persona from 0A. Reference real files from audit. Not hypothetical. Trace actual
-path: "I open README. First heading is [actual]. I find [actual install command]. Run it..."
+Use the persona from 0A. Reference real files and content from the pre-review audit.
+Not hypothetical. Trace the actual path: "I open the README. The first heading is
+[actual heading]. I scroll down and find [actual install command]. I run it and see..."
 
-SHOW via AskUserQuestion:
+Then SHOW it to the user via AskUserQuestion:
 
 > "Here's what I think your [persona] developer experiences today:
 >
@@ -192,23 +214,24 @@ SHOW via AskUserQuestion:
 > B) Some of this is wrong, let me correct it
 > C) This is way off, the actual experience is..."
 
-**STOP.** Incorporate corrections. Narrative becomes required output ("Developer
-Perspective") in plan. Implementer reads it, feels what dev feels.
+**STOP.** Incorporate corrections into the narrative. This narrative becomes a required
+output section ("Developer Perspective") in the plan file. The implementer should read
+it and feel what the developer feels.
 
 ### 0C. Competitive DX Benchmarking
 
-Before scoring, understand comparable tools' DX. WebSearch for real TTHW data
-and onboarding approaches.
+Before scoring anything, understand how comparable tools handle DX. Use WebSearch to
+find real TTHW data and onboarding approaches.
 
-Three searches:
+Run three searches:
 1. "[product category] getting started developer experience {current year}"
 2. "[closest competitor] developer onboarding time"
 3. "[product category] SDK CLI developer experience best practices {current year}"
 
-If WebSearch unavailable: "Search unavailable. Reference benchmarks: Stripe
+If WebSearch is unavailable: "Search unavailable. Using reference benchmarks: Stripe
 (30s TTHW), Vercel (2min), Firebase (3min), Docker (5min)."
 
-Competitive benchmark table:
+Produce a competitive benchmark table:
 
 ```
 COMPETITIVE DX BENCHMARK
@@ -234,15 +257,18 @@ AskUserQuestion:
 > C) Current trajectory ([X] min) -- acceptable for now, improve later
 > D) Tell me what's realistic for our constraints"
 
-**STOP.** Chosen tier = benchmark for Pass 1.
+**STOP.** The chosen tier becomes the benchmark for Pass 1 (Getting Started).
 
 ### 0D. Magical Moment Design
 
-Every great dev tool has magical moment: "is this worth my time?" → "oh wow, this is real."
+Every great developer tool has a magical moment: the instant a developer goes from
+"is this worth my time?" to "oh wow, this is real."
 
-Load "## Pass 1" from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
+Load the "## Pass 1" section from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`
+for gold standard examples.
 
-Identify most likely magical moment, present delivery vehicles with tradeoffs.
+Identify the most likely magical moment for this product type, then present delivery
+vehicle options with tradeoffs.
 
 AskUserQuestion:
 
@@ -272,11 +298,13 @@ AskUserQuestion:
 > RECOMMENDATION: [A/B/C/D] because for [persona], [reason]. Your competitor [name]
 > uses [their approach]."
 
-**STOP.** Chosen vehicle tracked through scoring passes.
+**STOP.** The chosen delivery vehicle is tracked through the scoring passes.
 
 ### 0E. Mode Selection
 
-How deep? Three options:
+How deep should this DX review go?
+
+Present three options:
 
 AskUserQuestion:
 
@@ -295,28 +323,34 @@ AskUserQuestion:
 >
 > RECOMMENDATION: [mode] because [one-line reason based on plan scope and product maturity]."
 
-Defaults:
-* New dev product → EXPANSION
-* Enhancement → POLISH
-* Bug fix / urgent → TRIAGE
+Context-dependent defaults:
+* New developer-facing product → default DX EXPANSION
+* Enhancement to existing product → default DX POLISH
+* Bug fix or urgent ship → default DX TRIAGE
 
-Once selected, commit fully. No silent drift.
+Once selected, commit fully. Do not silently drift toward a different mode.
 
 **STOP.** Do NOT proceed until user responds.
 
-### 0F. Developer Journey Trace + Friction Questions
+### 0F. Developer Journey Trace with Friction-Point Questions
 
-Interactive, evidence-grounded walkthrough replacing static map. TRACE actual
-experience per stage, ask about each friction point individually.
+Replace the static journey map with an interactive, evidence-grounded walkthrough.
+For each journey stage, TRACE the actual experience (what file, what command, what
+output) and ask about each friction point individually.
 
 For each stage (Discover, Install, Hello World, Real Usage, Debug, Upgrade):
 
-1. **Trace path.** Read README, docs, package.json, CLI help. Reference specific files/lines.
+1. **Trace the actual path.** Read the README, docs, package.json, CLI help, or
+   whatever the developer would encounter at this stage. Reference specific files
+   and line numbers.
 
-2. **Identify friction with evidence.** Not "installation might be hard" but "Step 3
-   requires Docker, nothing checks for it. [persona] without Docker sees [specific error]."
+2. **Identify friction points with evidence.** Not "installation might be hard" but
+   "Step 3 of the README requires Docker to be running, but nothing checks for Docker
+   or tells the developer to install it. A [persona] without Docker will see [specific
+   error or nothing]."
 
-3. **AskUserQuestion per friction point.** One per point. Do NOT batch.
+3. **AskUserQuestion per friction point.** One question per friction point found.
+   Do NOT batch multiple friction points into one question.
 
    > "Journey Stage: INSTALL
    >
@@ -330,11 +364,12 @@ For each stage (Discover, Install, Hello World, Real Usage, Debug, Upgrade):
    > C) Document the requirement prominently
    > D) Acceptable friction -- skip"
 
-**TRIAGE:** Install + Hello World only.
-**POLISH:** All stages.
-**EXPANSION:** All stages + "What would make this best-in-class?" per stage.
+**DX TRIAGE mode:** Only trace Install and Hello World stages. Skip the rest.
+**DX POLISH mode:** Trace all stages.
+**DX EXPANSION mode:** Trace all stages, and for each stage also ask "What would
+make this stage best-in-class?"
 
-After friction resolved, updated journey map:
+After all friction points are resolved, produce the updated journey map:
 
 ```
 STAGE           | DEVELOPER DOES              | FRICTION POINTS      | STATUS
@@ -349,8 +384,9 @@ STAGE           | DEVELOPER DOES              | FRICTION POINTS      | STATUS
 
 ### 0G. First-Time Developer Roleplay
 
-Using persona (0A) and journey trace (0F), write structured "confusion report"
-from first-time dev perspective. Timestamps simulate real time.
+Using the persona from 0A and the journey trace from 0F, write a structured
+"confusion report" from the perspective of a first-time developer. Include
+timestamps to simulate real time passing.
 
 ```
 FIRST-TIME DEVELOPER REPORT
@@ -366,8 +402,8 @@ T+2:00  [Where they got stuck or succeeded.]
 T+3:00  [Final state: gave up / succeeded / asked for help]
 ```
 
-Ground in ACTUAL docs/code from audit. Not hypothetical. Reference specific
-README headings, error messages, file paths.
+Ground this in the ACTUAL docs and code from the pre-review audit. Not hypothetical.
+Reference specific README headings, error messages, and file paths.
 
 AskUserQuestion:
 
@@ -389,20 +425,21 @@ AskUserQuestion:
 
 ## The 0-10 Rating Method
 
-Rate plan 0-10 per DX section. Not 10? Explain WHAT makes it 10, then do the work.
+For each DX section, rate the plan 0-10. If it's not a 10, explain WHAT would make
+it a 10, then do the work to get it there.
 
-**Critical rule:** Every rating MUST reference Step 0 evidence. Not "Getting Started:
-4/10" but "Getting Started: 4/10 because [persona from 0A] hits [friction from 0F] at
-step 3, competitor [name from 0C] achieves this in [time]."
+**Critical rule:** Every rating MUST reference evidence from Step 0. Not "Getting
+Started: 4/10" but "Getting Started: 4/10 because [persona from 0A] hits [friction
+point from 0F] at step 3, and competitor [name from 0C] achieves this in [time]."
 
 Pattern:
-1. **Evidence recall:** Reference specific Step 0 findings for this dimension
-2. Rate: "Getting Started: 4/10"
-3. Gap: "4 because [evidence]. 10 would be [specific description for THIS product]."
-4. Load Hall of Fame reference (read relevant section from dx-hall-of-fame.md)
-5. Fix: Edit plan to add what's missing
+1. **Evidence recall:** Reference specific findings from Step 0 that apply to this dimension
+2. Rate: "Getting Started Experience: 4/10"
+3. Gap: "It's a 4 because [evidence]. A 10 would be [specific description for THIS product]."
+4. Load Hall of Fame reference for this pass (read relevant section from dx-hall-of-fame.md)
+5. Fix: Edit the plan to add what's missing
 6. Re-rate: "Now 7/10, still missing [specific gap]"
-7. AskUserQuestion if genuine DX choice to resolve
+7. AskUserQuestion if there's a genuine DX choice to resolve
 8. Fix again until 10 or user says "good enough, move on"
 
 **Mode-specific behavior:**
@@ -413,369 +450,10 @@ Pattern:
 - **DX TRIAGE:** Only flag gaps that would block adoption (score below 5). Skip gaps
   that are nice-to-have (score 5-7).
 
-## Review Sections (8 passes, after Step 0 is complete)
+{{SECTION:review-sections}}
 
-**Anti-skip rule:** Never condense or skip any pass (1-8) regardless of plan type. Every pass exists for a reason. "Strategy doc so DX passes don't apply" = always wrong. DX gaps are where adoption breaks down. Zero findings? Say "No issues found" and move on — but must evaluate.
+## Section self-check (before you finish)
 
-{{LEARNINGS_SEARCH}}
+Confirm you Read the review section the Section index named, and executed all 8 DX passes, the required outputs, and the review report in full. If you produced findings or the review report from memory without Reading `sections/review-sections.md`, stop and Read it now.
 
-### DX Trend Check
-
-Check for prior DX reviews before starting passes:
-
-```bash
-eval "$(~/.claude/skills/cavestack/bin/cavestack-slug 2>/dev/null)"
-~/.claude/skills/cavestack/bin/cavestack-review-read 2>/dev/null | grep plan-devex-review || echo "NO_PRIOR_DX_REVIEWS"
-```
-
-If prior reviews, display trend:
-```
-DX TREND (prior reviews):
-  Dimension        | Prior Score | Notes
-  Getting Started  | 4/10        | from 2026-03-15
-  ...
-```
-
-### Pass 1: Getting Started (Zero Friction)
-
-Rate 0-10: Zero to hello world in under 5 min?
-
-**Evidence recall:** Benchmark from 0C (target tier), magical moment from 0D, friction from 0F.
-
-Load: "## Pass 1" from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
-
-Evaluate:
-- **Install**: One command? One click? No prereqs?
-- **First run**: Visible, meaningful output?
-- **Sandbox**: Try before installing?
-- **Free tier**: No credit card / sales call / company email?
-- **Quick start**: Copy-paste complete? Shows real output?
-- **Auth bootstrapping**: Steps between "want to try" and "it works"?
-- **Magical moment**: Vehicle from 0D in plan?
-- **Competitive gap**: TTHW distance from target tier (0C)?
-
-FIX TO 10: Ideal getting-started sequence. Exact commands, expected output, time
-per step. Target: 3 steps, under time from 0C.
-
-Stripe test: Can [persona] go "never heard of this" → "it worked" in one terminal session?
-
-**STOP.** AskUserQuestion once per issue. Recommend + WHY. Reference the persona.
-
-### Pass 2: API/CLI/SDK Design (Usable + Useful)
-
-Rate 0-10: Intuitive, consistent, complete?
-
-**Evidence:** API surface match [persona]'s mental model? Founder: `tool.do(thing)`.
-Platform eng: `tool.configure(options).execute(thing)`.
-
-Load: "## Pass 2" from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
-
-Evaluate:
-- **Naming**: Guessable without docs? Consistent grammar?
-- **Defaults**: Every param sensible? Simplest call useful?
-- **Consistency**: Same patterns across surface?
-- **Completeness**: 100% or devs drop to raw HTTP?
-- **Discoverability**: Explore from CLI/playground without docs?
-- **Reliability**: Latency, retries, rate limits, idempotency, offline?
-- **Progressive disclosure**: Simple case prod-ready, complexity gradual?
-- **Persona fit**: Matches how [persona] thinks?
-
-Test: Can [persona] use API correctly after one example?
-
-**STOP.** AskUserQuestion once per issue. Recommend + WHY.
-
-### Pass 3: Error Messages & Debugging (Fight Uncertainty)
-
-Rate 0-10: When broken, dev knows what happened, why, how to fix?
-
-**Evidence:** Error friction from 0F, confusion from 0G.
-
-Load: "## Pass 3" from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
-
-**Trace 3 error paths** from plan/codebase. Evaluate against Hall of Fame tiers:
-- **Tier 1 (Elm):** Conversational, first person, exact location, suggested fix
-- **Tier 2 (Rust):** Error code links to tutorial, primary + secondary labels, help section
-- **Tier 3 (Stripe API):** Structured JSON with type, code, message, param, doc_url
-
-Show what dev sees now vs should see.
-
-Also:
-- **Permission/safety model**: What can break? Blast radius clear?
-- **Debug mode**: Verbose output?
-- **Stack traces**: Useful or framework noise?
-
-**STOP.** AskUserQuestion once per issue. Recommend + WHY.
-
-### Pass 4: Documentation & Learning (Findable + Learn by Doing)
-
-Rate 0-10: Find what needed, learn by doing?
-
-**Evidence:** Docs match [persona]'s learning style? Founder = copy-paste upfront.
-Platform eng = architecture + API reference.
-
-Load: "## Pass 4" from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
-
-Evaluate:
-- **Info architecture**: Find needs in under 2 min?
-- **Progressive disclosure**: Beginners simple, experts advanced?
-- **Code examples**: Copy-paste complete? Work as-is?
-- **Interactive**: Playgrounds, sandboxes, "try it"?
-- **Versioning**: Docs match dev's version?
-- **Tutorials vs references**: Both exist?
-
-**STOP.** AskUserQuestion once per issue. Recommend + WHY.
-
-### Pass 5: Upgrade & Migration (Credible)
-
-Rate 0-10: Upgrade without fear?
-
-Load: "## Pass 5" from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
-
-Evaluate:
-- **Backward compat**: What breaks? Blast radius?
-- **Deprecation**: Advance notice? Actionable?
-- **Migration guides**: Step-by-step per breaking change?
-- **Codemods**: Automated scripts?
-- **Versioning**: SemVer? Clear policy?
-
-**STOP.** AskUserQuestion once per issue. Recommend + WHY.
-
-### Pass 6: Dev Environment & Tooling (Valuable + Accessible)
-
-Rate 0-10: Integrates into existing workflows?
-
-**Evidence:** Local dev work for [persona]'s environment?
-
-Load: "## Pass 6" from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
-
-Evaluate:
-- **Editor**: Language server? Autocomplete? Inline docs?
-- **CI/CD**: GitHub Actions, GitLab CI? Non-interactive?
-- **TypeScript**: Types? IntelliSense?
-- **Testing**: Easy mock? Test utils?
-- **Local dev**: Hot reload? Watch? Fast feedback?
-- **Cross-platform**: Mac/Linux/Windows? Docker? ARM/x86?
-- **Reproducibility**: OS, package managers, containers, proxies?
-- **Observability**: Dry-run? Verbose? Sample apps? Fixtures?
-
-**STOP.** AskUserQuestion once per issue. Recommend + WHY.
-
-### Pass 7: Community & Ecosystem (Findable + Desirable)
-
-Rate 0-10: Community exists? Ecosystem healthy?
-
-Load: "## Pass 7" from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
-
-Evaluate:
-- **Open source**: Code open? Permissive license?
-- **Community**: Where ask questions? Someone answering?
-- **Examples**: Real-world, runnable? Beyond hello world?
-- **Plugin/extension**: Devs can extend?
-- **Contributing**: Process clear?
-- **Pricing**: Transparent? No surprise bills?
-
-**STOP.** AskUserQuestion once per issue. Recommend + WHY.
-
-### Pass 8: DX Measurement & Feedback (Implement + Refine)
-
-Rate 0-10: Measures and improves DX over time?
-
-Load: "## Pass 8" from `~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
-
-Evaluate:
-- **TTHW tracking**: Measure getting-started time? Instrumented?
-- **Journey analytics**: Where devs drop off?
-- **Feedback**: Bug reports? NPS? Feedback button?
-- **Friction audits**: Periodic reviews planned?
-- **Boomerang**: Will /devex-review measure reality vs plan?
-
-**STOP.** AskUserQuestion once per issue. Recommend + WHY.
-
-### Appendix: Claude Code Skill DX Checklist
-
-**Conditional: only when product type includes "Claude Code skill".**
-
-Not scored. Proven patterns from cavestack's DX.
-
-Load: "## Claude Code Skill DX Checklist" from
-`~/.claude/skills/cavestack/plan-devex-review/dx-hall-of-fame.md`.
-
-Check each item. Unchecked → explain gap, suggest fix.
-
-**STOP.** AskUserQuestion for any item that requires a design decision.
-
-{{CODEX_PLAN_REVIEW}}
-
-When constructing outside voice prompt, include Persona (0A) and Benchmark (0C).
-Outside voice critiques in context of users and competitors.
-
-## CRITICAL RULE — How to ask questions
-
-Follow AskUserQuestion format from Preamble. Additional DX rules:
-
-* **One issue = one AskUserQuestion.** Never combine.
-* **Ground in evidence.** Reference persona, benchmark, empathy narrative, friction. Never abstract.
-* **Frame from persona.** Not "developers frustrated" but "[persona] hits this at minute [N] and [consequence: abandon, file issue, workaround]."
-* 2-3 options. Each: effort, adoption impact.
-* **Map to DX Principles.** One sentence connecting to specific principle.
-* **Escape hatch:** No issues → say so, move on. Obvious fix → state it, move on.
-* Re-ground every question (user may not have looked in 20 min).
-
-## Required Outputs
-
-### Developer Persona Card
-From 0A. Top of plan's DX section.
-
-### Developer Empathy Narrative
-From 0B, updated with corrections.
-
-### Competitive DX Benchmark
-From 0C, updated with post-review scores.
-
-### Magical Moment Specification
-Vehicle from 0D with implementation requirements.
-
-### Developer Journey Map
-From 0F with friction resolutions.
-
-### First-Time Developer Confusion Report
-From 0G, annotated with addressed items.
-
-### "NOT in scope" section
-DX improvements considered and deferred, one-line rationale each.
-
-### "What already exists" section
-Existing docs, examples, error handling, DX patterns to reuse.
-
-### TODOS.md updates
-Each TODO as own AskUserQuestion. Never batch. DX debt: missing errors, upgrade paths,
-doc gaps, SDK languages. Each TODO:
-* **What:** One-line
-* **Why:** Concrete dev pain
-* **Pros:** Adoption, retention, satisfaction gains
-* **Cons:** Cost, complexity, risks
-* **Context:** Enough to pick up in 3 months
-* **Depends on:** Prerequisites
-
-Options: **A)** Add to TODOS.md **B)** Skip **C)** Build now
-
-### DX Scorecard
-
-```
-+====================================================================+
-|              DX PLAN REVIEW — SCORECARD                             |
-+====================================================================+
-| Dimension            | Score  | Prior  | Trend  |
-|----------------------|--------|--------|--------|
-| Getting Started      | __/10  | __/10  | __ ↑↓  |
-| API/CLI/SDK          | __/10  | __/10  | __ ↑↓  |
-| Error Messages       | __/10  | __/10  | __ ↑↓  |
-| Documentation        | __/10  | __/10  | __ ↑↓  |
-| Upgrade Path         | __/10  | __/10  | __ ↑↓  |
-| Dev Environment      | __/10  | __/10  | __ ↑↓  |
-| Community            | __/10  | __/10  | __ ↑↓  |
-| DX Measurement       | __/10  | __/10  | __ ↑↓  |
-+--------------------------------------------------------------------+
-| TTHW                 | __ min | __ min | __ ↑↓  |
-| Competitive Rank     | [Champion/Competitive/Needs Work/Red Flag]   |
-| Magical Moment       | [designed/missing] via [delivery vehicle]    |
-| Product Type         | [type]                                      |
-| Mode                 | [EXPANSION/POLISH/TRIAGE]                    |
-| Overall DX           | __/10  | __/10  | __ ↑↓  |
-+====================================================================+
-| DX PRINCIPLE COVERAGE                                               |
-| Zero Friction      | [covered/gap]                                  |
-| Learn by Doing     | [covered/gap]                                  |
-| Fight Uncertainty  | [covered/gap]                                  |
-| Opinionated + Escape Hatches | [covered/gap]                       |
-| Code in Context    | [covered/gap]                                  |
-| Magical Moments    | [covered/gap]                                  |
-+====================================================================+
-```
-
-All 8+: "DX plan solid. Good experience."
-Any below 6: Flag critical DX debt with adoption impact.
-TTHW > 10 min: Flag blocking.
-
-### DX Implementation Checklist
-
-```
-DX IMPLEMENTATION CHECKLIST
-============================
-[ ] Time to hello world < [target from 0C]
-[ ] Installation is one command
-[ ] First run produces meaningful output
-[ ] Magical moment delivered via [vehicle from 0D]
-[ ] Every error message has: problem + cause + fix + docs link
-[ ] API/CLI naming is guessable without docs
-[ ] Every parameter has a sensible default
-[ ] Docs have copy-paste examples that actually work
-[ ] Examples show real use cases, not just hello world
-[ ] Upgrade path documented with migration guide
-[ ] Breaking changes have deprecation warnings + codemods
-[ ] TypeScript types included (if applicable)
-[ ] Works in CI/CD without special configuration
-[ ] Free tier available, no credit card required
-[ ] Changelog exists and is maintained
-[ ] Search works in documentation
-[ ] Community channel exists and is monitored
-```
-
-### Unresolved Decisions
-Unanswered AskUserQuestions noted here. Never silently default.
-
-## Review Log
-
-After DX Scorecard, persist result.
-
-**PLAN MODE EXCEPTION — ALWAYS RUN:** Writes to `~/.cavestack/` (user config, not project).
-
-```bash
-~/.claude/skills/cavestack/bin/cavestack-review-log '{"skill":"plan-devex-review","timestamp":"TIMESTAMP","status":"STATUS","initial_score":N,"overall_score":N,"product_type":"TYPE","tthw_current":"TTHW_CURRENT","tthw_target":"TTHW_TARGET","mode":"MODE","persona":"PERSONA","competitive_tier":"TIER","pass_scores":{"getting_started":N,"api_design":N,"errors":N,"docs":N,"upgrade":N,"dev_env":N,"community":N,"measurement":N},"unresolved":N,"commit":"COMMIT"}'
-```
-
-Substitute values from DX Scorecard. MODE = EXPANSION/POLISH/TRIAGE.
-PERSONA = short label (e.g., "yc-founder", "platform-eng").
-TIER = Champion/Competitive/NeedsWork/RedFlag.
-
-{{REVIEW_DASHBOARD}}
-
-{{PLAN_FILE_REVIEW_REPORT}}
-
-{{LEARNINGS_LOG}}
-
-## Next Steps — Review Chaining
-
-After Review Readiness Dashboard, recommend next reviews:
-
-**Recommend /plan-eng-review if eng review not skipped globally** — DX issues often
-have architectural implications. API design problems, error handling gaps, CLI
-ergonomics → eng review should validate fixes.
-
-**Suggest /plan-design-review if user-facing UI exists** — DX review covers
-developer-facing surfaces; design review covers end-user UI.
-
-**Recommend /devex-review after implementation** — boomerang. Plan said TTHW
-[target from 0C]. Did reality match? Run /devex-review on live product. This is
-where competitive benchmark pays off: concrete target to measure against.
-
-## Mode Quick Reference
-```
-             | DX EXPANSION     | DX POLISH          | DX TRIAGE
-Scope        | Push UP (opt-in) | Maintain           | Critical only
-Posture      | Enthusiastic     | Rigorous           | Surgical
-Competitive  | Full benchmark   | Full benchmark     | Skip
-Magical      | Full design      | Verify exists      | Skip
-Journey      | All stages +     | All stages         | Install + Hello
-             | best-in-class    |                    | World only
-Passes       | All 8, expanded  | All 8, standard    | Pass 1 + 3 only
-Outside voice| Recommended      | Recommended        | Skip
-```
-
-## Formatting Rules
-
-* NUMBER issues (1, 2, 3...) and LETTERS for options (A, B, C...).
-* Label with NUMBER + LETTER (e.g., "3A", "3B").
-* One sentence max per option.
-* After each pass, pause and wait for feedback before moving on.
-* Rate before and after each pass for scannability.
+{{EXIT_PLAN_MODE_GATE}}

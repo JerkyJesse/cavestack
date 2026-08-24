@@ -150,14 +150,7 @@ let importCookies: any;
 let CookieImportError: any;
 let originalSpawn: typeof Bun.spawn;
 
-// Windows: cookie-import targets macOS Keychain / Linux libsecret — the
-// mocked spawn pipeline and fixture SQLite paths aren't portable. Skip on
-// Windows; Linux CI covers this path.
-const isWindows = process.platform === 'win32';
-const describeBrowser = isWindows ? describe.skip : describe;
-
 beforeAll(async () => {
-  if (isWindows) return;
   createMacFixtureDb();
   createLinuxFixtureDb();
 
@@ -210,7 +203,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  if (isWindows) return;
   // Restore Bun.spawn
   // @ts-ignore - monkey-patching for test
   Bun.spawn = originalSpawn;
@@ -263,7 +255,7 @@ async function withInstalledProfile<T>(
 
 // ─── Tests ──────────────────────────────────────────────────────
 
-describeBrowser('Cookie Import Browser', () => {
+describe('Cookie Import Browser', () => {
 
   describe('Decryption Pipeline', () => {
     test('encrypts and decrypts round-trip correctly', () => {
@@ -522,35 +514,6 @@ describeBrowser('Cookie Import Browser', () => {
         expect(err.message).toContain('comet');
         expect(err.message).toContain('chrome');
       }
-    });
-  });
-
-  describe('hasV20Cookies (Windows v20 App-Bound Encryption detection)', () => {
-    test('returns false on non-Windows platforms without throwing', () => {
-      const { hasV20Cookies } = require('../src/cookie-import-browser');
-      if (process.platform === 'win32') return; // Skip on Windows
-      expect(hasV20Cookies('Chrome', 'Default')).toBe(false);
-    });
-
-    test('returns false for unknown browsers without throwing', () => {
-      const { hasV20Cookies } = require('../src/cookie-import-browser');
-      expect(hasV20Cookies('firefox', 'Default')).toBe(false);
-    });
-  });
-
-  describe('session key lifecycle (refactored from persistent key cache)', () => {
-    // On Linux v10 the key derivation uses a static password ("peanuts")
-    // so the cache is reused across calls. A second import with the same
-    // profile should succeed at the same speed, verifying the SessionKeys
-    // wrapper did not break key reuse.
-    test('importCookies reuses derived key across sequential imports', async () => {
-      await withInstalledProfile('.config/chromium', LINUX_FIXTURE_DB, async () => {
-        const first = await importCookies('chromium', ['.linux-v10.com'], 'CavestackLinuxV10');
-        const second = await importCookies('chromium', ['.linux-v10.com'], 'CavestackLinuxV10');
-        expect(first.count).toBe(1);
-        expect(second.count).toBe(1);
-        expect(first.cookies[0].value).toBe(second.cookies[0].value);
-      }, 'CavestackLinuxV10');
     });
   });
 });

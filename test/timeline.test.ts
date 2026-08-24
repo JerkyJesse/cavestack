@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { execFileSync, ExecFileSyncOptionsWithStringEncoding } from 'child_process';
+import { execFileSync, execSync, ExecSyncOptionsWithStringEncoding } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -11,14 +11,14 @@ let tmpDir: string;
 let slugDir: string;
 
 function runLog(input: string, opts: { expectFail?: boolean } = {}): { stdout: string; exitCode: number } {
-  const execOpts: ExecFileSyncOptionsWithStringEncoding = {
+  const execOpts: ExecSyncOptionsWithStringEncoding = {
     cwd: ROOT,
     env: { ...process.env, CAVESTACK_HOME: tmpDir },
     encoding: 'utf-8',
     timeout: 15000,
   };
   try {
-    const stdout = execFileSync('bash', [path.join(BIN, 'cavestack-timeline-log'), input], execOpts).trim();
+    const stdout = execSync(`${BIN}/cavestack-timeline-log '${input.replace(/'/g, "'\\''")}'`, execOpts).trim();
     return { stdout, exitCode: 0 };
   } catch (e: any) {
     if (opts.expectFail) {
@@ -29,15 +29,28 @@ function runLog(input: string, opts: { expectFail?: boolean } = {}): { stdout: s
 }
 
 function runRead(args: string = ''): string {
-  const execOpts: ExecFileSyncOptionsWithStringEncoding = {
+  const execOpts: ExecSyncOptionsWithStringEncoding = {
     cwd: ROOT,
     env: { ...process.env, CAVESTACK_HOME: tmpDir },
     encoding: 'utf-8',
     timeout: 15000,
   };
   try {
-    const argv = args.trim().split(/\s+/).filter(Boolean);
-    return execFileSync('bash', [path.join(BIN, 'cavestack-timeline-read'), ...argv], execOpts).trim();
+    return execSync(`${BIN}/cavestack-timeline-read ${args}`, execOpts).trim();
+  } catch {
+    return '';
+  }
+}
+
+function runReadArgs(args: string[] = []): string {
+  const execOpts: ExecSyncOptionsWithStringEncoding = {
+    cwd: ROOT,
+    env: { ...process.env, CAVESTACK_HOME: tmpDir },
+    encoding: 'utf-8',
+    timeout: 15000,
+  };
+  try {
+    return execFileSync(path.join(BIN, 'cavestack-timeline-read'), args, execOpts).trim();
   } catch {
     return '';
   }
@@ -135,7 +148,18 @@ describe('cavestack-timeline-read', () => {
     const output = runRead('--branch feature-a');
     expect(output).toContain('review');
     expect(output).not.toContain('feature-b');
-  }, 30000);
+  });
+
+  test('filters branch names containing single quotes', () => {
+    runLog(JSON.stringify({ skill: 'review', event: 'completed', branch: "feature/o'hare", outcome: 'approved', ts: '2026-03-28T10:00:00Z' }));
+    runLog(JSON.stringify({ skill: 'ship', event: 'completed', branch: 'feature-other', outcome: 'merged', ts: '2026-03-28T11:00:00Z' }));
+
+    const output = runReadArgs(['--branch', "feature/o'hare"]);
+
+    expect(output).toContain('review');
+    expect(output).toContain("feature/o'hare");
+    expect(output).not.toContain('feature-other');
+  });
 
   test('limits output with --limit', () => {
     for (let i = 0; i < 5; i++) {
@@ -151,5 +175,5 @@ describe('cavestack-timeline-read', () => {
 
     expect(unlimitedEvents).toBe(5);
     expect(limitedEvents).toBe(2);
-  }, 30000);
+  });
 });

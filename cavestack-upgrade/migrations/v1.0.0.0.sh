@@ -28,10 +28,24 @@ set -euo pipefail
 CAVESTACK_HOME="${CAVESTACK_HOME:-$HOME/.cavestack}"
 DX_FILE="$CAVESTACK_HOME/analytics/dx-metrics.jsonl"
 MARKER="$CAVESTACK_HOME/.migrations/v1.0.0.0.done"
+PROMPTED_FLAG="$CAVESTACK_HOME/.writing-style-prompted"
+PENDING_FLAG="$CAVESTACK_HOME/.writing-style-prompt-pending"
 
 mkdir -p "$CAVESTACK_HOME/.migrations" "$CAVESTACK_HOME/analytics" 2>/dev/null
 
-# Idempotency check
+# Writing-style one-time prompt. Preamble still reads this flag on tier-≥2
+# skills. HOME is isolated in tests so a developer explain_level cannot
+# short-circuit the pending-flag write.
+if [ ! -f "$PROMPTED_FLAG" ]; then
+  EXPLAIN_LEVEL_SET="$("${HOME}/.claude/skills/cavestack/bin/cavestack-config" get explain_level 2>/dev/null || true)"
+  if [ -n "$EXPLAIN_LEVEL_SET" ]; then
+    touch "$PROMPTED_FLAG"
+  else
+    touch "$PENDING_FLAG"
+  fi
+fi
+
+# Idempotency check for the rest of this migration
 if [ -f "$MARKER" ]; then
   echo "  [v1.0.0.0] already applied, skipping"
   exit 0

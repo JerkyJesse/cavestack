@@ -9,6 +9,7 @@
 import fs from "fs";
 import path from "path";
 import { requireApiKey } from "./auth";
+import { receiptedFetch } from "./receipted-fetch";
 import { readSession, updateSession } from "./session";
 
 export interface IterateOptions {
@@ -85,7 +86,7 @@ async function callWithThreading(
   const timeout = setTimeout(() => controller.abort(), 120_000);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await receiptedFetch("iterate-threaded-image-request", "https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -133,7 +134,7 @@ async function callFresh(
   const timeout = setTimeout(() => controller.abort(), 120_000);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await receiptedFetch("iterate-fresh-image-request", "https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,

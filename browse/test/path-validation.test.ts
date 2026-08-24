@@ -6,12 +6,7 @@ import { readFileSync, symlinkSync, unlinkSync, writeFileSync, realpathSync } fr
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-// POSIX-only: these tests hardcode /tmp and /etc/* paths, and use symlinks that
-// require admin on Windows. SAFE_DIRECTORIES on Windows is %TEMP% + cwd.
-const IS_POSIX = process.platform !== 'win32';
-const describePosix = IS_POSIX ? describe : describe.skip;
-
-describePosix('validateOutputPath', () => {
+describe('validateOutputPath', () => {
   it('allows paths within /tmp', () => {
     expect(() => validateOutputPath('/tmp/screenshot.png')).not.toThrow();
   });
@@ -61,7 +56,7 @@ describe('upload command path validation', () => {
   });
 });
 
-describePosix('validateReadPath', () => {
+describe('validateReadPath', () => {
   it('allows absolute paths within /tmp', () => {
     expect(() => validateReadPath('/tmp/script.js')).not.toThrow();
   });
@@ -116,7 +111,7 @@ describePosix('validateReadPath', () => {
   });
 });
 
-describePosix('validateOutputPath — symlink resolution', () => {
+describe('validateOutputPath — symlink resolution', () => {
   it('blocks symlink inside /tmp pointing outside safe dirs', () => {
     const linkPath = join(tmpdir(), 'test-output-symlink-' + Date.now() + '.png');
     try {

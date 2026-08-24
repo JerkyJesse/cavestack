@@ -14,10 +14,6 @@ let bm: BrowserManager;
 let baseUrl: string;
 let serverPort: number;
 
-// Windows: Playwright chrome-headless-shell launch hangs (see handoff.test.ts).
-const isWindows = process.platform === 'win32';
-const describeBrowser = isWindows ? describe.skip : describe;
-
 // Helper to send batch requests to the browse server
 async function batch(commands: any[], opts: { timeout?: number; stream?: boolean } = {}): Promise<any> {
   const res = await fetch(`http://127.0.0.1:${serverPort}/batch`, {
@@ -32,7 +28,6 @@ async function batch(commands: any[], opts: { timeout?: number; stream?: boolean
 }
 
 beforeAll(async () => {
-  if (isWindows) return;
   testServer = startTestServer(0);
   baseUrl = testServer.url;
 
@@ -45,12 +40,16 @@ beforeAll(async () => {
   // The server is already started by launch — we need the port
   // Actually, BrowserManager.launch() starts the browser, not the server.
   // The test needs to start a server. Let's use the existing server infrastructure.
-}, 60000);
+});
 
-afterAll(() => {
-  if (isWindows) return;
-  try { testServer.server.stop(); } catch {}
-  setTimeout(() => process.exit(0), 500);
+afterAll(async () => {
+  try { testServer.server.stop(true); } catch {}  // force-close keep-alives — a lingering Chromium connection otherwise blocks stop() forever
+  // Close only this file's own browser — never process.exit(): bun test runs
+  // all files in one process, so a delayed exit kills the whole suite
+  // (see test/no-suicide-exit.test.ts). close() can hang when the browser
+  // already died, and its internal 5s timeout ties bun's 5s hook timeout —
+  // so race it at 3s and abandon; the child is reaped at process exit.
+  try { await Promise.race([bm?.close(), new Promise((resolve) => setTimeout(resolve, 3000))]); } catch {}
 });
 
 // We need a running browse server for HTTP tests.
@@ -68,7 +67,7 @@ const handleReadCommand = (cmd: string, args: string[], b: BrowserManager) =>
 const handleWriteCommand = (cmd: string, args: string[], b: BrowserManager) =>
   _handleWriteCommand(cmd, args, b.getActiveSession(), b);
 
-describeBrowser('Batch execution', () => {
+describe('Batch execution', () => {
   test('multi-tab parallel: goto + text on different tabs', async () => {
     // Create two tabs
     const tab1 = await bm.newTab(baseUrl + '/basic.html');

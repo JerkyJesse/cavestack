@@ -1,18 +1,62 @@
 #!/usr/bin/env bash
 # cavestack-review-log — atomically log a review result
 # Usage: cavestack-review-log '{"skill":"...","timestamp":"...","status":"..."}'
+#
+# Binding fields (content-addressed staleness): every appended record is
+# stamped with commit_full, tree, dirty (informational) and wtree (the GATING
+# working-tree fingerprint from bin/cavestack-wtree). These are computed
+# AUTHORITATIVELY here — caller-supplied values for the four keys are ignored,
+# so a stale rendered template (or a forged field) cannot bind a record to
+# content it wasn't made on. All other caller fields pass through untouched.
+# Outside a git repo the fields are simply omitted (legacy consumers fall back
+# to their heuristics).
+#
+# Known limitation: binding happens at LOG time, not review-START time — edits
+# made between finishing a review and logging it (including fixes the review
+# itself applied) are certified by the stamped fingerprint. cavestack-evidence
+# closes this window for test runs (before/after capture); review flows log
+# immediately after reviewing, which keeps the window small but nonzero.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 eval "$("$SCRIPT_DIR/cavestack-slug" 2>/dev/null)"
 CAVESTACK_HOME="${CAVESTACK_HOME:-$HOME/.cavestack}"
 mkdir -p "$CAVESTACK_HOME/projects/$SLUG"
 
-# Validate: input must be parseable JSON (reject malformed or injection attempts)
 INPUT="$1"
-if ! printf '%s' "$INPUT" | bun -e "JSON.parse(await Bun.stdin.text())" 2>/dev/null; then
+
+# Compute binding fields (best-effort; empty outside a git repo).
+COMMIT_FULL=$(git rev-parse HEAD 2>/dev/null || true)
+TREE=""
+WTREE=""
+DIRTY=""
+if [ -n "$COMMIT_FULL" ]; then
+  TREE=$(git rev-parse 'HEAD^{tree}' 2>/dev/null || true)
+  WTREE=$("$SCRIPT_DIR/cavestack-wtree" 2>/dev/null || true)
+  if [ -n "$(git status --porcelain -uno 2>/dev/null | head -1)" ]; then
+    DIRTY="true"
+  else
+    DIRTY="false"
+  fi
+fi
+
+# Validate (reject malformed or injection attempts) AND stamp in one pass.
+# Caller values for the binding keys are dropped before stamping.
+STAMPED=$(printf '%s' "$INPUT" | CAVESTACK_STAMP_COMMIT_FULL="$COMMIT_FULL" CAVESTACK_STAMP_TREE="$TREE" CAVESTACK_STAMP_WTREE="$WTREE" CAVESTACK_STAMP_DIRTY="$DIRTY" bun -e "
+const rec = JSON.parse(await Bun.stdin.text());
+for (const k of ['commit_full', 'tree', 'wtree', 'dirty']) delete rec[k];
+const env = process.env;
+if (env.CAVESTACK_STAMP_COMMIT_FULL) rec.commit_full = env.CAVESTACK_STAMP_COMMIT_FULL;
+if (env.CAVESTACK_STAMP_TREE) rec.tree = env.CAVESTACK_STAMP_TREE;
+if (env.CAVESTACK_STAMP_WTREE) rec.wtree = env.CAVESTACK_STAMP_WTREE;
+if (env.CAVESTACK_STAMP_DIRTY) rec.dirty = env.CAVESTACK_STAMP_DIRTY === 'true';
+console.log(JSON.stringify(rec));
+" 2>/dev/null) || {
   # Not valid JSON — refuse to append
   echo "cavestack-review-log: invalid JSON, skipping" >&2
   exit 1
-fi
+}
 
-echo "$INPUT" >> "$CAVESTACK_HOME/projects/$SLUG/$BRANCH-reviews.jsonl"
+echo "$STAMPED" >> "$CAVESTACK_HOME/projects/$SLUG/$BRANCH-reviews.jsonl"
+
+# gbrain-sync: enqueue for cross-machine sync (no-op if sync is off).
+"$SCRIPT_DIR/cavestack-brain-enqueue" "projects/$SLUG/$BRANCH-reviews.jsonl" 2>/dev/null &

@@ -499,15 +499,15 @@ describe('BROWSE_TAB tab pinning (cross-tab isolation)', () => {
 
   test('CLI reads BROWSE_TAB and sends tabId in command body', () => {
     expect(cliSrc).toContain('process.env.BROWSE_TAB');
-    expect(cliSrc).toContain('tabId: parseInt(browseTab');
+    expect(cliSrc).toContain('parseInt(envTab');
   });
 
   test('handleCommandInternal accepts tabId from request body', () => {
     const handleFn = serverSrc.slice(
-      serverSrc.indexOf('async function handleCommandInternal('),
-      serverSrc.indexOf('\n/** HTTP wrapper', serverSrc.indexOf('async function handleCommandInternal(') + 1) > 0
-        ? serverSrc.indexOf('\n/** HTTP wrapper', serverSrc.indexOf('async function handleCommandInternal(') + 1)
-        : serverSrc.indexOf('\nasync function ', serverSrc.indexOf('async function handleCommandInternal(') + 200),
+      serverSrc.indexOf('async function handleCommandInternalImpl('),
+      serverSrc.indexOf('\n/** HTTP wrapper', serverSrc.indexOf('async function handleCommandInternalImpl(') + 1) > 0
+        ? serverSrc.indexOf('\n/** HTTP wrapper', serverSrc.indexOf('async function handleCommandInternalImpl(') + 1)
+        : serverSrc.indexOf('\nasync function ', serverSrc.indexOf('async function handleCommandInternalImpl(') + 200),
     );
     // Should destructure tabId from body
     expect(handleFn).toContain('tabId');
@@ -519,7 +519,7 @@ describe('BROWSE_TAB tab pinning (cross-tab isolation)', () => {
   test('handleCommandInternal restores active tab after command (success path)', () => {
     // On success, should restore savedTabId without stealing focus
     const handleFn = serverSrc.slice(
-      serverSrc.indexOf('async function handleCommandInternal('),
+      serverSrc.indexOf('async function handleCommandInternalImpl('),
       serverSrc.length,
     );
     // Count restore calls — should appear in both success and error paths
@@ -530,15 +530,15 @@ describe('BROWSE_TAB tab pinning (cross-tab isolation)', () => {
   test('handleCommandInternal restores active tab on error path', () => {
     // The catch block should also restore
     const catchBlock = serverSrc.slice(
-      serverSrc.indexOf('} catch (err: any) {', serverSrc.indexOf('async function handleCommandInternal(')),
+      serverSrc.indexOf('} catch (err: any) {', serverSrc.indexOf('async function handleCommandInternalImpl(')),
     );
     expect(catchBlock).toContain('switchTab(savedTabId');
   });
 
   test('tab pinning only activates when tabId is provided', () => {
     const handleFn = serverSrc.slice(
-      serverSrc.indexOf('async function handleCommandInternal('),
-      serverSrc.indexOf('try {', serverSrc.indexOf('async function handleCommandInternal(') + 1),
+      serverSrc.indexOf('async function handleCommandInternalImpl('),
+      serverSrc.indexOf('try {', serverSrc.indexOf('async function handleCommandInternalImpl(') + 1),
     );
     // Should check tabId is not undefined/null before switching
     expect(handleFn).toContain('tabId !== undefined');
@@ -547,6 +547,6 @@ describe('BROWSE_TAB tab pinning (cross-tab isolation)', () => {
 
   test('CLI only sends tabId when BROWSE_TAB is set', () => {
     // Should conditionally include tabId in the body
-    expect(cliSrc).toContain('browseTab ? { tabId:');
+    expect(cliSrc).toContain('tabId !== undefined && !isNaN(tabId)');
   });
 });

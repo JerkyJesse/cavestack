@@ -12,16 +12,39 @@
  * AskUserQuestion and persists the preference via cavestack-config.
  */
 import type { TemplateContext } from './types';
+import { getHostConfig } from '../../hosts/index';
 
-export function generateLearningsSearch(ctx: TemplateContext): string {
-  if (ctx.host === 'codex') {
-    // Codex: simpler version, no cross-project, uses $CAVESTACK_BIN
+// Whitelist for query= macro values. Allows alphanumeric, space, hyphen, underscore.
+// Anything else (e.g. $, backticks, quotes, ;) is a shell-injection vector when the
+// emitted bash interpolates the value into `--query "${queryArg}"`. Static template
+// queries hand-written in cavestack are safe, but the resolver API must defend against
+// future contributors writing dangerous values.
+const QUERY_SAFE_RE = /^[A-Za-z0-9 _-]+$/;
+
+export function generateLearningsSearch(ctx: TemplateContext, args?: string[]): string {
+  // Parse query= arg. Empty value falls through to no-query (principle of least surprise:
+  // a stray {{LEARNINGS_SEARCH:query=}} placeholder gets today's behavior, not a build error).
+  const queryArg = (args || [])
+    .filter(a => a.startsWith('query='))
+    .map(a => a.slice(6))
+    .filter(Boolean)[0];
+  if (queryArg && !QUERY_SAFE_RE.test(queryArg)) {
+    throw new Error(
+      `{{LEARNINGS_SEARCH:query=...}} value must match ${QUERY_SAFE_RE} (alphanumeric, space, hyphen, underscore). Got: ${JSON.stringify(queryArg)}`
+    );
+  }
+  const queryFlag = queryArg ? ` --query "${queryArg}"` : '';
+
+  if (getHostConfig(ctx.host).learningsMode === 'basic') {
+    // Basic learnings mode (host config learningsMode: 'basic' — every host
+    // except claude and factory): simpler version, no cross-project prompt,
+    // uses $CAVESTACK_BIN (all basic hosts are env-var hosts)
     return `## Prior Learnings
 
 Search for relevant learnings from previous sessions on this project:
 
 \`\`\`bash
-$CAVESTACK_BIN/cavestack-learnings-search --limit 10 2>/dev/null || true
+$CAVESTACK_BIN/cavestack-learnings-search --limit 10${queryFlag} 2>/dev/null || true
 \`\`\`
 
 If learnings are found, incorporate them into your analysis. When a review finding
@@ -36,9 +59,9 @@ Search for relevant learnings from previous sessions:
 _CROSS_PROJ=$(${ctx.paths.binDir}/cavestack-config get cross_project_learnings 2>/dev/null || echo "unset")
 echo "CROSS_PROJECT: $_CROSS_PROJ"
 if [ "$_CROSS_PROJ" = "true" ]; then
-  ${ctx.paths.binDir}/cavestack-learnings-search --limit 10 --cross-project 2>/dev/null || true
+  ${ctx.paths.binDir}/cavestack-learnings-search --limit 10${queryFlag} --cross-project 2>/dev/null || true
 else
-  ${ctx.paths.binDir}/cavestack-learnings-search --limit 10 2>/dev/null || true
+  ${ctx.paths.binDir}/cavestack-learnings-search --limit 10${queryFlag} 2>/dev/null || true
 fi
 \`\`\`
 
@@ -68,7 +91,7 @@ smarter on their codebase over time.`;
 }
 
 export function generateLearningsLog(ctx: TemplateContext): string {
-  const binDir = ctx.host === 'codex' ? '$CAVESTACK_BIN' : ctx.paths.binDir;
+  const binDir = ctx.paths.binDir; // env-var hosts already resolve to $CAVESTACK_BIN via types.ts
 
   return `## Capture Learnings
 

@@ -5,17 +5,22 @@
 import type { BrowserManager } from './browser-manager';
 import { handleSnapshot } from './snapshot';
 import { getCleanText } from './read-commands';
-import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS, PAGE_CONTENT_COMMANDS, wrapUntrustedContent } from './commands';
+import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS, PAGE_CONTENT_COMMANDS, wrapUntrustedContent, canonicalizeCommand } from './commands';
+import { handleDomainSkillCommand } from './domain-skill-commands';
+import { handleSkillCommand } from './browser-skill-commands';
 import { validateNavigationUrl } from './url-validation';
 import { checkScope, type TokenInfo } from './token-registry';
-import { validateOutputPath, escapeRegExp } from './path-security';
+import { validateOutputPath, validateReadPath, SAFE_DIRECTORIES, escapeRegExp } from './path-security';
+import { guardScreenshotBuffer, guardScreenshotPath } from './screenshot-size-guard';
 // Re-export for backward compatibility (tests import from meta-commands)
 export { validateOutputPath, escapeRegExp } from './path-security';
 import * as Diff from 'diff';
 import * as fs from 'fs';
 import * as path from 'path';
+import { writeSecureFile, mkdirSecure } from './file-permissions';
 import { TEMP_DIR } from './platform';
 import { resolveConfig } from './config';
+import { filterSessionCookies } from './session-persist';
 import type { Frame } from 'playwright';
 
 /** Tokenize a pipe segment respecting double-quoted strings. */
@@ -37,11 +42,214 @@ function tokenizePipeSegment(segment: string): string[] {
   return tokens;
 }
 
+// ─── PDF flag parsing (make-pdf contract) ─────────────────────────────
+//
+// The $B pdf command grew from a 2-line wrapper (format: 'A4') into a real
+// PDF engine frontend. make-pdf/dist/pdf shells out to `browse pdf` with
+// this flag set, so the contract here has to be stable.
+//
+// Mutex rules enforced:
+//   --format vs --width/--height
+//   --margins vs any --margin-*
+//   --page-numbers vs --footer-template (page-numbers writes the footer itself)
+//
+// Units for dimensions: "1in" | "72pt" | "25mm" | "2.54cm". Bare numbers
+// are interpreted as pixels (Playwright's default), which is almost never
+// what callers want — we warn but don't reject.
+//
+// Large payloads: header/footer HTML and custom CSS can exceed Windows'
+// 8191-char CreateProcess cap via argv. Callers pass `--from-file <path>`
+// to a JSON file holding the full options. make-pdf always uses this path.
+interface ParsedPdfArgs {
+  output: string;
+  format?: string;
+  width?: string;
+  height?: string;
+  marginTop?: string;
+  marginRight?: string;
+  marginBottom?: string;
+  marginLeft?: string;
+  headerTemplate?: string;
+  footerTemplate?: string;
+  pageNumbers?: boolean;
+  tagged?: boolean;
+  outline?: boolean;
+  printBackground?: boolean;
+  preferCSSPageSize?: boolean;
+  toc?: boolean;
+}
+
+function parsePdfArgs(args: string[]): ParsedPdfArgs {
+  // --from-file short-circuits argv parsing entirely
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--from-file') {
+      const payloadPath = args[++i];
+      if (!payloadPath) throw new Error('pdf: --from-file requires a path');
+      return parsePdfFromFile(payloadPath);
+    }
+  }
+
+  const result: ParsedPdfArgs = {
+    output: `${TEMP_DIR}/browse-page.pdf`,
+  };
+
+  let margins: string | undefined;
+  const positional: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--format') { result.format = requireValue(args, ++i, 'format'); }
+    else if (a === '--page-size') { result.format = requireValue(args, ++i, 'page-size'); }
+    else if (a === '--width') { result.width = requireValue(args, ++i, 'width'); }
+    else if (a === '--height') { result.height = requireValue(args, ++i, 'height'); }
+    else if (a === '--margins') { margins = requireValue(args, ++i, 'margins'); }
+    else if (a === '--margin-top') { result.marginTop = requireValue(args, ++i, 'margin-top'); }
+    else if (a === '--margin-right') { result.marginRight = requireValue(args, ++i, 'margin-right'); }
+    else if (a === '--margin-bottom') { result.marginBottom = requireValue(args, ++i, 'margin-bottom'); }
+    else if (a === '--margin-left') { result.marginLeft = requireValue(args, ++i, 'margin-left'); }
+    else if (a === '--header-template') { result.headerTemplate = requireValue(args, ++i, 'header-template'); }
+    else if (a === '--footer-template') { result.footerTemplate = requireValue(args, ++i, 'footer-template'); }
+    else if (a === '--page-numbers') { result.pageNumbers = true; }
+    else if (a === '--tagged') { result.tagged = true; }
+    else if (a === '--outline') { result.outline = true; }
+    else if (a === '--print-background') { result.printBackground = true; }
+    else if (a === '--prefer-css-page-size') { result.preferCSSPageSize = true; }
+    else if (a === '--toc') { result.toc = true; }
+    else if (a.startsWith('--')) { throw new Error(`Unknown pdf flag: ${a}`); }
+    else { positional.push(a); }
+  }
+
+  if (positional.length > 0) result.output = positional[0];
+
+  if (margins !== undefined) {
+    if (result.marginTop || result.marginRight || result.marginBottom || result.marginLeft) {
+      throw new Error('pdf: --margins is mutex with --margin-top/--margin-right/--margin-bottom/--margin-left');
+    }
+    result.marginTop = result.marginRight = result.marginBottom = result.marginLeft = margins;
+  }
+
+  if (result.format && (result.width || result.height)) {
+    throw new Error('pdf: --format is mutex with --width/--height');
+  }
+  if (result.pageNumbers && result.footerTemplate) {
+    throw new Error('pdf: --page-numbers is mutex with --footer-template (page-numbers writes the footer itself)');
+  }
+
+  return result;
+}
+
+export function parsePdfFromFile(payloadPath: string): ParsedPdfArgs {
+  // Parity with load-html --from-file (browse/src/write-commands.ts) and
+  // the direct load-html <file> path: every caller-supplied file path
+  // must pass validateReadPath so the safe-dirs policy can't be skirted
+  // by routing reads through the --from-file shortcut.
+  try {
+    validateReadPath(path.resolve(payloadPath));
+  } catch {
+    throw new Error(
+      `pdf: --from-file ${payloadPath} must be under ${SAFE_DIRECTORIES.join(' or ')} (security policy). Copy the payload into the project tree or /tmp first.`
+    );
+  }
+  const raw = fs.readFileSync(payloadPath, 'utf8');
+  let json: any;
+  try {
+    json = JSON.parse(raw);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`pdf: --from-file ${payloadPath} is not valid JSON (${msg}).`);
+  }
+  if (json === null || typeof json !== 'object' || Array.isArray(json)) {
+    throw new Error(`pdf: --from-file ${payloadPath} must be a JSON object, got ${Array.isArray(json) ? 'array' : typeof json}.`);
+  }
+  const out: ParsedPdfArgs = {
+    output: json.output || `${TEMP_DIR}/browse-page.pdf`,
+    format: json.format,
+    width: json.width,
+    height: json.height,
+    marginTop: json.marginTop,
+    marginRight: json.marginRight,
+    marginBottom: json.marginBottom,
+    marginLeft: json.marginLeft,
+    headerTemplate: json.headerTemplate,
+    footerTemplate: json.footerTemplate,
+    pageNumbers: json.pageNumbers === true,
+    tagged: json.tagged === true,
+    outline: json.outline === true,
+    printBackground: json.printBackground === true,
+    preferCSSPageSize: json.preferCSSPageSize === true,
+    toc: json.toc === true,
+  };
+  return out;
+}
+
+function requireValue(args: string[], i: number, flag: string): string {
+  const v = args[i];
+  if (v === undefined || v.startsWith('--')) {
+    throw new Error(`pdf: --${flag} requires a value`);
+  }
+  return v;
+}
+
+function buildPdfOptions(parsed: ParsedPdfArgs): Record<string, unknown> {
+  const opts: Record<string, unknown> = {};
+
+  // Page size
+  if (parsed.format) {
+    opts.format = parsed.format.charAt(0).toUpperCase() + parsed.format.slice(1).toLowerCase();
+  } else if (parsed.width && parsed.height) {
+    opts.width = parsed.width;
+    opts.height = parsed.height;
+  } else {
+    opts.format = 'Letter';
+  }
+
+  // Margins
+  const margin: Record<string, string> = {};
+  if (parsed.marginTop) margin.top = parsed.marginTop;
+  if (parsed.marginRight) margin.right = parsed.marginRight;
+  if (parsed.marginBottom) margin.bottom = parsed.marginBottom;
+  if (parsed.marginLeft) margin.left = parsed.marginLeft;
+  if (Object.keys(margin).length > 0) opts.margin = margin;
+
+  // Header/footer
+  const displayHeaderFooter =
+    !!parsed.headerTemplate || !!parsed.footerTemplate || parsed.pageNumbers === true;
+  if (displayHeaderFooter) {
+    opts.displayHeaderFooter = true;
+    // Provide minimum empty templates when only one is set, otherwise Chromium
+    // emits its default ugly URL/date in the other slot.
+    if (parsed.headerTemplate !== undefined) opts.headerTemplate = parsed.headerTemplate;
+    else if (parsed.pageNumbers || parsed.footerTemplate) opts.headerTemplate = '<div></div>';
+
+    if (parsed.pageNumbers) {
+      opts.footerTemplate = [
+        '<div style="font-size:9pt; font-family:Helvetica,Arial,sans-serif; color:#666; ',
+        'width:100%; text-align:center;">',
+        '<span class="pageNumber"></span> of <span class="totalPages"></span>',
+        '</div>',
+      ].join('');
+    } else if (parsed.footerTemplate !== undefined) {
+      opts.footerTemplate = parsed.footerTemplate;
+    } else {
+      opts.footerTemplate = '<div></div>';
+    }
+  }
+
+  if (parsed.tagged === true) opts.tagged = true;
+  if (parsed.outline === true) opts.outline = true;
+  if (parsed.printBackground === true) opts.printBackground = true;
+  if (parsed.preferCSSPageSize === true) opts.preferCSSPageSize = true;
+
+  return opts;
+}
+
 /** Options passed from handleCommandInternal for chain routing */
 export interface MetaCommandOpts {
   chainDepth?: number;
   /** Callback to route subcommands through the full security pipeline (handleCommandInternal) */
   executeCommand?: (body: { command: string; args?: string[]; tabId?: number }, tokenInfo?: TokenInfo | null) => Promise<{ status: number; result: string; json?: boolean }>;
+  /** The port the daemon is listening on (needed by `$B skill run` to point spawned scripts at the daemon). */
+  daemonPort?: number;
 }
 
 export async function handleMetaCommand(
@@ -72,8 +280,18 @@ export async function handleMetaCommand(
     }
 
     case 'newtab': {
-      const url = args[0];
+      // --json returns structured output (machine-parseable). Other flag-like
+      // tokens are treated as the url. make-pdf always passes --json.
+      let url: string | undefined;
+      let jsonMode = false;
+      for (const a of args) {
+        if (a === '--json') { jsonMode = true; }
+        else if (!url) { url = a; }
+      }
       const id = await bm.newTab(url);
+      if (jsonMode) {
+        return JSON.stringify({ tabId: id, url: url ?? null });
+      }
       return `Opened tab ${id}${url ? ` → ${url}` : ''}`;
     }
 
@@ -81,6 +299,108 @@ export async function handleMetaCommand(
       const id = args[0] ? parseInt(args[0], 10) : undefined;
       await bm.closeTab(id);
       return `Closed tab${id ? ` ${id}` : ''}`;
+    }
+
+    case 'tab-each': {
+      // Fan out a single command across every open tab. Returns a JSON
+      // object: { results: [{tabId, url, title, status, output}], total }.
+      // Restores the originally active tab when done so the user's view
+      // doesn't shift under them.
+      //
+      // Usage: $B tab-each <command> [args...]
+      //   $B tab-each snapshot -i      → snapshot every tab
+      //   $B tab-each text             → grab clean text from every tab
+      //   $B tab-each goto https://x.y → load the same URL in every tab
+      if (args.length === 0) {
+        throw new Error(
+          'Usage: browse tab-each <command> [args...]\n' +
+          'Example: browse tab-each snapshot -i'
+        );
+      }
+
+      const innerRaw = args[0];
+      const innerName = canonicalizeCommand(innerRaw);
+      const innerArgs = args.slice(1);
+
+      // Scope check the inner command before fanning out, so a single
+      // permission failure aborts the whole batch instead of partially
+      // mutating tabs.
+      if (tokenInfo && tokenInfo.clientId !== 'root' && !checkScope(tokenInfo, innerName)) {
+        throw new Error(
+          `tab-each rejected: subcommand "${innerRaw}" not allowed by your token scope (${tokenInfo.scopes.join(', ')}).`
+        );
+      }
+
+      const tabs = await bm.getTabListWithTitles();
+      const originalActive = tabs.find(t => t.active)?.id ?? bm.getActiveTabId();
+
+      const executeCmd = opts?.executeCommand;
+      const results: Array<{
+        tabId: number;
+        url: string;
+        title: string;
+        status: number;
+        output: string;
+      }> = [];
+
+      try {
+        for (const tab of tabs) {
+          // Skip chrome:// internal pages — they aren't useful targets and
+          // many commands fail outright on them.
+          if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+            results.push({
+              tabId: tab.id,
+              url: tab.url,
+              title: tab.title || '',
+              status: 0,
+              output: 'skipped: internal page',
+            });
+            continue;
+          }
+          // Switch to the tab. Don't pull focus away — we're a background
+          // operation; the user shouldn't see the OS window jump.
+          bm.switchTab(tab.id, { bringToFront: false });
+
+          let status = 0;
+          let output = '';
+          if (executeCmd) {
+            const r = await executeCmd(
+              { command: innerName, args: innerArgs, tabId: tab.id },
+              tokenInfo,
+            );
+            status = r.status;
+            output = r.result;
+            if (status !== 200) {
+              try { output = JSON.parse(output).error || output; } catch (err: any) { if (!(err instanceof SyntaxError)) throw err; }
+            }
+          } else {
+            // Fallback path (CLI / test harness without a server context).
+            // We don't recurse through read/write/meta directly here because
+            // tab-each is only meaningful with the live server; surface a
+            // clear error.
+            status = 500;
+            output = 'tab-each requires the browse server (no executeCommand context)';
+          }
+
+          results.push({
+            tabId: tab.id,
+            url: tab.url,
+            title: tab.title || '',
+            status,
+            output,
+          });
+        }
+      } finally {
+        // Restore the original active tab so the user's view is unchanged.
+        try { bm.switchTab(originalActive, { bringToFront: false }); } catch {}
+      }
+
+      return JSON.stringify({
+        command: innerName,
+        args: innerArgs,
+        total: results.length,
+        results,
+      }, null, 2);
     }
 
     // ─── Server Control ────────────────────────────────
@@ -102,14 +422,17 @@ export async function handleMetaCommand(
     }
 
     case 'stop': {
-      await shutdown();
+      // Return the acknowledgement before closing the listener. Shutting down
+      // inline resets the CLI's fetch, which it reasonably interprets as a
+      // crash and then restarts the daemon it was asked to stop.
+      setTimeout(() => { void shutdown(); }, 25).unref?.();
       return 'Server stopped';
     }
 
     case 'restart': {
       // Signal that we want a restart — the CLI will detect exit and restart
       console.log('[browse] Restart requested. Exiting for CLI to restart.');
-      await shutdown();
+      setTimeout(() => { void shutdown(); }, 25).unref?.();
       return 'Restarting...';
     }
 
@@ -124,11 +447,15 @@ export async function handleMetaCommand(
       let base64Mode = false;
 
       const remaining: string[] = [];
+      let flagSelector: string | undefined;
       for (let i = 0; i < args.length; i++) {
         if (args[i] === '--viewport') {
           viewportOnly = true;
         } else if (args[i] === '--base64') {
           base64Mode = true;
+        } else if (args[i] === '--selector') {
+          flagSelector = args[++i];
+          if (!flagSelector) throw new Error('Usage: screenshot --selector <css> [path]');
         } else if (args[i] === '--clip') {
           const coords = args[++i];
           if (!coords) throw new Error('Usage: screenshot --clip x,y,w,h [path]');
@@ -156,6 +483,14 @@ export async function handleMetaCommand(
         }
       }
 
+      // --selector flag takes precedence; conflict with positional selector.
+      if (flagSelector !== undefined) {
+        if (targetSelector !== undefined) {
+          throw new Error('--selector conflicts with positional selector — choose one');
+        }
+        targetSelector = flagSelector;
+      }
+
       validateOutputPath(outputPath);
 
       if (clipRect && targetSelector) {
@@ -176,6 +511,10 @@ export async function handleMetaCommand(
           buffer = await page.screenshot({ clip: clipRect });
         } else {
           buffer = await page.screenshot({ fullPage: !viewportOnly });
+          // Guard the most common API-bricking case (fullPage). Element /
+          // clip captures usually stay within the cap; we still guard the
+          // path-mode below for fullPage writes.
+          ({ buffer } = await guardScreenshotBuffer(buffer));
         }
         if (buffer.length > 10 * 1024 * 1024) {
           throw new Error('Screenshot too large for --base64 (>10MB). Use disk path instead.');
@@ -196,15 +535,38 @@ export async function handleMetaCommand(
       }
 
       await page.screenshot({ path: outputPath, fullPage: !viewportOnly });
+      if (!viewportOnly) await guardScreenshotPath(outputPath);
       return `Screenshot saved${viewportOnly ? ' (viewport)' : ''}: ${outputPath}`;
     }
 
     case 'pdf': {
       const page = bm.getPage();
-      const pdfPath = args[0] || `${TEMP_DIR}/browse-page.pdf`;
-      validateOutputPath(pdfPath);
-      await page.pdf({ path: pdfPath, format: 'A4' });
-      return `PDF saved: ${pdfPath}`;
+      const parsed = parsePdfArgs(args);
+      validateOutputPath(parsed.output);
+
+      // If --toc: wait up to 3s for Paged.js to signal by setting
+      // window.__pagedjsAfterFired = true. If the polyfill isn't injected
+      // (make-pdf v1 ships without Paged.js; TOC renders without page
+      // numbers), we fall through silently — callers that require strict
+      // TOC pagination should pass --require-paged-js too.
+      if (parsed.toc) {
+        const deadline = Date.now() + 3000;
+        let ready = false;
+        while (Date.now() < deadline) {
+          try {
+            ready = await page.evaluate('!!window.__pagedjsAfterFired');
+          } catch { /* tab may still be hydrating */ }
+          if (ready) break;
+          await new Promise(r => setTimeout(r, 150));
+        }
+        // Intentionally non-fatal. Paged.js is optional in v1.
+      }
+
+      const opts = buildPdfOptions(parsed);
+      opts.path = parsed.output;
+      await page.pdf(opts);
+
+      return `PDF saved: ${parsed.output}`;
     }
 
     case 'responsive': {
@@ -224,6 +586,7 @@ export async function handleMetaCommand(
         const screenshotPath = `${prefix}-${vp.name}.png`;
         validateOutputPath(screenshotPath);
         await page.screenshot({ path: screenshotPath, fullPage: true });
+        await guardScreenshotPath(screenshotPath);
         results.push(`${vp.name} (${vp.width}x${vp.height}): ${screenshotPath}`);
       }
 
@@ -244,27 +607,36 @@ export async function handleMetaCommand(
         '   or: browse chain \'goto url | click @e5 | snapshot -ic\''
       );
 
-      let commands: string[][];
+      let rawCommands: string[][];
       try {
-        commands = JSON.parse(jsonStr);
-        if (!Array.isArray(commands)) throw new Error('not array');
+        rawCommands = JSON.parse(jsonStr);
+        if (!Array.isArray(rawCommands)) throw new Error('not array');
       } catch (err: any) {
         // Fallback: pipe-delimited format "goto url | click @e5 | snapshot -ic"
         if (!(err instanceof SyntaxError) && err?.message !== 'not array') throw err;
-        commands = jsonStr.split(' | ')
+        rawCommands = jsonStr.split(' | ')
           .filter(seg => seg.trim().length > 0)
           .map(seg => tokenizePipeSegment(seg.trim()));
       }
 
+      // Canonicalize aliases across the whole chain. Pair canonical name with the raw
+      // input so result labels + error messages reflect what the user typed, but every
+      // dispatch path (scope check, WRITE_COMMANDS.has, watch blocking, handler lookup)
+      // uses the canonical name. Otherwise `chain '[["setcontent","/tmp/x.html"]]'`
+      // bypasses prevalidation or runs under the wrong command set.
+      const commands = rawCommands.map(cmd => {
+        const [rawName, ...cmdArgs] = cmd;
+        const name = canonicalizeCommand(rawName);
+        return { rawName, name, args: cmdArgs };
+      });
+
       // Pre-validate ALL subcommands against the token's scope before executing any.
-      // This prevents partial execution where some subcommands succeed before a
-      // scope violation is hit, leaving the browser in an inconsistent state.
+      // Uses canonical name so aliases don't bypass scope checks.
       if (tokenInfo && tokenInfo.clientId !== 'root') {
-        for (const cmd of commands) {
-          const [name] = cmd;
-          if (!checkScope(tokenInfo, name)) {
+        for (const c of commands) {
+          if (!checkScope(tokenInfo, c.name)) {
             throw new Error(
-              `Chain rejected: subcommand "${name}" not allowed by your token scope (${tokenInfo.scopes.join(', ')}). ` +
+              `Chain rejected: subcommand "${c.rawName}" not allowed by your token scope (${tokenInfo.scopes.join(', ')}). ` +
               `All subcommands must be within scope.`
             );
           }
@@ -280,56 +652,32 @@ export async function handleMetaCommand(
       let lastWasWrite = false;
 
       if (executeCmd) {
-        // Full security pipeline via handleCommandInternal
-        for (const cmd of commands) {
-          const [name, ...cmdArgs] = cmd;
+        // Full security pipeline via handleCommandInternal.
+        // Pass rawName so the server's own canonicalization is a no-op (already canonical).
+        for (const c of commands) {
           const cr = await executeCmd(
-            { command: name, args: cmdArgs },
+            { command: c.name, args: c.args },
             tokenInfo,
           );
+          const label = c.rawName === c.name ? c.name : `${c.rawName}→${c.name}`;
           if (cr.status === 200) {
-            results.push(`[${name}] ${cr.result}`);
+            results.push(`[${label}] ${cr.result}`);
           } else {
             // Parse error from JSON result
             let errMsg = cr.result;
             try { errMsg = JSON.parse(cr.result).error || cr.result; } catch (err: any) { if (!(err instanceof SyntaxError)) throw err; }
-            results.push(`[${name}] ERROR: ${errMsg}`);
+            results.push(`[${label}] ERROR: ${errMsg}`);
           }
-          lastWasWrite = WRITE_COMMANDS.has(name);
+          lastWasWrite = WRITE_COMMANDS.has(c.name);
         }
       } else {
-        // Fallback: direct dispatch (CLI mode, no server context)
-        const { handleReadCommand } = await import('./read-commands');
-        const { handleWriteCommand } = await import('./write-commands');
-
-        for (const cmd of commands) {
-          const [name, ...cmdArgs] = cmd;
-          try {
-            let result: string;
-            if (WRITE_COMMANDS.has(name)) {
-              if (bm.isWatching()) {
-                result = 'BLOCKED: write commands disabled in watch mode';
-              } else {
-                result = await handleWriteCommand(name, cmdArgs, session, bm);
-              }
-              lastWasWrite = true;
-            } else if (READ_COMMANDS.has(name)) {
-              result = await handleReadCommand(name, cmdArgs, session);
-              if (PAGE_CONTENT_COMMANDS.has(name)) {
-                result = wrapUntrustedContent(result, bm.getCurrentUrl());
-              }
-              lastWasWrite = false;
-            } else if (META_COMMANDS.has(name)) {
-              result = await handleMetaCommand(name, cmdArgs, bm, shutdown, tokenInfo, opts);
-              lastWasWrite = false;
-            } else {
-              throw new Error(`Unknown command: ${name}`);
-            }
-            results.push(`[${name}] ${result}`);
-          } catch (err: any) {
-            results.push(`[${name}] ERROR: ${err.message}`);
-          }
-        }
+        // No fallback dispatcher. The old direct-dispatch branch here
+        // re-implemented command routing WITHOUT the server pipeline's
+        // security gates (scope, domain, tab ownership, rate limit, hidden
+        // element stripping, scoped-token enveloping, JS-origin assertion).
+        // It was unreachable in production (server.ts always passes
+        // executeCommand) and one boolean away from being live.
+        throw new Error('chain requires the browse server (no executeCommand context)');
       }
 
       // Wait for network to settle after write commands before returning
@@ -346,12 +694,12 @@ export async function handleMetaCommand(
       if (!url1 || !url2) throw new Error('Usage: browse diff <url1> <url2>');
 
       const page = bm.getPage();
-      await validateNavigationUrl(url1);
-      await page.goto(url1, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      const normalizedUrl1 = await validateNavigationUrl(url1);
+      await page.goto(normalizedUrl1, { waitUntil: 'domcontentloaded', timeout: 15000 });
       const text1 = await getCleanText(page);
 
-      await validateNavigationUrl(url2);
-      await page.goto(url2, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      const normalizedUrl2 = await validateNavigationUrl(url2);
+      await page.goto(normalizedUrl2, { waitUntil: 'domcontentloaded', timeout: 15000 });
       const text2 = await getCleanText(page);
 
       const changes = Diff.diffLines(text1, text2);
@@ -429,7 +777,7 @@ export async function handleMetaCommand(
         let activated = false;
         for (const appName of appNames) {
           try {
-            execSync(`osascript -e 'tell application "${appName}" to activate'`, { stdio: 'pipe', timeout: 3000 });
+            execSync(`osascript -e 'tell application "${appName}" to activate'`, { stdio: 'pipe', timeout: 3000, windowsHide: true });
             activated = true;
             break;
           } catch (err: any) {
@@ -493,7 +841,7 @@ export async function handleMetaCommand(
       const { execSync } = await import('child_process');
       let gitRoot: string;
       try {
-        gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+        gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }).trim();
       } catch (err: any) {
         // execSync throws with exit status on non-git directories
         if (err?.status === undefined && !err?.message?.includes('Command failed')) throw err;
@@ -563,7 +911,7 @@ export async function handleMetaCommand(
 
       const config = resolveConfig();
       const stateDir = path.join(config.stateDir, 'browse-states');
-      fs.mkdirSync(stateDir, { recursive: true });
+      mkdirSecure(stateDir);
       const statePath = path.join(stateDir, `${name}.json`);
 
       if (action === 'save') {
@@ -575,7 +923,7 @@ export async function handleMetaCommand(
           cookies: state.cookies,
           pages: state.pages.map(p => ({ url: p.url, isActive: p.isActive })),
         };
-        fs.writeFileSync(statePath, JSON.stringify(saveData, null, 2), { mode: 0o600 });
+        writeSecureFile(statePath, JSON.stringify(saveData, null, 2));
         return `State saved: ${statePath} (${state.cookies.length} cookies, ${state.pages.length} pages)\n⚠️  Cookies stored in plaintext. Delete when no longer needed.`;
       }
 
@@ -585,15 +933,13 @@ export async function handleMetaCommand(
         if (!Array.isArray(data.cookies) || !Array.isArray(data.pages)) {
           throw new Error('Invalid state file: expected cookies and pages arrays');
         }
-        // Validate and filter cookies — reject malformed or internal-network cookies
-        const validatedCookies = data.cookies.filter((c: any) => {
-          if (typeof c !== 'object' || !c) return false;
-          if (typeof c.name !== 'string' || typeof c.value !== 'string') return false;
-          if (typeof c.domain !== 'string' || !c.domain) return false;
-          const d = c.domain.startsWith('.') ? c.domain.slice(1) : c.domain;
-          if (d === 'localhost' || d.endsWith('.internal') || d === '169.254.169.254') return false;
-          return true;
-        });
+        // Validate and filter cookies via the shared hygiene filter in
+        // session-persist.ts (isInternalCookieDomain): rejects malformed
+        // cookies and internal-network domains — localhost, *.internal,
+        // loopback literals (127.x, ::1), and link-local/cloud-metadata
+        // (169.254.x) — that a tampered state file could use to reach local
+        // services or the metadata endpoint.
+        const validatedCookies = filterSessionCookies(data.cookies);
         if (validatedCookies.length < data.cookies.length) {
           console.warn(`[browse] Filtered ${data.cookies.length - validatedCookies.length} invalid cookies from state file`);
         }
@@ -608,9 +954,17 @@ export async function handleMetaCommand(
         // Close existing pages, then restore (replace, not merge)
         bm.setFrame(null);
         await bm.closeAllPages();
+        // Allowlist disk-loaded page fields — NEVER accept loadedHtml, loadedHtmlWaitUntil,
+        // or owner from disk. Those are in-memory-only invariants; allowing them would let
+        // a tampered state file smuggle HTML past load-html's safe-dirs + magic-byte + size
+        // checks, or forge tab ownership for cross-agent authorization bypass.
         await bm.restoreState({
           cookies: validatedCookies,
-          pages: data.pages.map((p: any) => ({ ...p, storage: null })),
+          pages: data.pages.map((p: any) => ({
+            url: typeof p.url === 'string' ? p.url : '',
+            isActive: Boolean(p.isActive),
+            storage: null,
+          })),
         });
         return `State loaded: ${data.cookies.length} cookies, ${data.pages.length} pages`;
       }
@@ -761,6 +1115,32 @@ export async function handleMetaCommand(
       });
 
       return JSON.stringify(data, null, 2);
+    }
+
+    case 'domain-skill': {
+      return await handleDomainSkillCommand(args, bm);
+    }
+
+    case 'skill': {
+      const port = opts?.daemonPort;
+      if (port === undefined) {
+        throw new Error('skill command requires daemonPort in MetaCommandOpts (server bug)');
+      }
+      return await handleSkillCommand(args, { port });
+    }
+
+    case 'cdp': {
+      // Lazy import — cdp-bridge introduces module deps we don't want loaded
+      // for projects that never use the CDP escape hatch.
+      const { handleCdpCommand } = await import('./cdp-commands');
+      return await handleCdpCommand(args, bm);
+    }
+
+    case 'memory': {
+      // Lazy import — pulls in cdp-bridge + memory-snapshot + buffer accessors
+      // that aren't useful for projects that never run the diagnostic.
+      const { handleMemoryCommand } = await import('./memory-command');
+      return await handleMemoryCommand(args, bm);
     }
 
     default:

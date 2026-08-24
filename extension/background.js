@@ -5,7 +5,13 @@
  * Fetches /refs on snapshot completion, relays to content script.
  * Proxies commands from sidebar → browse server.
  * Updates badge: amber (connected), gray (disconnected).
+ * Denies token/port reads to content-script and foreign senders.
  */
+
+// Sender authorization for privileged message types (the token/port surface).
+// Classic (non-module) service worker: importScripts puts cavestackSenderAuth on
+// the worker global. The same file is require()-able from bun tests.
+importScripts('sender-auth.js');
 
 const DEFAULT_PORT = 34567;  // Well-known port used by `$B connect`
 let serverPort = null;
@@ -32,22 +38,34 @@ function getBaseUrl() {
 
 // ─── Auth Token Bootstrap ─────────────────────────────────────
 
+// Token bootstrap: POST /extension-token. The server validates our Origin
+// (chrome-extension://<pinned id> — the manifest "key" pins the ID) before
+// releasing the token. GET /health is liveness/status only and never
+// carries a token. Returns true on success, false on failure; a 403 means
+// the server doesn't trust this extension identity — treat as disconnected
+// rather than retrying forever with a stale token.
 async function loadAuthToken() {
-  if (authToken) return;
-  // Get token from browse server /health endpoint (localhost-only, safe).
-  // Previously read from .auth.json in extension dir, but that breaks
-  // read-only .app bundles and codesigning.
   const base = getBaseUrl();
-  if (!base) return;
+  if (!base) return false;
   try {
-    const resp = await fetch(`${base}/health`, { signal: AbortSignal.timeout(3000) });
+    const resp = await fetch(`${base}/extension-token`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(3000),
+    });
+    if (resp.status === 403) {
+      console.error('[cavestack bg] /extension-token 403 — extension identity not trusted by server');
+      authToken = null;
+      setDisconnected();
+      return false;
+    }
     if (resp.ok) {
       const data = await resp.json();
-      if (data.token) authToken = data.token;
+      if (data.token) { authToken = data.token; return true; }
     }
   } catch (err) {
     console.error('[cavestack bg] Failed to load auth token:', err.message);
   }
+  return false;
 }
 
 // ─── Health Polling ────────────────────────────────────────────
@@ -59,19 +77,17 @@ async function checkHealth() {
     return;
   }
 
-  // Retry loading auth token if we don't have one yet
-  if (!authToken) await loadAuthToken();
-
   try {
     const resp = await fetch(`${base}/health`, { signal: AbortSignal.timeout(3000) });
     if (!resp.ok) { setDisconnected(); return; }
     const data = await resp.json();
     if (data.status === 'healthy') {
-      // Always refresh auth token from /health — the server generates a new
-      // token on each restart, so the old one becomes stale.
-      if (data.token) authToken = data.token;
-      // Forward chatEnabled so sidepanel can show/hide chat tab
-      setConnected({ ...data, chatEnabled: !!data.chatEnabled });
+      // Always refresh the auth token — the server generates a new token
+      // on each restart, so the old one becomes stale. loadAuthToken()
+      // already flips to disconnected on a 403.
+      const gotToken = await loadAuthToken();
+      if (!gotToken && !authToken) return;
+      setConnected(data);
     } else {
       setDisconnected();
     }
@@ -286,7 +302,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   const ALLOWED_TYPES = new Set([
     'getPort', 'setPort', 'getServerUrl', 'getToken', 'fetchRefs',
-    'openSidePanel', 'sidebarOpened', 'command', 'sidebar-command',
+    'openSidePanel', 'sidebarOpened', 'command',
+    'getTabState',
     // Inspector message types
     'startInspector', 'stopInspector', 'elementPicked', 'pickerCancelled',
     'applyStyle', 'toggleClass', 'injectCSS', 'resetAll',
@@ -297,9 +314,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
 
+  // Privileged types — anything that returns or spends the auth token or
+  // server port, or dumps the full tab list — are for this extension's own
+  // pages only (sidepanel/popup). Content scripts run inside web pages and
+  // can be influenced by page content; foreign extensions are foreign. Both
+  // get { error: 'unauthorized' } and nothing else — never the token, never
+  // the port. Policy + type list live in sender-auth.js.
+  const denial = cavestackSenderAuth.denialFor(msg.type, sender, chrome.runtime.id);
+  if (denial) {
+    console.warn('[cavestack] Rejected privileged message from unauthorized sender:', msg.type, sender.url || '(no sender url)');
+    sendResponse(denial);
+    return true;
+  }
+
   if (msg.type === 'getPort') {
     sendResponse({ port: serverPort, connected: isConnected, token: authToken });
     return true;
+  }
+
+  if (msg.type === 'getTabState') {
+    snapshotTabs().then(snap => sendResponse(snap || { active: null, tabs: [] }));
+    return true; // async sendResponse
   }
 
   if (msg.type === 'setPort') {
@@ -316,15 +351,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   // Token delivered via targeted sendResponse, not broadcast — limits exposure.
-  // Only respond to extension pages (sidepanel/popup) — content scripts have
-  // sender.tab set, so reject those to prevent token access from injected contexts.
+  // Only this extension's own pages reach here: the sender-auth gate above
+  // denies content scripts (sender.tab set) and foreign senders before any
+  // privileged handler runs.
   if (msg.type === 'getToken') {
-    if (sender.tab) {
-      console.warn('[cavestack] Rejected getToken from content script context');
-      sendResponse({ token: null });
-    } else {
-      sendResponse({ token: authToken });
-    }
+    sendResponse({ token: authToken });
     return true;
   }
 
@@ -430,41 +461,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // Sidebar → Claude Code (file-based message queue)
-  if (msg.type === 'sidebar-command') {
-    const base = getBaseUrl();
-    if (!base || !authToken) {
-      sendResponse({ error: 'Not connected' });
-      return true;
-    }
-    // Capture the active tab's URL so the sidebar agent knows what page
-    // the user is actually looking at (Playwright's page.url() can be stale
-    // if the user navigated manually in headed mode).
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const activeTabUrl = tabs?.[0]?.url || null;
-      fetch(`${base}/sidebar-command`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ message: msg.message, activeTabUrl }),
-      })
-        .then(r => {
-          if (!r.ok) {
-            console.error(`[cavestack bg] sidebar-command failed: ${r.status} ${r.statusText}`);
-            return r.json().catch(() => ({ error: `Server returned ${r.status}` }));
-          }
-          return r.json();
-        })
-        .then(data => sendResponse(data))
-        .catch(err => {
-          console.error('[cavestack bg] sidebar-command error:', err.message);
-          sendResponse({ error: err.message });
-        });
-    });
-    return true;
-  }
 });
 
 // ─── Side Panel ─────────────────────────────────────────────────
@@ -506,11 +502,48 @@ chrome.runtime.onInstalled.addListener(() => {
 // Fire on every service worker startup (covers persistent context reuse)
 autoOpenSidePanel();
 
-// ─── Tab Switch Detection ────────────────────────────────────────
-// Notify sidepanel instantly when the user switches tabs in the browser.
-// This is faster than polling — the sidebar swaps chat context immediately.
+// ─── Tab Awareness ───────────────────────────────────────────────
+// Push live tab state to the sidepanel so claude in the Terminal pane
+// always has up-to-date tabs.json + active-tab.json on disk. The
+// sidepanel relays these to terminal-agent.ts over the live WebSocket;
+// terminal-agent writes the files for claude to read.
+
+async function snapshotTabs() {
+  try {
+    const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const all = await chrome.tabs.query({});
+    const slim = all.map(t => ({
+      tabId: t.id,
+      url: t.url || '',
+      title: t.title || '',
+      active: !!t.active,
+      windowId: t.windowId,
+      pinned: !!t.pinned,
+      audible: !!t.audible,
+    }));
+    return {
+      active: active ? { tabId: active.id, url: active.url || '', title: active.title || '' } : null,
+      tabs: slim,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function pushTabState(reason) {
+  const snapshot = await snapshotTabs();
+  if (!snapshot) return;
+  chrome.runtime.sendMessage({
+    type: 'browserTabState',
+    reason,
+    ...snapshot,
+  }).catch(() => {}); // expected: sidepanel may not be open
+}
 
 chrome.tabs.onActivated.addListener((activeInfo) => {
+  // Keep the legacy event for any consumer still listening to it (the chat
+  // path is gone but the message type is harmless), and also fire the new
+  // unified state push so claude's tabs.json reflects the new active tab.
   chrome.tabs.get(activeInfo.tabId, (tab) => {
     if (chrome.runtime.lastError || !tab) return;
     chrome.runtime.sendMessage({
@@ -518,31 +551,66 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
       tabId: activeInfo.tabId,
       url: tab.url || '',
       title: tab.title || '',
-    }).catch(() => {}); // expected: sidepanel may not be open
+    }).catch(() => {});
   });
+  pushTabState('activated');
 });
+
+chrome.tabs.onCreated.addListener(() => pushTabState('created'));
+chrome.tabs.onRemoved.addListener(() => pushTabState('removed'));
+chrome.tabs.onUpdated.addListener((_id, changeInfo) => {
+  // Throttle: only re-push on URL or title changes, not on every loading
+  // tick. We don't want to spam claude with a state push every 50ms while
+  // a page loads.
+  if (changeInfo.url || changeInfo.title || changeInfo.status === 'complete') {
+    pushTabState('updated');
+  }
+});
+
+// ─── identity-pin migration notice (v1.63) ────────────────────
+//
+// The manifest "key" added in v1.63 pins the extension ID, which changes
+// the ID for existing installs — chrome.storage.local is keyed by
+// extension ID, so panel-local state (saved port, snoozes) resets once.
+// Explain that in-product, one time. The flag name is version-free so a
+// release re-slot never orphans an already-set flag.
+async function announceIdentityPinOnce() {
+  try {
+    const data = await chrome.storage.local.get('cavestack_id_pin_migrated');
+    if (data.cavestack_id_pin_migrated) return;
+    console.log('[cavestack] cavestack sidebar: extension identity pinned in v1.63 — panel state reset once.');
+    chrome.runtime.sendMessage({
+      type: 'cavestack-migration-notice',
+      message: 'cavestack sidebar: extension identity pinned in v1.63 — panel state reset once.',
+    }).catch(() => {
+      // Expected: panel not open. The console line above still lands.
+    });
+    await chrome.storage.local.set({ cavestack_id_pin_migrated: true });
+  } catch (err) {
+    console.debug('[cavestack] identity-pin notice failed (non-fatal):', err.message);
+  }
+}
 
 // ─── Startup ────────────────────────────────────────────────────
 
 // Fast-retry health check on startup. The server may not be listening yet
 // (Chromium launches before Bun.serve starts). Retry every 1s for the
 // first 15 seconds, then switch to 10s polling.
-loadAuthToken().then(() => {
-  loadPort().then(() => {
-    let startupAttempts = 0;
-    const startupCheck = setInterval(async () => {
-      startupAttempts++;
-      await checkHealth();
-      if (isConnected || startupAttempts >= 15) {
-        clearInterval(startupCheck);
-        // Switch to slow polling now that we're connected (or gave up)
-        if (!healthInterval) {
-          healthInterval = setInterval(checkHealth, 10000);
-        }
-        if (!isConnected) {
-          console.log('[cavestack] Startup health checks failed after 15 attempts, falling back to 10s polling');
-        }
+announceIdentityPinOnce();
+loadPort().then(() => {
+  let startupAttempts = 0;
+  const startupCheck = setInterval(async () => {
+    startupAttempts++;
+    await checkHealth();
+    if (isConnected || startupAttempts >= 15) {
+      clearInterval(startupCheck);
+      // Switch to slow polling now that we're connected (or gave up)
+      if (!healthInterval) {
+        healthInterval = setInterval(checkHealth, 10000);
       }
-    }, 1000);
-  });
+      if (!isConnected) {
+        console.log('[cavestack] Startup health checks failed after 15 attempts, falling back to 10s polling');
+      }
+    }
+  }, 1000);
 });

@@ -1,78 +1,811 @@
 ---
 name: make-pdf
-preamble-tier: 2
+preamble-tier: 1
 version: 1.0.0
-description: |
-  Markdown in, publication-quality document out. Mermaid and excalidraw fences
-  render as vector diagrams, fully offline. Images scale to page without
-  truncation; wide diagrams get landscape pages. --to html emits one
-  self-contained file, --to docx a Word document. Proper margins, page
-  numbers, cover pages, clickable TOC.
-  Use when: "make a PDF", "export this as PDF", "generate a document",
-  "create a report", "turn this markdown into a PDF". (cavestack)
+description: Turn any markdown file into a publication-quality PDF. (cavestack)
+triggers:
+  - markdown to pdf
+  - generate pdf
+  - make pdf
+  - export pdf
 allowed-tools:
   - Bash
   - Read
-  - Write
-  - Glob
   - AskUserQuestion
 ---
+<!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
+<!-- Regenerate: bun run gen:skill-docs -->
 
-# /make-pdf — Document Publisher
 
-Turn any markdown file into a publication-quality PDF.
+## When to invoke this skill
 
-## When to use
+Proper 1in margins,
+intelligent page breaks, page numbers, cover pages, running headers, curly
+quotes and em dashes, clickable TOC, diagonal DRAFT watermark. Not a draft
+artifact — a finished artifact. Use when asked to "make a PDF", "export to
+PDF", "turn this markdown into a PDF", or "generate a document".
 
-- Exporting specs, design docs, or reports as shareable documents
-- Creating polished PDFs from project documentation
-- Generating Word docs for stakeholders who need `.docx`
-- Building self-contained HTML reports
+Voice triggers (speech-to-text aliases): "make this a pdf", "make it a pdf", "export to pdf", "turn this into a pdf", "turn this markdown into a pdf", "generate a pdf", "make a pdf from", "pdf this markdown".
 
-## Features
-
-- **Mermaid diagrams** — fenced code blocks render as vector SVGs in the PDF
-- **Excalidraw diagrams** — `.excalidraw` fences render in hand-drawn style
-- **Smart image sizing** — images scale to page width, never truncate
-- **Landscape pages** — wide diagrams auto-rotate to landscape
-- **Cover page** — title, author, date extracted from frontmatter
-- **Clickable TOC** — auto-generated table of contents with page numbers
-- **Code highlighting** — syntax-highlighted code blocks with line numbers
-- **Cross-references** — internal links resolve to page numbers
-
-## Output formats
-
-- **PDF** (default) — publication-quality, print-ready
-- **HTML** (`--to html`) — single self-contained file, no external dependencies
-- **DOCX** (`--to docx`) — Word document for stakeholders
-
-## Usage
+## Preamble (run first)
 
 ```bash
-$B make-pdf README.md                    # → README.pdf
-$B make-pdf spec.md --to html            # → spec.html (self-contained)
-$B make-pdf design.md --to docx          # → design.docx
-$B make-pdf report.md --cover --toc      # → with cover page and TOC
+_UPD=$(~/.claude/skills/cavestack/bin/cavestack-update-check 2>/dev/null || .claude/skills/cavestack/bin/cavestack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+mkdir -p ~/.cavestack/sessions
+touch ~/.cavestack/sessions/"$PPID"
+_SESSIONS=$(find ~/.cavestack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
+find ~/.cavestack/sessions -mmin +120 -type f -exec rm {} + 2>/dev/null || true
+_PROACTIVE=$(~/.claude/skills/cavestack/bin/cavestack-config get proactive 2>/dev/null || echo "true")
+_PROACTIVE_PROMPTED=$([ -f ~/.cavestack/.proactive-prompted ] && echo "yes" || echo "no")
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+echo "BRANCH: $_BRANCH"
+_SKILL_PREFIX=$(~/.claude/skills/cavestack/bin/cavestack-config get skill_prefix 2>/dev/null || echo "false")
+echo "PROACTIVE: $_PROACTIVE"
+echo "PROACTIVE_PROMPTED: $_PROACTIVE_PROMPTED"
+echo "SKILL_PREFIX: $_SKILL_PREFIX"
+source <(~/.claude/skills/cavestack/bin/cavestack-repo-mode 2>/dev/null) || true
+REPO_MODE=${REPO_MODE:-unknown}
+echo "REPO_MODE: $REPO_MODE"
+_SESSION_KIND=$(~/.claude/skills/cavestack/bin/cavestack-session-kind 2>/dev/null || echo "interactive")
+case "$_SESSION_KIND" in spawned|headless|interactive) ;; *) _SESSION_KIND="interactive" ;; esac
+echo "SESSION_KIND: $_SESSION_KIND"
+# Conductor host: AskUserQuestion is unreliable here (native disabled, MCP
+# variant flaky), so skills render decisions as prose instead of calling the
+# tool. Gated on !headless so an eval/CI run INSIDE Conductor (CAVESTACK_HEADLESS)
+# still BLOCKs rather than rendering prose to nobody.
+if [ "$_SESSION_KIND" != "headless" ] && { [ -n "${CONDUCTOR_WORKSPACE_PATH:-}" ] || [ -n "${CONDUCTOR_PORT:-}" ]; }; then
+  echo "CONDUCTOR_SESSION: true"
+fi
+_ACTIVATED=$([ -f ~/.cavestack/.activated ] && echo "yes" || echo "no")
+_FIRST_LOOP_SHOWN=$([ -f ~/.cavestack/.first-loop-tip-shown ] && echo "yes" || echo "no")
+echo "ACTIVATED: $_ACTIVATED"
+echo "FIRST_LOOP_SHOWN: $_FIRST_LOOP_SHOWN"
+# First-run project detection: run the detector ONLY on the first-ever skill run
+# (ACTIVATED=no, interactive) so it stays off the hot path for every run after.
+_FIRST_TASK=""
+if [ "$_ACTIVATED" = "no" ] && [ "$_SESSION_KIND" != "headless" ]; then
+  _FIRST_TASK=$(~/.claude/skills/cavestack/bin/cavestack-first-task-detect 2>/dev/null || true)
+fi
+echo "FIRST_TASK: $_FIRST_TASK"
+_LAKE_SEEN=$([ -f ~/.cavestack/.completeness-intro-seen ] && echo "yes" || echo "no")
+echo "LAKE_INTRO: $_LAKE_SEEN"
+_TEL=$(~/.claude/skills/cavestack/bin/cavestack-config get telemetry 2>/dev/null || true)
+_TEL_PROMPTED=$([ -f ~/.cavestack/.telemetry-prompted ] && echo "yes" || echo "no")
+_TEL_START=$(date +%s)
+_SESSION_ID="$$-$(date +%s)"
+echo "TELEMETRY: ${_TEL:-off}"
+echo "TEL_PROMPTED: $_TEL_PROMPTED"
+_EXPLAIN_LEVEL=$(~/.claude/skills/cavestack/bin/cavestack-config get explain_level 2>/dev/null || echo "default")
+if [ "$_EXPLAIN_LEVEL" != "default" ] && [ "$_EXPLAIN_LEVEL" != "terse" ]; then _EXPLAIN_LEVEL="default"; fi
+echo "EXPLAIN_LEVEL: $_EXPLAIN_LEVEL"
+_QUESTION_TUNING=$(~/.claude/skills/cavestack/bin/cavestack-config get question_tuning 2>/dev/null || echo "false")
+echo "QUESTION_TUNING: $_QUESTION_TUNING"
+_UPDATE_CHECK=$(~/.claude/skills/cavestack/bin/cavestack-config get update_check 2>/dev/null || echo "true")
+echo "UPDATE_CHECK: $_UPDATE_CHECK"
+mkdir -p ~/.cavestack/analytics
+if [ "$_TEL" != "off" ]; then
+echo '{"skill":"make-pdf","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(_repo=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null | tr -cd 'a-zA-Z0-9._-'); echo "${_repo:-unknown}")'"}'  >> ~/.cavestack/analytics/skill-usage.jsonl 2>/dev/null || true
+fi
+for _PF in $(find ~/.cavestack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
+  if [ -f "$_PF" ]; then
+    if [ "$_TEL" != "off" ] && [ -x "$HOME/.claude/skills/cavestack/bin/cavestack-telemetry-log" ]; then
+      ~/.claude/skills/cavestack/bin/cavestack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true
+    fi
+    rm -f "$_PF" 2>/dev/null || true
+  fi
+  break
+done
+eval "$(~/.claude/skills/cavestack/bin/cavestack-slug 2>/dev/null)" 2>/dev/null || true
+_LEARN_FILE="${CAVESTACK_HOME:-$HOME/.cavestack}/projects/${SLUG:-unknown}/learnings.jsonl"
+if [ -f "$_LEARN_FILE" ]; then
+  _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
+  echo "LEARNINGS: $_LEARN_COUNT entries loaded"
+  if [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null; then
+    ~/.claude/skills/cavestack/bin/cavestack-learnings-search --limit 3 2>/dev/null || true
+  fi
+else
+  echo "LEARNINGS: 0"
+fi
+~/.claude/skills/cavestack/bin/cavestack-timeline-log '{"skill":"make-pdf","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
+_HAS_ROUTING="no"
+for _RF in CLAUDE.md AGENTS.md; do
+  if [ -f "$_RF" ] && grep -q "## Skill routing" "$_RF" 2>/dev/null; then
+    _HAS_ROUTING="yes"
+  fi
+done
+_ROUTING_DECLINED=$(~/.claude/skills/cavestack/bin/cavestack-config get routing_declined 2>/dev/null || echo "false")
+echo "HAS_ROUTING: $_HAS_ROUTING"
+echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
+_VENDORED="no"
+if [ -d ".claude/skills/cavestack" ] && [ ! -L ".claude/skills/cavestack" ]; then
+  if [ -f ".claude/skills/cavestack/VERSION" ] || [ -d ".claude/skills/cavestack/.git" ]; then
+    _VENDORED="yes"
+  fi
+fi
+echo "VENDORED_CAVESTACK: $_VENDORED"
+echo "MODEL_OVERLAY: claude"
+_CHECKPOINT_MODE=$(~/.claude/skills/cavestack/bin/cavestack-config get checkpoint_mode 2>/dev/null || echo "explicit")
+_CHECKPOINT_PUSH=$(~/.claude/skills/cavestack/bin/cavestack-config get checkpoint_push 2>/dev/null || echo "false")
+echo "CHECKPOINT_MODE: $_CHECKPOINT_MODE"
+echo "CHECKPOINT_PUSH: $_CHECKPOINT_PUSH"
+# Plan-mode hint for skills like /spec that branch behavior on plan-mode state.
+# Claude Code exposes plan mode via system reminders; we detect best-effort
+# from CLAUDE_PLAN_FILE (set by the harness when plan mode is active) and
+# fall back to "inactive". Codex hosts and Claude execution mode both end up
+# inactive, which is the safe default (defaults to file+execute pipeline).
+if [ -n "${CLAUDE_PLAN_FILE:-}${CAVESTACK_PLAN_MODE_FORCE:-}" ]; then
+  export CAVESTACK_PLAN_MODE="active"
+elif [ "${CAVESTACK_PLAN_MODE:-}" = "active" ]; then
+  export CAVESTACK_PLAN_MODE="active"
+else
+  export CAVESTACK_PLAN_MODE="inactive"
+fi
+echo "CAVESTACK_PLAN_MODE: $CAVESTACK_PLAN_MODE"
+[ -n "$OPENCLAW_SESSION" ] && echo "SPAWNED_SESSION: true" || true
 ```
 
-## Frontmatter
+## MAKE-PDF SETUP (run this check BEFORE any make-pdf command)
 
-```yaml
----
-title: "Architecture Design Document"
-author: "Engineering Team"
-date: 2026-08-12
----
+```bash
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+P=""
+[ -n "$MAKE_PDF_BIN" ] && [ -x "$MAKE_PDF_BIN" ] && P="$MAKE_PDF_BIN"
+[ -z "$P" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/cavestack/make-pdf/dist/pdf" ] && P="$_ROOT/.claude/skills/cavestack/make-pdf/dist/pdf"
+[ -z "$P" ] && P="$HOME/.claude/skills/cavestack/make-pdf/dist/pdf"
+if [ -x "$P" ]; then
+  echo "MAKE_PDF_READY: $P"
+  alias _p_="$P"   # shellcheck alias helper (not exported)
+  export P   # available as $P in subsequent blocks within the same skill invocation
+else
+  echo "MAKE_PDF_NOT_AVAILABLE (run './setup' in the cavestack repo to build it)"
+fi
 ```
 
-## Example
+If `MAKE_PDF_NOT_AVAILABLE` is printed: tell the user the binary is not
+built. Have them run `./setup` from the cavestack repo, then retry.
+
+If `MAKE_PDF_READY` is printed: `$P` is the binary path for the rest of
+the skill. Use `$P` (not an explicit path) so the skill body stays portable.
+
+Core commands:
+- `$P generate <input.md> [output.pdf]` — render markdown to PDF (80% use case)
+- `$P generate --cover --toc essay.md out.pdf` — full publication layout
+- `$P generate --watermark DRAFT memo.md draft.pdf` — diagonal DRAFT watermark
+- `$P preview <input.md>` — render HTML and open in browser (fast iteration)
+- `$P setup` — verify browse + Chromium + pdftotext and run a smoke test
+- `$P --help` — full flag reference
+
+Output contract:
+- `stdout`: ONLY the output path on success. One line.
+- `stderr`: progress (`Rendering HTML... Generating PDF...`) unless `--quiet`.
+- Exit 0 success / 1 bad args / 2 render error / 3 Paged.js timeout / 4 browse unavailable.
+
+## Plan Mode Safe Operations
+
+In plan mode, allowed because they inform the plan: `$B`, `$D`, `codex exec`/`codex review`, writes to `~/.cavestack/`, writes to the plan file, and `open` for generated artifacts.
+
+## Skill Invocation During Plan Mode
+
+If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; any AskUserQuestion the skill fires is the workflow operating within plan mode, not a violation of it — and a skill whose instructions resolve a question themselves (e.g. a plan-mode auto-select) may legitimately not ask it. AskUserQuestion (any variant — `mcp__*__AskUserQuestion` or native; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If AskUserQuestion is unavailable or a call fails, follow the AskUserQuestion Format failure fallback: `headless` → BLOCKED; `interactive` → the prose fallback (also satisfies end-of-turn). At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
+
+If `PROACTIVE` is `"false"`, do not auto-invoke or proactively suggest skills. If a skill seems useful, ask: "I think /skillname might help here — want me to run it?"
+
+If `SKILL_PREFIX` is `"true"`, suggest/invoke `/cavestack-*` names. Disk paths stay `~/.claude/skills/cavestack/[skill-name]/SKILL.md`.
+
+If `UPDATE_CHECK` is `"false"`, skip the next two lines — the update-check binary emits nothing in that mode, so there is no `UPGRADE_AVAILABLE` / `JUST_UPGRADED` output to act on.
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/cavestack/cavestack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined).
+
+If output shows `JUST_UPGRADED <from> <to>`: print "Running cavestack v{to} (just updated!)". If `SPAWNED_SESSION` is true, skip feature discovery.
+
+Feature discovery, max one prompt per session:
+- Missing `~/.claude/skills/cavestack/.feature-prompted-continuous-checkpoint`: AskUserQuestion for Continuous checkpoint auto-commits. If accepted, run `~/.claude/skills/cavestack/bin/cavestack-config set checkpoint_mode continuous`. Always touch marker.
+- Missing `~/.claude/skills/cavestack/.feature-prompted-model-overlay`: inform "Model overlays are active. MODEL_OVERLAY shows the patch." Always touch marker.
+
+After upgrade prompts, continue workflow.
+
+If `WRITING_STYLE_PENDING` is `yes`: ask once about writing style:
+
+> v1 prompts are simpler: first-use jargon glosses, outcome-framed questions, shorter prose. Keep default or restore terse?
+
+Options:
+- A) Keep the new default (recommended — good writing helps everyone)
+- B) Restore V0 prose — set `explain_level: terse`
+
+If A: leave `explain_level` unset (defaults to `default`).
+If B: run `~/.claude/skills/cavestack/bin/cavestack-config set explain_level terse`.
+
+Always run (regardless of choice):
+```bash
+rm -f ~/.cavestack/.writing-style-prompt-pending
+touch ~/.cavestack/.writing-style-prompted
+```
+
+Skip if `WRITING_STYLE_PENDING` is `no`.
+
+If `LAKE_INTRO` is `no`: say "cavestack follows the **Boil the Ocean** principle — do the complete thing when AI makes marginal cost near-zero. Read more: https://garryslist.org/posts/boil-the-ocean" Offer to open:
+
+```bash
+open https://garryslist.org/posts/boil-the-ocean
+touch ~/.cavestack/.completeness-intro-seen
+```
+
+Only run `open` if yes. Always run `touch`.
+
+If `TEL_PROMPTED` is `no` AND `LAKE_INTRO` is `yes`: ask telemetry once via AskUserQuestion:
+
+> Help cavestack get better. Share usage data only: skill, duration, crashes, stable device ID. No code or file paths. Your repo name is recorded locally only and stripped before any upload.
+
+Options:
+- A) Help cavestack get better! (recommended)
+- B) No thanks
+
+If A: run `~/.claude/skills/cavestack/bin/cavestack-config set telemetry community`
+
+If B: ask follow-up:
+
+> Anonymous mode sends only aggregate usage, no unique ID.
+
+Options:
+- A) Sure, anonymous is fine
+- B) No thanks, fully off
+
+If B→A: run `~/.claude/skills/cavestack/bin/cavestack-config set telemetry anonymous`
+If B→B: run `~/.claude/skills/cavestack/bin/cavestack-config set telemetry off`
+
+Always run:
+```bash
+touch ~/.cavestack/.telemetry-prompted
+```
+
+Skip if `TEL_PROMPTED` is `yes`.
+
+If `PROACTIVE_PROMPTED` is `no` AND `TEL_PROMPTED` is `yes`: ask once:
+
+> Let cavestack proactively suggest skills, like /qa for "does this work?" or /investigate for bugs?
+
+Options:
+- A) Keep it on (recommended)
+- B) Turn it off — I'll type /commands myself
+
+If A: run `~/.claude/skills/cavestack/bin/cavestack-config set proactive true`
+If B: run `~/.claude/skills/cavestack/bin/cavestack-config set proactive false`
+
+Always run:
+```bash
+touch ~/.cavestack/.proactive-prompted
+```
+
+Skip if `PROACTIVE_PROMPTED` is `yes`.
+
+## First-run guidance (one-time)
+
+If `ACTIVATED` is `no` (first skill run on this machine) AND the preamble printed a non-empty `FIRST_TASK:` value that is NOT `nongit`: show ONE short, project-specific line mapped from the token, as a heads-up, then CONTINUE with whatever the user actually asked — do NOT halt their task. Map the token: `greenfield` → "Fresh repo — shape it first with `/spec` or `/office-hours`." `code_node`/`code_python`/`code_rust`/`code_go`/`code_ruby`/`code_ios` → "There's code here — `/qa` to see it work, or `/investigate` if something's off." `branch_ahead` → "Unshipped work on this branch — `/review` then `/ship`." `dirty_default` → "Uncommitted changes — `/review` before committing." `clean_default` → "Pick one: `/spec`, `/investigate`, or `/qa`." Then substitute the token you saw for TASK_TOKEN and run (best-effort), and mark activated:
+```bash
+~/.claude/skills/cavestack/bin/cavestack-telemetry-log --event-type first_task_scaffold_shown --skill "TASK_TOKEN" --outcome shown 2>/dev/null || true
+touch ~/.cavestack/.activated 2>/dev/null || true
+```
+
+If `ACTIVATED` is `no` but `FIRST_TASK:` is empty or `nongit` (headless, non-git, or nothing actionable): show nothing, just run `touch ~/.cavestack/.activated 2>/dev/null || true`.
+
+Else if `ACTIVATED` is `yes` AND `FIRST_LOOP_SHOWN` is `no`: say once as a heads-up (then continue):
+
+> Tip: cavestack pays off when you complete one loop — **plan → review → ship**. A common first loop: `/office-hours` or `/spec` to shape it, `/plan-eng-review` to lock it, then `/ship`.
+
+Then run `touch ~/.cavestack/.first-loop-tip-shown 2>/dev/null || true`.
+
+Skip this section if `ACTIVATED` and `FIRST_LOOP_SHOWN` are both `yes`.
+
+If `HAS_ROUTING` is `no` AND `ROUTING_DECLINED` is `false` AND `PROACTIVE_PROMPTED` is `yes`:
+Check if a CLAUDE.md file exists in the project root. If it does not exist, create it.
+
+Use AskUserQuestion:
+
+> cavestack works best when your project's CLAUDE.md includes skill routing rules.
+
+Options:
+- A) Add routing rules to CLAUDE.md (recommended)
+- B) No thanks, I'll invoke skills manually
+
+If A: Append this section to the end of CLAUDE.md:
+
+```markdown
+
+## Skill routing
+
+When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.
+
+Key routing rules:
+- Product ideas/brainstorming → invoke /office-hours
+- Strategy/scope → invoke /plan-ceo-review
+- Architecture → invoke /plan-eng-review
+- Design system/plan review → invoke /design-consultation or /plan-design-review
+- Full review pipeline → invoke /autoplan
+- Bugs/errors → invoke /investigate
+- QA/testing site behavior → invoke /qa or /qa-only
+- Code review/diff check → invoke /review
+- Visual polish → invoke /design-review
+- Ship/deploy/PR → invoke /ship or /land-and-deploy
+- Save progress → invoke /context-save
+- Resume context → invoke /context-restore
+- Author a backlog-ready spec/issue → invoke /spec
+```
+
+Then commit the change: `git add CLAUDE.md && git commit -m "chore: add cavestack skill routing rules to CLAUDE.md"`
+
+If B: run `~/.claude/skills/cavestack/bin/cavestack-config set routing_declined true` and say they can re-enable with `cavestack-config set routing_declined false`.
+
+This only happens once per project. Skip if `HAS_ROUTING` is `yes` or `ROUTING_DECLINED` is `true`.
+
+If `VENDORED_CAVESTACK` is `yes`, warn once via AskUserQuestion unless `~/.cavestack/.vendoring-warned-$SLUG` exists:
+
+> This project has cavestack vendored in `.claude/skills/cavestack/`. Vendoring is deprecated.
+> Migrate to team mode?
+
+Options:
+- A) Yes, migrate to team mode now
+- B) No, I'll handle it myself
+
+If A:
+1. Run `git rm -r .claude/skills/cavestack/`
+2. Run `echo '.claude/skills/cavestack/' >> .gitignore`
+3. Run `~/.claude/skills/cavestack/bin/cavestack-team-init required` (or `optional`)
+4. Run `git add .claude/ .gitignore CLAUDE.md && git commit -m "chore: migrate cavestack from vendored to team mode"`
+5. Tell the user: "Done. Each developer now runs: `cd ~/.claude/skills/cavestack && ./setup --team`"
+
+If B: say "OK, you're on your own to keep the vendored copy up to date."
+
+Always run (regardless of choice):
+```bash
+eval "$(~/.claude/skills/cavestack/bin/cavestack-slug 2>/dev/null)" 2>/dev/null || true
+touch ~/.cavestack/.vendoring-warned-${SLUG:-unknown}
+```
+
+If marker exists, skip.
+
+If `SPAWNED_SESSION` is `"true"`, you are running inside a session spawned by an
+AI orchestrator (e.g., OpenClaw). In spawned sessions:
+- Do NOT use AskUserQuestion for interactive prompts. Auto-choose the recommended option.
+- Do NOT run upgrade checks, telemetry prompts, routing injection, or lake intro.
+- Focus on completing the task and reporting results via prose output.
+- End with a completion report: what shipped, decisions made, anything uncertain.
+
+## Artifacts Sync (skill start)
+
+```bash
+_CAVESTACK_HOME="${CAVESTACK_HOME:-$HOME/.cavestack}"
+# Prefer the v1.27.0.0 artifacts file; fall back to brain file for users
+# upgrading mid-stream before the migration script runs.
+if [ -f "$HOME/.cavestack-artifacts-remote.txt" ]; then
+  _BRAIN_REMOTE_FILE="$HOME/.cavestack-artifacts-remote.txt"
+else
+  _BRAIN_REMOTE_FILE="$HOME/.cavestack-brain-remote.txt"
+fi
+_BRAIN_SYNC_BIN="$HOME/.claude/skills/cavestack/bin/cavestack-brain-sync"
+_BRAIN_CONFIG_BIN="$HOME/.claude/skills/cavestack/bin/cavestack-config"
+
+# /sync-gbrain context-load: teach the agent to use gbrain when it's available.
+# Per-worktree pin: post-spike redesign uses kubectl-style `.gbrain-source` in the
+# git toplevel to scope queries. Look for the pin in the worktree (not a global
+# state file) so that opening worktree B without a pin doesn't claim "indexed"
+# just because worktree A was synced. Empty string when gbrain is not
+# configured (zero context cost for non-gbrain users).
+_GBRAIN_CONFIG="$HOME/.gbrain/config.json"
+if [ -f "$_GBRAIN_CONFIG" ] && command -v gbrain >/dev/null 2>&1; then
+  _GBRAIN_VERSION_OK=$(gbrain --version 2>/dev/null | grep -c '^gbrain ' || echo 0)
+  if [ "$_GBRAIN_VERSION_OK" -gt 0 ] 2>/dev/null; then
+    _GBRAIN_PIN_PATH=""
+    _REPO_TOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [ -n "$_REPO_TOP" ] && [ -f "$_REPO_TOP/.gbrain-source" ]; then
+      _GBRAIN_PIN_PATH="$_REPO_TOP/.gbrain-source"
+    fi
+    if [ -n "$_GBRAIN_PIN_PATH" ]; then
+      echo "GBrain configured. Prefer \`gbrain search\`/\`gbrain query\` over Grep for"
+      echo "semantic questions; use \`gbrain code-def\`/\`code-refs\`/\`code-callers\` for"
+      echo "symbol-aware code lookup. See \"## GBrain Search Guidance\" in CLAUDE.md."
+      echo "Run /sync-gbrain to refresh."
+    else
+      echo "GBrain configured but this worktree isn't pinned yet. Run \`/sync-gbrain --full\`"
+      echo "before relying on \`gbrain search\` for code questions in this worktree."
+      echo "Falls back to Grep until pinned."
+    fi
+  fi
+fi
+
+_BRAIN_SYNC_MODE=$("$_BRAIN_CONFIG_BIN" get artifacts_sync_mode 2>/dev/null || echo off)
+
+# Detect remote-MCP mode (Path 4 of /setup-gbrain). Local artifacts sync is
+# a no-op in remote mode; the brain server pulls from GitHub/GitLab on its
+# own cadence. Read claude.json directly to keep this preamble fast (no
+# subprocess to claude CLI on every skill start). Both registration scopes
+# are read (#2499): user scope, then the nearest-ancestor project scope.
+_GBRAIN_MCP_MODE="none"
+_GBRAIN_MCP_ENTRY=""
+if command -v jq >/dev/null 2>&1 && [ -f "$HOME/.claude.json" ]; then
+  _GBRAIN_MCP_ENTRY=$(jq -c --arg cwd "$PWD" '((.projects // {}) | to_entries | map(select((.key as $k | $cwd == $k or ($cwd | startswith($k + "/")) or ($cwd | startswith($k + "\\"))) and ((try .value.mcpServers.gbrain catch null) != null))) | sort_by(.key | length) | last | .value.mcpServers.gbrain) // .mcpServers.gbrain // empty' "$HOME/.claude.json" 2>/dev/null)
+  _GBRAIN_MCP_TYPE=$(printf '%s' "$_GBRAIN_MCP_ENTRY" | jq -r '.type // .transport // empty' 2>/dev/null)
+  case "$_GBRAIN_MCP_TYPE" in
+    url|http|sse) _GBRAIN_MCP_MODE="remote-http" ;;
+    stdio) _GBRAIN_MCP_MODE="local-stdio" ;;
+  esac
+fi
+
+if [ -f "$_BRAIN_REMOTE_FILE" ] && [ ! -d "$_CAVESTACK_HOME/.git" ] && [ "$_BRAIN_SYNC_MODE" = "off" ]; then
+  _BRAIN_NEW_URL=$(head -1 "$_BRAIN_REMOTE_FILE" 2>/dev/null | tr -d '[:space:]')
+  if [ -n "$_BRAIN_NEW_URL" ]; then
+    echo "ARTIFACTS_SYNC: artifacts repo detected: $_BRAIN_NEW_URL"
+    echo "ARTIFACTS_SYNC: run 'cavestack-brain-restore' to pull your cross-machine artifacts (or 'cavestack-config set artifacts_sync_mode off' to dismiss forever)"
+  fi
+fi
+
+if [ -d "$_CAVESTACK_HOME/.git" ] && [ "$_BRAIN_SYNC_MODE" != "off" ]; then
+  _BRAIN_LAST_PULL_FILE="$_CAVESTACK_HOME/.brain-last-pull"
+  _BRAIN_NOW=$(date +%s)
+  _BRAIN_DO_PULL=1
+  if [ -f "$_BRAIN_LAST_PULL_FILE" ]; then
+    _BRAIN_LAST=$(cat "$_BRAIN_LAST_PULL_FILE" 2>/dev/null || echo 0)
+    case "$_BRAIN_LAST" in ''|*[!0-9]*) _BRAIN_LAST=0 ;; esac
+    _BRAIN_AGE=$(( _BRAIN_NOW - _BRAIN_LAST ))
+    [ "$_BRAIN_AGE" -lt 86400 ] && _BRAIN_DO_PULL=0
+  fi
+  if [ "$_BRAIN_DO_PULL" = "1" ]; then
+    ( cd "$_CAVESTACK_HOME" && git fetch origin >/dev/null 2>&1 && git merge --ff-only "origin/$(git rev-parse --abbrev-ref HEAD)" >/dev/null 2>&1 ) || true
+    echo "$_BRAIN_NOW" > "$_BRAIN_LAST_PULL_FILE"
+  fi
+  "$_BRAIN_SYNC_BIN" --once 2>/dev/null || true
+fi
+
+if [ "$_GBRAIN_MCP_MODE" = "remote-http" ]; then
+  # Remote-MCP mode: local artifacts sync is a no-op (brain admin's server
+  # pulls from GitHub/GitLab). Show the user this is by design, not broken.
+  _GBRAIN_HOST=$(printf '%s' "${_GBRAIN_MCP_ENTRY:-}" | jq -r '.url // empty' 2>/dev/null | sed -E 's|^https?://([^/:]+).*|\1|' | head -1 | tr -cd 'A-Za-z0-9._-')
+  echo "ARTIFACTS_SYNC: remote-mode (managed by brain server ${_GBRAIN_HOST:-remote})"
+elif [ -d "$_CAVESTACK_HOME/.git" ] && [ "$_BRAIN_SYNC_MODE" != "off" ]; then
+  _BRAIN_QUEUE_DEPTH=0
+  # Spool-dir queue (one file per record); legacy .brain-queue.jsonl lines are
+  # counted too until the drain migrates them.
+  [ -d "$_CAVESTACK_HOME/.brain-queue.d" ] && _BRAIN_QUEUE_DEPTH=$(find "$_CAVESTACK_HOME/.brain-queue.d" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+  [ -f "$_CAVESTACK_HOME/.brain-queue.jsonl" ] && _BRAIN_QUEUE_DEPTH=$(( _BRAIN_QUEUE_DEPTH + $(wc -l < "$_CAVESTACK_HOME/.brain-queue.jsonl" | tr -d ' ') ))
+  [ -f "$_CAVESTACK_HOME/.brain-queue.jsonl.migrating" ] && _BRAIN_QUEUE_DEPTH=$(( _BRAIN_QUEUE_DEPTH + $(wc -l < "$_CAVESTACK_HOME/.brain-queue.jsonl.migrating" | tr -d ' ') ))
+  _BRAIN_LAST_PUSH="never"
+  [ -f "$_CAVESTACK_HOME/.brain-last-push" ] && _BRAIN_LAST_PUSH=$(cat "$_CAVESTACK_HOME/.brain-last-push" 2>/dev/null || echo never)
+  echo "ARTIFACTS_SYNC: mode=$_BRAIN_SYNC_MODE | last_push=$_BRAIN_LAST_PUSH | queue=$_BRAIN_QUEUE_DEPTH"
+else
+  echo "ARTIFACTS_SYNC: off"
+fi
+```
+
+
+
+Privacy stop-gate: if output shows `ARTIFACTS_SYNC: off`, `artifacts_sync_mode_prompted` is `false`, and gbrain is on PATH or `gbrain doctor --fast --json` works, ask once:
+
+> cavestack can publish your artifacts (CEO plans, designs, reports) to a private GitHub repo that GBrain indexes across machines. How much should sync?
+
+Options:
+- A) Everything allowlisted (recommended)
+- B) Only artifacts
+- C) Decline, keep everything local
+
+After answer:
+
+```bash
+# Chosen mode: full | artifacts-only | off
+"$_BRAIN_CONFIG_BIN" set artifacts_sync_mode <choice>
+"$_BRAIN_CONFIG_BIN" set artifacts_sync_mode_prompted true
+```
+
+If A/B and `~/.cavestack/.git` is missing, ask whether to run `cavestack-artifacts-init`. Do not block the skill.
+
+At skill END before telemetry:
+
+```bash
+"$HOME/.claude/skills/cavestack/bin/cavestack-brain-sync" --discover-new 2>/dev/null || true
+"$HOME/.claude/skills/cavestack/bin/cavestack-brain-sync" --once 2>/dev/null || true
+```
+
+
+## Model-Specific Behavioral Patch (claude)
+
+The following nudges are tuned for the claude model family. They are
+**subordinate** to skill workflow, STOP points, AskUserQuestion gates, plan-mode
+safety, and /ship review gates. If a nudge below conflicts with skill instructions,
+the skill wins. Treat these as preferences, not rules.
+
+**Todo-list discipline.** When working through a multi-step plan, mark each task
+complete individually as you finish it. Do not batch-complete at the end. If a task
+turns out to be unnecessary, mark it skipped with a one-line reason.
+
+**Think before heavy actions.** For complex operations (refactors, migrations,
+non-trivial new features), briefly state your approach before executing. This lets
+the user course-correct cheaply instead of mid-flight.
+
+**Dedicated tools over Bash.** Prefer Read, Edit, Write, Glob, Grep over shell
+equivalents (cat, sed, find, grep). The dedicated tools are cheaper and clearer.
+
+## Voice
+
+**Caveman mode active.** Drop articles (a/an/the), filler, pleasantries, hedging. Fragments OK. Short synonyms. Technical terms exact. Code blocks unchanged.
+
+Pattern: `[thing] [action] [reason]. [next step].`
+
+Stay direct, concrete, sharp. Name file, function, line number. No fluff.
+
+## Completion Status Protocol
+
+When completing a skill workflow, report status using one of:
+- **DONE** — completed with evidence.
+- **DONE_WITH_CONCERNS** — completed, but list concerns.
+- **BLOCKED** — cannot proceed; state blocker and what was tried.
+- **NEEDS_CONTEXT** — missing info; state exactly what is needed.
+
+Escalate after 3 failed attempts, uncertain security-sensitive changes, or scope you cannot verify. Format: `STATUS`, `REASON`, `ATTEMPTED`, `RECOMMENDATION`.
+
+## Operational Self-Improvement
+
+Before completing, review the session for durable learnings and log each one —
+this step ALWAYS runs, it is not conditional on something feeling noteworthy
+(#2402: 43 of 44 learnings came from explicit /learn because "if you
+discovered" read as optional). A durable learning is a project quirk, command
+fix, pitfall, or pattern that would save 5+ minutes in a future session. If
+the review genuinely surfaces none, state "No durable learnings this session"
+in your completion summary — an explicit empty result, not a skipped step.
+
+```bash
+~/.claude/skills/cavestack/bin/cavestack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
+```
+
+Do not log obvious facts or one-time transient errors.
+
+## Telemetry (run last)
+
+After workflow completion, log telemetry. Use skill `name:` from frontmatter. OUTCOME is success/error/abort/unknown.
+
+**PLAN MODE EXCEPTION — ALWAYS RUN:** This command writes telemetry to
+`~/.cavestack/analytics/`, matching preamble analytics writes.
+
+Run this bash:
+
+```bash
+_TEL_END=$(date +%s)
+_TEL_DUR=$(( _TEL_END - _TEL_START ))
+rm -f ~/.cavestack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
+# Session timeline: record skill completion (local-only, never sent anywhere)
+~/.claude/skills/cavestack/bin/cavestack-timeline-log '{"skill":"SKILL_NAME","event":"completed","branch":"'$(git branch --show-current 2>/dev/null || echo unknown)'","outcome":"OUTCOME","duration_s":"'"$_TEL_DUR"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null || true
+# Local analytics (gated on telemetry setting)
+if [ "$_TEL" != "off" ]; then
+echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.cavestack/analytics/skill-usage.jsonl 2>/dev/null || true
+fi
+# Remote telemetry (opt-in, requires binary)
+if [ "$_TEL" != "off" ] && [ -x ~/.claude/skills/cavestack/bin/cavestack-telemetry-log ]; then
+  ~/.claude/skills/cavestack/bin/cavestack-telemetry-log \
+    --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
+    --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" \
+    --error-message "ERROR_MESSAGE" --failed-step "FAILED_STEP" 2>/dev/null &
+fi
+```
+
+Replace `SKILL_NAME`, `OUTCOME`, and `USED_BROWSE` before running.
+Replace `ERROR_MESSAGE` with a short description of the error (if outcome is error,
+otherwise use empty string ""), and `FAILED_STEP` with the step name or number where
+the failure occurred (if outcome is error, otherwise use empty string "").
+
+## Plan Status Footer
+
+Skills that run plan reviews (`/plan-*-review`, `/codex review`) include the EXIT PLAN MODE GATE blocking checklist at the end of the skill, which verifies the plan file ends with `## CAVESTACK REVIEW REPORT` before ExitPlanMode is called. Skills that don't run plan reviews (operational skills like `/ship`, `/qa`, `/review`) typically don't operate in plan mode and have no review report to verify; this footer is a no-op for them. Writing the plan file is the one edit allowed in plan mode.
+
+# make-pdf: publication-quality PDFs from markdown
+
+Turn `.md` files into PDFs that look like Faber & Faber essays: 1in margins,
+left-aligned body, Helvetica throughout, curly quotes and em dashes, optional
+cover page and clickable TOC, diagonal DRAFT watermark when you need it.
+Copy-paste from the PDF produces clean words, never "S a i l i n g".
+
+On Linux, install `fonts-liberation` for correct rendering — Helvetica and Arial
+aren't present by default, and Liberation Sans is the standard metric-compatible
+fallback. CI and Docker builds install it automatically via Dockerfile.ci.
+
+Emoji need a color-emoji font. macOS (Apple Color Emoji) and Windows (Segoe UI
+Emoji) ship one; most Linux distros and containers ship none, so emoji render as
+empty boxes (▯). `./setup` auto-installs `fonts-noto-color-emoji` on Linux
+(apt/dnf/pacman/apk, best-effort) and the print CSS falls back through Apple /
+Segoe / Noto emoji families. Set `CAVESTACK_SKIP_FONTS=1` to skip the install (CI
+without sudo, managed or offline machines).
+
+## Core patterns
+
+### 80% case — memo/letter
+
+One command, no flags. Gets a clean PDF with running header + page numbers
++ CONFIDENTIAL footer by default.
+
+```bash
+$P generate letter.md                 # writes /tmp/letter.pdf
+$P generate letter.md letter.pdf      # explicit output path
+```
+
+### Publication mode — cover + TOC + chapter breaks
+
+```bash
+$P generate --cover --toc --author "Garry Tan" --title "On Horizons" \
+  essay.md essay.pdf
+```
+
+Each top-level H1 in the markdown starts a new page. Disable with
+`--no-chapter-breaks` for memos that happen to have multiple H1s.
+
+### Draft-stage watermark
+
+```bash
+$P generate --watermark DRAFT memo.md draft.pdf
+```
+
+Diagonal 10% opacity DRAFT across every page. When the draft is final, drop
+the flag and regenerate.
+
+### Fast iteration via preview
+
+```bash
+$P preview essay.md
+```
+
+Renders HTML with the same print CSS and opens it in your browser. Refresh
+as you edit the markdown. Skip the PDF round trip until you're ready.
+
+### Brand-free (no CONFIDENTIAL footer)
+
+```bash
+$P generate --no-confidential memo.md memo.pdf
+```
+
+### Diagrams — mermaid and excalidraw fences render as pictures
+
+A column-0 ` ```mermaid ` or ` ```excalidraw ` fence in the markdown renders
+as a crisp vector diagram, fully offline (vendored bundle, no CDN). Indented
+fences (inside lists) stay plain code blocks by design. A broken fence
+produces a visible red diagnostic block with the parse error — never silent
+raw code.
+
+Fence info-string options:
 
 ```
-User: /make-pdf ARCHITECTURE.md
-
-Agent: Generated: ARCHITECTURE.pdf
-       - 12 pages
-       - 3 Mermaid diagrams rendered as vector SVGs
-       - Table of contents with clickable links
-       - Code blocks syntax-highlighted
+```mermaid title="Auth flow"        ← caption + aria-label
+```mermaid render=false             ← keep it as a code block (today's behavior)
+```mermaid page=landscape           ← force this diagram onto a landscape page
+```mermaid page=portrait            ← veto auto-landscape for this diagram
 ```
+
+A ` ```excalidraw ` fence contains a full .excalidraw scene file (what
+excalidraw.com saves). Authoring NEW diagrams from English is `/diagram`'s
+job — it emits an editable triplet (source, .excalidraw, SVG/PNG) and pairs
+with this skill: embed the `.mmd` source in your markdown, not the PNG.
+
+### Images — scaled right, never truncated
+
+Local images inline automatically (relative paths resolve against the
+markdown file). Every image caps at the content box — zero truncation, ever.
+Oversized photos downscale to print resolution (300dpi) so payloads stay
+small with no visible quality loss.
+
+Remote (http/https) images are **blocked with a visible placeholder** by
+default — offline posture; pass `--allow-network` to fetch them. An image
+that resolves outside the markdown's directory (even via symlink) still
+inlines, but warns loudly; `--strict` makes it fatal. Files over 64MB or
+non-regular files (fifos, devices) degrade to a placeholder instead of
+hanging the run.
+
+Per-image directives, written immediately after the image:
+
+```
+![chart](data.png){width=full}      ← stretch to content-box width
+![chart](data.png){width=50%}       ← percentage or 3in/8cm/200px
+![wide](arch.png){page=landscape}   ← give it its own landscape page
+![wide](shot.png){page=portrait}    ← veto auto-landscape
+```
+
+Wide, small-text diagram images auto-promote to their own landscape page
+(conservative: aspect ≥ 1.8, width over ~2.5x the content box, AND a
+diagram-ish alt word — diagram/architecture/flowchart/chart/graph). The
+promoted page is vertically centered. When the heuristic guesses wrong,
+`{page=portrait}` vetoes it; false negatives just need `{page=landscape}`.
+
+### Other formats — single-file HTML and Word
+
+```bash
+$P generate readme.md out.html --to html    # ONE self-contained file: inline
+                                            # SVG diagrams, data-URI images,
+                                            # zero network refs, screen-readable
+$P generate readme.md out.docx --to docx    # Word: content fidelity (headings,
+                                            # tables, code, diagrams as PNG) —
+                                            # layout is Word's, not ours
+```
+
+`--to` is the output format. `--format` is something else entirely (a
+`--page-size` alias) — don't confuse them.
+
+### CI mode — fail loud on missing assets
+
+```bash
+$P generate docs.md --strict     # missing, remote, out-of-tree, oversized,
+                                 # and non-regular-file images exit non-zero
+                                 # instead of warn + placeholder
+```
+
+## Common flags
+
+```
+Page layout:
+  --margins <dim>            1in (default) | 72pt | 2.54cm | 25mm
+  --page-size letter|a4|legal
+
+Structure:
+  --cover                    Cover page (title, author, date, hairline rule)
+  --toc                      Clickable TOC with page numbers
+  --no-chapter-breaks        Don't start a new page at every H1
+
+Branding:
+  --watermark <text>         Diagonal watermark ("DRAFT", "CONFIDENTIAL")
+  --header-template <html>   Custom running header
+  --footer-template <html>   Custom footer (mutex with --page-numbers)
+  --no-confidential          Suppress the CONFIDENTIAL right-footer
+
+Output:
+  --to pdf|html|docx         Output format (default: pdf). html = single
+                             self-contained file; docx = content fidelity.
+  --strict                   Missing, remote, out-of-tree, oversized, or
+                             non-regular-file images fail the run (CI mode).
+  --page-numbers             "N of M" footer (default on)
+  --tagged                   Accessible PDF (default on)
+  --outline                  PDF bookmarks from headings (default on)
+  --quiet                    Suppress progress on stderr
+  --verbose                  Per-stage timings
+
+Network:
+  --allow-network            Fetch external images. Off by default: remote
+                             images render as a visible blocked placeholder
+                             (no tracking pixels fetch at print time).
+
+Metadata:
+  --title "..."              Document title (defaults to first H1)
+  --author "..."             Author for cover + PDF metadata
+  --date "..."               Date for cover (defaults to today)
+```
+
+## When Claude should run it
+
+Watch for markdown-to-PDF intent. Any of these patterns → run `$P generate`:
+
+- "Can you make this markdown a PDF"
+- "Export it as a PDF"
+- "Turn this letter into a PDF"
+- "I need a PDF of the essay"
+- "Print this as a PDF for me"
+
+If the user has a `.md` file open and says "make it look nice", propose
+`$P generate --cover --toc` and ask before running.
+
+## Debugging
+
+- Output looks empty / blank → check browse daemon is running: `$B status`.
+- Fragmented text on copy-paste → highlight.js output (Phase 4). Retry with
+  `--no-syntax` once that flag exists. For now, remove fenced code blocks
+  and regenerate.
+- Paged.js timeout → probably no headings in the markdown. Drop `--toc`.
+- "[remote image blocked]" placeholder in the output → add `--allow-network`
+  (understand you're giving the markdown file permission to fetch from its
+  image URLs).
+- Generated PDF too tall/wide → `--page-size a4` or `--margins 0.75in`.
+
+## Output contract
+
+```
+stdout: /tmp/letter.pdf          ← just the path, one line
+stderr: Rendering HTML...        ← progress spinner (unless --quiet)
+        Generating PDF...
+        Done in 1.5s. 43 words · 22KB · /tmp/letter.pdf
+
+exit code: 0 success / 1 bad args / 2 render error / 3 Paged.js timeout
+           / 4 browse unavailable
+```
+
+Capture the path: `PDF=$($P generate letter.md)` — then use `$PDF`.

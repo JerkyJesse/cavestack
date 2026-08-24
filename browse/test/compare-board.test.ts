@@ -16,21 +16,27 @@ import { handleReadCommand as _handleReadCommand } from '../src/read-commands';
 import { handleWriteCommand as _handleWriteCommand } from '../src/write-commands';
 
 const handleReadCommand = (cmd: string, args: string[], b: BrowserManager) =>
-  _handleReadCommand(cmd, args, b.getActiveSession());
+  _handleReadCommand(cmd, args, b.getActiveSession(), b);
 const handleWriteCommand = (cmd: string, args: string[], b: BrowserManager) =>
   _handleWriteCommand(cmd, args, b.getActiveSession(), b);
 import { generateCompareHtml } from '../../design/src/compare';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// QUARANTINED (opt-in via CAVESTACK_COMPARE_BOARD_TESTS=1): all 16 tests fail
+// identically on origin/main v1.64.1.0, solo, on dev machines — verified per
+// the blame protocol during the 2026-08 test-infra pass. Main's own CI lane
+// skip-lists this file as "pre-existing env failure (needs a display-shaped
+// env)". Fixing the underlying board-vs-headless-env mismatch is tracked
+// follow-up work; until then an always-red file would block every PR now
+// that the free suite is a required check.
+const COMPARE_BOARD_ENABLED = process.env.CAVESTACK_COMPARE_BOARD_TESTS === '1';
+const describeBoard = COMPARE_BOARD_ENABLED ? describe : describe.skip;
+
 let bm: BrowserManager;
 let boardUrl: string;
 let server: ReturnType<typeof Bun.serve>;
 let tmpDir: string;
-
-// Windows: Playwright chrome-headless-shell launch hangs (see handoff.test.ts).
-const isWindows = process.platform === 'win32';
-const describeBrowser = isWindows ? describe.skip : describe;
 
 // Create a minimal 1x1 pixel PNG for test variants
 function createTestPng(filePath: string): void {
@@ -43,7 +49,11 @@ function createTestPng(filePath: string): void {
 }
 
 beforeAll(async () => {
-  if (isWindows) return;
+  // Skipped describes do NOT skip file-level hooks: this setup (Bun.serve +
+  // BrowserManager launch) still ran with all 16 tests skipped, and under
+  // parallel load it wedges — caught by the runner's in-flight-at-kill
+  // epilogue as the suite's intermittent staller. Gate the hooks too.
+  if (!COMPARE_BOARD_ENABLED) return;
   // Create test PNG files
   tmpDir = '/tmp/compare-board-test-' + Date.now();
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -72,18 +82,23 @@ beforeAll(async () => {
   bm = new BrowserManager();
   await bm.launch();
   await handleWriteCommand('goto', [boardUrl], bm);
-}, 60000);
+});
 
-afterAll(() => {
-  if (isWindows) return;
+afterAll(async () => {
+  if (!COMPARE_BOARD_ENABLED) return;
   try { server.stop(); } catch {}
   fs.rmSync(tmpDir, { recursive: true, force: true });
-  setTimeout(() => process.exit(0), 500);
+  // Close only this file's own browser — never process.exit(): bun test runs
+  // all files in one process, so a delayed exit kills the whole suite
+  // (see test/no-suicide-exit.test.ts). close() can hang when the browser
+  // already died, and its internal 5s timeout ties bun's 5s hook timeout —
+  // so race it at 3s and abandon; the child is reaped at process exit.
+  try { await Promise.race([bm?.close(), new Promise((resolve) => setTimeout(resolve, 3000))]); } catch {}
 });
 
 // ─── DOM Structure ──────────────────────────────────────────────
 
-describeBrowser('Comparison board DOM structure', () => {
+describeBoard('Comparison board DOM structure', () => {
   test('has hidden status element', async () => {
     const status = await handleReadCommand('js', [
       'document.getElementById("status").textContent'
@@ -136,7 +151,7 @@ describeBrowser('Comparison board DOM structure', () => {
 
 // ─── Submit Flow ────────────────────────────────────────────────
 
-describeBrowser('Submit feedback flow', () => {
+describeBoard('Submit feedback flow', () => {
   test('submit without interaction returns empty preferred', async () => {
     // Reset page state
     await handleWriteCommand('goto', [boardUrl], bm);
@@ -233,7 +248,7 @@ describeBrowser('Submit feedback flow', () => {
 
 // ─── Regenerate Flow ────────────────────────────────────────────
 
-describeBrowser('Regenerate flow', () => {
+describeBoard('Regenerate flow', () => {
   test('regenerate button sets status to "regenerate"', async () => {
     // Fresh page
     await handleWriteCommand('goto', [boardUrl], bm);
@@ -307,7 +322,7 @@ describeBrowser('Regenerate flow', () => {
 
 // ─── Agent Polling Pattern ──────────────────────────────────────
 
-describeBrowser('Agent polling pattern (simulates what $B eval does)', () => {
+describeBoard('Agent polling pattern (simulates what $B eval does)', () => {
   test('status is empty before user action', async () => {
     // Fresh page — simulates agent's first poll
     await handleWriteCommand('goto', [boardUrl], bm);

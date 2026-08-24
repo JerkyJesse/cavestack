@@ -209,11 +209,17 @@ describe('template audit', () => {
   });
 
   test('already-compressed template passes', () => {
-    // qa-only was part of the original overhaul and should pass
-    const qaOnly = path.join(ROOT, 'qa-only', 'SKILL.md.tmpl');
-    if (fs.existsSync(qaOnly)) {
-      const result = auditTemplate(qaOnly);
+    // Ported gstack templates stay verbose; runtime caveman lives in preamble.
+    // Pin the audit against an inline compressed sample, not a live skill tmpl.
+    const tmpFile = path.join(ROOT, 'test', 'fixtures', 'voice-compressed-sample.tmpl');
+    fs.mkdirSync(path.dirname(tmpFile), { recursive: true });
+    fs.writeFileSync(tmpFile, '## Report\nOpen page. Find bug. Write file. Stop. No fix. Re-run.\n');
+    try {
+      const result = auditTemplate(tmpFile);
       expect(result.status).toBe('PASS');
+      expect(result.violations.length).toBe(0);
+    } finally {
+      fs.unlinkSync(tmpFile);
     }
   });
 });

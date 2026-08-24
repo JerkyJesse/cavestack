@@ -74,9 +74,11 @@ cavestack/
 │   │   └── snapshot.ts  # SNAPSHOT_FLAGS metadata array
 │   ├── test/        # Integration tests + fixtures
 │   └── dist/        # Compiled binary
-├── hosts/           # Host config (Claude only since v1.3)
-│   ├── claude.ts    # Claude Code host config
-│   └── index.ts     # Single-entry registry (claude)
+├── hosts/           # Host configs (claude, cursor, kiro, codex, factory, opencode, slate, openclaw, hermes, gbrain)
+│   ├── define-host.ts # Shared factory + caveman skip lists
+│   ├── claude.ts    # Claude Code host config (prefixable, caveman on)
+│   ├── kiro.ts      # Kiro host config
+│   └── index.ts     # Registry of all hosts
 ├── scripts/         # Build + DX tooling
 │   ├── gen-skill-docs.ts  # Template → SKILL.md generator
 │   ├── host-config.ts     # HostConfig interface + validator
@@ -474,6 +476,12 @@ The active skill lives at `~/.claude/skills/cavestack/`. After making changes:
 1. Push your branch
 2. Fetch and reset in the skill directory: `cd ~/.claude/skills/cavestack && git fetch origin && git reset --hard origin/main`
 3. Rebuild: `cd ~/.claude/skills/cavestack && bun run build`
+
+**If you use gbrain:** the `git reset --hard` in step 2 reverts the brain-aware
+(`GBRAIN_CONTEXT_LOAD` / `GBRAIN_SAVE_RESULTS`) blocks that `cavestack-config
+gbrain-refresh` renders into the install (those generated blocks differ from
+`main` by design). After deploying, re-run `cavestack-config gbrain-refresh` to
+restore them across all your projects' Claude sessions. It's idempotent.
 
 Or copy the binaries directly:
 - `cp browse/dist/browse ~/.claude/skills/cavestack/browse/dist/browse`

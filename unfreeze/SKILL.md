@@ -1,10 +1,11 @@
 ---
 name: unfreeze
 version: 0.1.0
-description: |
-  Clear freeze boundary from /freeze, re-allow edits to all directories.
-  Use when asked to "unfreeze", "unlock edits", "remove freeze", or
-  "allow all edits". (cavestack)
+description: Clear the freeze boundary set by /freeze, allowing edits to all directories again. (cavestack)
+triggers:
+  - unfreeze edits
+  - unlock all directories
+  - remove edit restrictions
 allowed-tools:
   - Bash
   - Read
@@ -12,9 +13,16 @@ allowed-tools:
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
 
+
+## When to invoke this skill
+
+Use when you want to widen edit scope without ending the session.
+Use when asked to "unfreeze", "unlock edits", "remove freeze", or
+"allow all edits".
+
 # /unfreeze — Clear Freeze Boundary
 
-Remove edit restriction from `/freeze`. Edits allowed everywhere again.
+Remove the edit restriction set by `/freeze`, allowing edits to all directories.
 
 ```bash
 mkdir -p ~/.cavestack/analytics
@@ -24,7 +32,8 @@ echo '{"skill":"unfreeze","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(bas
 ## Clear the boundary
 
 ```bash
-STATE_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.cavestack}"
+eval "$(~/.claude/skills/cavestack/bin/cavestack-paths)"
+STATE_DIR="$CAVESTACK_STATE_ROOT"
 if [ -f "$STATE_DIR/freeze-dir.txt" ]; then
   PREV=$(cat "$STATE_DIR/freeze-dir.txt")
   rm -f "$STATE_DIR/freeze-dir.txt"
@@ -34,4 +43,6 @@ else
 fi
 ```
 
-Tell user result. `/freeze` hooks still registered for session but allow everything since no state file exists. Re-freeze: run `/freeze` again.
+Tell the user the result. Note that `/freeze` hooks are still registered for the
+session — they will just allow everything since no state file exists. To re-freeze,
+run `/freeze` again.

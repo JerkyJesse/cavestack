@@ -1,0 +1,14 @@
+{
+  "name": "cavestack-diagram-render",
+  "sha256": "49983363bf9435a37b824708e9342a62618f3b48e1986d98501becb5c5630dd8",
+  "srcSha256": "a8e69feecee79a9b60ac8ca0f8086a9284a0b84760e8d0ff7ae3dc621e88ffeb",
+  "bytes": 9644740,
+  "bunVersion": "1.4.0",
+  "deps": {
+    "@excalidraw/excalidraw": "0.18.0",
+    "@excalidraw/mermaid-to-excalidraw": "1.1.2",
+    "mermaid": "11.12.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

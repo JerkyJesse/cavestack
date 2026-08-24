@@ -24,19 +24,25 @@ allowed-tools:
   - Grep
   - AskUserQuestion
   - WebSearch
+triggers:
+  - qa test this
+  - find bugs on site
+  - test the site
 ---
 
 {{PREAMBLE}}
 
 {{BASE_BRANCH_DETECT}}
 
+{{GBRAIN_CONTEXT_LOAD}}
+
 # /qa: Test → Fix → Verify
 
-QA engineer AND bug-fix engineer. Test web apps like real user — click everything, fill every form, check every state. Find bugs, fix in source with atomic commits, re-verify. Produce structured report with before/after evidence.
+You are a QA engineer AND a bug-fix engineer. Test web applications like a real user — click everything, fill every form, check every state. When you find bugs, fix them in source code with atomic commits, then re-verify. Produce a structured report with before/after evidence.
 
 ## Setup
 
-**Parse user request for these parameters:**
+**Parse the user's request for these parameters:**
 
 | Parameter | Default | Override example |
 |-----------|---------|-----------------:|
@@ -48,17 +54,17 @@ QA engineer AND bug-fix engineer. Test web apps like real user — click everyth
 | Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
 
 **Tiers determine which issues get fixed:**
-- **Quick:** Critical + high only
-- **Standard:** + medium (default)
-- **Exhaustive:** + low/cosmetic
+- **Quick:** Fix critical + high severity only
+- **Standard:** + medium severity (default)
+- **Exhaustive:** + low/cosmetic severity
 
-**If no URL given and on feature branch:** Auto-enter **diff-aware mode** (see Modes below). Most common case — user shipped code on branch, wants to verify.
+**If no URL is given and you're on a feature branch:** Automatically enter **diff-aware mode** (see Modes below). This is the most common case — the user just shipped code on a branch and wants to verify it works.
 
-**CDP mode detection:** Before starting, check if browse server connected to user's real browser:
+**CDP mode detection:** Before starting, check if the browse server is connected to the user's real browser:
 ```bash
 $B status 2>/dev/null | grep -q "Mode: cdp" && echo "CDP_MODE=true" || echo "CDP_MODE=false"
 ```
-If `CDP_MODE=true`: skip cookie import prompts (real browser has cookies), skip user-agent overrides (real browser has real user-agent), skip headless detection workarounds. Real auth sessions already available.
+If `CDP_MODE=true`: skip cookie import prompts (the real browser already has cookies), skip user-agent overrides (real browser has real user-agent), and skip headless detection workarounds. The user's real auth sessions are already available.
 
 **Check for clean working tree:**
 
@@ -66,7 +72,7 @@ If `CDP_MODE=true`: skip cookie import prompts (real browser has cookies), skip 
 git status --porcelain
 ```
 
-If output non-empty (dirty tree), **STOP** and use AskUserQuestion:
+If the output is non-empty (working tree is dirty), **STOP** and use AskUserQuestion:
 
 "Your working tree has uncommitted changes. /qa needs a clean tree so each bug fix gets its own atomic commit."
 
@@ -76,9 +82,9 @@ If output non-empty (dirty tree), **STOP** and use AskUserQuestion:
 
 RECOMMENDATION: Choose A because uncommitted work should be preserved as a commit before QA adds its own fix commits.
 
-After user chooses, execute choice (commit or stash), then continue with setup.
+After the user chooses, execute their choice (commit or stash), then continue with setup.
 
-**Find browse binary:**
+**Find the browse binary:**
 
 {{BROWSE_SETUP}}
 
@@ -94,11 +100,11 @@ mkdir -p .cavestack/qa-reports/screenshots
 
 ---
 
-{{LEARNINGS_SEARCH}}
+{{LEARNINGS_SEARCH:query=qa testing bug regression flake fixture}}
 
 ## Test Plan Context
 
-Before falling back to git diff heuristics, check richer test plan sources:
+Before falling back to git diff heuristics, check for richer test plan sources:
 
 1. **Project-scoped test plans:** Check `~/.cavestack/projects/` for recent `*-test-plan-*.md` files for this repo
    ```bash
@@ -106,8 +112,8 @@ Before falling back to git diff heuristics, check richer test plan sources:
    {{SLUG_EVAL}}
    ls -t ~/.cavestack/projects/$SLUG/*-test-plan-*.md 2>/dev/null | head -1
    ```
-2. **Conversation context:** Check if prior `/plan-eng-review` or `/plan-ceo-review` produced test plan output in this conversation
-3. **Use richer source.** Fall back to git diff analysis only if neither available.
+2. **Conversation context:** Check if a prior `/plan-eng-review` or `/plan-ceo-review` produced test plan output in this conversation
+3. **Use whichever source is richer.** Fall back to git diff analysis only if neither is available.
 
 ---
 
@@ -134,25 +140,39 @@ Record baseline health score at end of Phase 6.
 └── baseline.json                          # For regression mode
 ```
 
-Report filenames use domain and date: `qa-report-myapp-com-2026-03-12.md`
+Report filenames use the domain and date: `qa-report-myapp-com-2026-03-12.md`
 
 ---
 
 ## Phase 7: Triage
 
-Sort issues by severity, decide which to fix per tier:
+Sort all discovered issues by severity, then decide which to fix based on the selected tier:
 
-- **Quick:** Fix critical + high only. Mark medium/low "deferred."
-- **Standard:** Fix critical + high + medium. Mark low "deferred."
-- **Exhaustive:** Fix all, including cosmetic/low.
+- **Quick:** Fix critical + high only. Mark medium/low as "deferred."
+- **Standard:** Fix critical + high + medium. Mark low as "deferred."
+- **Exhaustive:** Fix all, including cosmetic/low severity.
 
-Issues unfixable from source (e.g., third-party widget bugs, infra issues) = "deferred" regardless of tier.
+Mark issues that cannot be fixed from source code (e.g., third-party widget bugs, infrastructure issues) as "deferred" regardless of tier.
+
+### Refresh learnings for the component/page where the bug lives
+
+The top-of-skill learnings pull was keyed to "qa testing" broadly. Before the fix loop, re-pull learnings keyed to the component or page where the bug you're about to fix lives so prior fixes for the same component-shape surface.
+
+Pick ONE keyword that names the buggy component or page. The keyword should be a noun: the failing component name, the page route base, or the feature noun. The keyword MUST be alphanumeric or hyphen only — no quotes, slashes, dots, colons, or whitespace. If your candidate has any of those, simplify to just the alphanumeric stem.
+
+Worked examples (qa-specific): good keywords are `checkout-button`, `signup-form`, `payment`. Bad: `tests are failing`, `<failing-test>`, `app/views/_checkout.html.erb`.
+
+```bash
+~/.claude/skills/cavestack/bin/cavestack-learnings-search --query "<your-keyword>" --limit 5 2>/dev/null || true
+```
+
+If any learnings come back, name which one applies to the fix you're about to make in one sentence. If none come back, continue without reference — the absence is itself useful information.
 
 ---
 
 ## Phase 8: Fix Loop
 
-Each fixable issue, severity order:
+For each fixable issue, in severity order:
 
 ### 8a. Locate source
 
@@ -161,13 +181,13 @@ Each fixable issue, severity order:
 # Glob for file patterns matching the affected page
 ```
 
-- Find source file(s) responsible for bug
-- ONLY modify files directly related to issue
+- Find the source file(s) responsible for the bug
+- ONLY modify files directly related to the issue
 
 ### 8b. Fix
 
-- Read source, understand context
-- **Minimal fix** — smallest change that resolves issue
+- Read the source code, understand the context
+- Make the **minimal fix** — smallest change that resolves the issue
 - Do NOT refactor surrounding code, add features, or "improve" unrelated things
 
 ### 8c. Commit
@@ -182,10 +202,10 @@ git commit -m "fix(qa): ISSUE-NNN — short description"
 
 ### 8d. Re-test
 
-- Navigate back to affected page
+- Navigate back to the affected page
 - Take **before/after screenshot pair**
 - Check console for errors
-- Use `snapshot -D` to verify change had expected effect
+- Use `snapshot -D` to verify the change had the expected effect
 
 ```bash
 $B goto <affected-url>
@@ -196,33 +216,33 @@ $B snapshot -D
 
 ### 8e. Classify
 
-- **verified**: re-test confirms fix works, no new errors
+- **verified**: re-test confirms the fix works, no new errors introduced
 - **best-effort**: fix applied but couldn't fully verify (e.g., needs auth state, external service)
-- **reverted**: regression detected → `git revert HEAD` → mark issue "deferred"
+- **reverted**: regression detected → `git revert HEAD` → mark issue as "deferred"
 
 ### 8e.5. Regression Test
 
-Skip if: classification is not "verified", OR fix is purely visual/CSS with no JS behavior, OR no test framework detected AND user declined bootstrap.
+Skip if: classification is not "verified", OR the fix is purely visual/CSS with no JS behavior, OR no test framework was detected AND user declined bootstrap.
 
-**1. Study existing test patterns:**
+**1. Study the project's existing test patterns:**
 
-Read 2-3 test files closest to fix (same directory, same code type). Match exactly:
+Read 2-3 test files closest to the fix (same directory, same code type). Match exactly:
 - File naming, imports, assertion style, describe/it nesting, setup/teardown patterns
-Regression test must look like same developer wrote it.
+The regression test must look like it was written by the same developer.
 
-**2. Trace bug's codepath, then write regression test:**
+**2. Trace the bug's codepath, then write a regression test:**
 
-Before writing test, trace data flow through code you just fixed:
-- What input/state triggered bug? (exact precondition)
+Before writing the test, trace the data flow through the code you just fixed:
+- What input/state triggered the bug? (the exact precondition)
 - What codepath did it follow? (which branches, which function calls)
-- Where did it break? (exact line/condition that failed)
-- What other inputs could hit same codepath? (edge cases around fix)
+- Where did it break? (the exact line/condition that failed)
+- What other inputs could hit the same codepath? (edge cases around the fix)
 
-Test MUST:
-- Set up precondition that triggered bug (exact state that made it break)
-- Perform action that exposed bug
-- Assert correct behavior (NOT "it renders" or "it doesn't throw")
-- If adjacent edge cases found while tracing, test those too (e.g., null input, empty array, boundary value)
+The test MUST:
+- Set up the precondition that triggered the bug (the exact state that made it break)
+- Perform the action that exposed the bug
+- Assert the correct behavior (NOT "it renders" or "it doesn't throw")
+- If you found adjacent edge cases while tracing, test those too (e.g., null input, empty array, boundary value)
 - Include full attribution comment:
   ```
   // Regression: ISSUE-NNN — {what broke}
@@ -236,9 +256,9 @@ Test type decision:
 - Visual bug with JS behavior (broken dropdown, animation) → component test
 - Pure CSS → skip (caught by QA reruns)
 
-Generate unit tests. Mock all external deps (DB, API, Redis, file system).
+Generate unit tests. Mock all external dependencies (DB, API, Redis, file system).
 
-Auto-incrementing names to avoid collisions: check existing `{name}.regression-*.test.{ext}` files, take max number + 1.
+Use auto-incrementing names to avoid collisions: check existing `{name}.regression-*.test.{ext}` files, take max number + 1.
 
 **3. Run only the new test file:**
 
@@ -248,14 +268,14 @@ Auto-incrementing names to avoid collisions: check existing `{name}.regression-*
 
 **4. Evaluate:**
 - Passes → commit: `git commit -m "test(qa): regression test for ISSUE-NNN — {desc}"`
-- Fails → fix test once. Still failing → delete, defer.
-- Taking >2 min → skip and defer.
+- Fails → fix test once. Still failing → delete test, defer.
+- Taking >2 min exploration → skip and defer.
 
-**5. WTF-likelihood exclusion:** Test commits don't count toward heuristic.
+**5. WTF-likelihood exclusion:** Test commits don't count toward the heuristic.
 
 ### 8f. Self-Regulation (STOP AND EVALUATE)
 
-Every 5 fixes (or after any revert), compute WTF-likelihood:
+Every 5 fixes (or after any revert), compute the WTF-likelihood:
 
 ```
 WTF-LIKELIHOOD:
@@ -267,25 +287,25 @@ WTF-LIKELIHOOD:
   Touching unrelated files:   +20%
 ```
 
-**If WTF > 20%:** STOP. Show user what's done so far. Ask whether to continue.
+**If WTF > 20%:** STOP immediately. Show the user what you've done so far. Ask whether to continue.
 
-**Hard cap: 50 fixes.** After 50, stop regardless of remaining issues.
+**Hard cap: 50 fixes.** After 50 fixes, stop regardless of remaining issues.
 
 ---
 
 ## Phase 9: Final QA
 
-After all fixes applied:
+After all fixes are applied:
 
 1. Re-run QA on all affected pages
 2. Compute final health score
-3. **If final score WORSE than baseline:** WARN prominently — something regressed
+3. **If final score is WORSE than baseline:** WARN prominently — something regressed
 
 ---
 
 ## Phase 10: Report
 
-Write report to both local and project-scoped locations:
+Write the report to both local and project-scoped locations:
 
 **Local:** `.cavestack/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
 
@@ -307,26 +327,28 @@ Write to `~/.cavestack/projects/{slug}/{user}-{branch}-test-outcome-{datetime}.m
 - Deferred issues
 - Health score delta: baseline → final
 
-**PR Summary:** One-line summary for PR descriptions:
+**PR Summary:** Include a one-line summary suitable for PR descriptions:
 > "QA found N issues, fixed M, health score X → Y."
 
 ---
 
 ## Phase 11: TODOS.md Update
 
-If repo has `TODOS.md`:
+If the repo has a `TODOS.md`:
 
-1. **New deferred bugs** → add as TODOs with severity, category, repro steps
-2. **Fixed bugs in TODOS.md** → annotate with "Fixed by /qa on {branch}, {date}"
+1. **New deferred bugs** → add as TODOs with severity, category, and repro steps
+2. **Fixed bugs that were in TODOS.md** → annotate with "Fixed by /qa on {branch}, {date}"
 
 ---
 
 {{LEARNINGS_LOG}}
 
+{{GBRAIN_SAVE_RESULTS}}
+
 ## Additional Rules (qa-specific)
 
-11. **Clean working tree required.** If dirty, AskUserQuestion to offer commit/stash/abort before proceeding.
-12. **One commit per fix.** Never bundle multiple fixes.
-13. **Only modify tests when generating regression tests in Phase 8e.5.** Never modify CI config. Never modify existing tests — only create new test files.
-14. **Revert on regression.** Fix makes things worse → `git revert HEAD` immediately.
-15. **Self-regulate.** Follow WTF-likelihood heuristic. When in doubt, stop and ask.
+11. **Clean working tree required.** If dirty, use AskUserQuestion to offer commit/stash/abort before proceeding.
+12. **One commit per fix.** Never bundle multiple fixes into one commit.
+13. **Only modify tests when generating regression tests in Phase 8e.5.** Never modify CI configuration. Never modify existing tests — only create new test files.
+14. **Revert on regression.** If a fix makes things worse, `git revert HEAD` immediately.
+15. **Self-regulate.** Follow the WTF-likelihood heuristic. When in doubt, stop and ask.

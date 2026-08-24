@@ -1,13 +1,17 @@
 ---
 name: caveman-help
-description: |
-  Caveman-help for cavestack: one-shot reference card for every caveman mode, sibling skill, and command.
-  Displays in caveman style without changing mode or writing flag files. Vendored from JuliusBrussee/caveman
-  and bundled into cavestack so /caveman-help works out of the box. Use when user says "caveman help",
-  "what caveman commands", "how do I use caveman", or invokes /caveman-help.
+description: "Caveman-help for cavestack: one-shot reference card for every caveman mode, sibling skill, and command."
+
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
+
+
+## When to invoke this skill
+
+Displays in caveman style without changing mode or writing flag files. Vendored from JuliusBrussee/caveman
+and bundled into cavestack so /caveman-help works out of the box. Use when user says "caveman help",
+"what caveman commands", "how do I use caveman", or invokes /caveman-help.
 
 # Caveman Help
 
