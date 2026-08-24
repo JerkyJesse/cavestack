@@ -1,0 +1,15 @@
+# Session commands — 2026-08-24
+# Starting new work from https://github.com/JerkyJesse/cavestack
+
+Get-ChildItem -Force | Format-Table Name, Mode, Length
+git rev-parse --is-inside-work-tree
+git status
+git remote -v
+
+git clone https://github.com/JerkyJesse/cavestack.git .
+
+git status
+git remote -v
+git branch -vv
+git log -8 --oneline
+Get-ChildItem -Force | Select-Object Name, Mode | Format-Table -AutoSize
