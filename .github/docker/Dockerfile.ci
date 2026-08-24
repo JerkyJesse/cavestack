@@ -35,7 +35,7 @@ RUN printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https:
 RUN for i in 1 2 3; do \
       apt-get update && apt-get install -y --no-install-recommends \
         git curl unzip xz-utils ca-certificates jq bc gpg python3 file poppler-utils && break || \
-      (echo "apt retry $i/3 after failure"; sleep 10); \
+      { echo "apt retry $i/3 after failure"; [ "$i" = 3 ] && exit 1; sleep 10; }; \
     done \
     && rm -rf /var/lib/apt/lists/*
 
@@ -46,7 +46,7 @@ RUN curl --retry 5 --retry-delay 5 --retry-connrefused -fsSL https://cli.github.
     | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
     && for i in 1 2 3; do \
          apt-get update && apt-get install -y --no-install-recommends gh && break || \
-         (echo "gh install retry $i/3"; sleep 10); \
+         { echo "gh install retry $i/3"; [ "$i" = 3 ] && exit 1; sleep 10; }; \
        done \
     && rm -rf /var/lib/apt/lists/*
 
@@ -94,7 +94,7 @@ RUN npx playwright install-deps chromium
 # fallback font (mirrors make-pdf-gate.yml's Ubuntu setup step).
 RUN for i in 1 2 3; do \
       apt-get update && apt-get install -y --no-install-recommends fonts-liberation fonts-noto-color-emoji fontconfig xvfb x11-utils && break || \
-      (echo "fonts-liberation install retry $i/3"; sleep 10); \
+      { echo "fonts-liberation install retry $i/3"; [ "$i" = 3 ] && exit 1; sleep 10; }; \
     done \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*

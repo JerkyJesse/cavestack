@@ -108,3 +108,10 @@ bun test design/test/auth.test.ts design/test/variants-retry-after.test.ts test/
 git push -u origin mechapip/cloud-agent-1787580158725-j7j21
 bun run test:free -- --wall-timeout 1200
 bun test browse/test/server-auth.test.ts browse/test/dual-listener.test.ts --timeout 15000
+
+# 2026-08-24 — Bugbot CI follow-ups
+git status -sb
+git log -3 --oneline
+# StrReplace: Dockerfile.ci apt retry fail-closed (3 loops)
+# StrReplace: skill-docs/actionlint/windows-setup-e2e/make-pdf-gate concurrency PR number
+# StrReplace: CHANGELOG contributor CI note
