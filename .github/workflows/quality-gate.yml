@@ -47,7 +47,21 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+          ZERO_SHA='0000000000000000000000000000000000000000'
+          # Force-push / branch create sets `before` to all-zeros, or the old
+          # tip is absent from this clone. Never fall back to HEAD^ — that
+          # shrinks the window to the tip commit and lets secrets in earlier
+          # commits of the push land on main unscanned.
+          if [ "${BASE_SHA:-}" = "$ZERO_SHA" ] || { [ -n "${BASE_SHA:-}" ] && ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; }; then
+            if [ -n "${BASE_SHA:-}" ] && [ "${BASE_SHA}" != "$ZERO_SHA" ]; then
+              git fetch --no-tags origin "${BASE_SHA}" 2>/dev/null || true
+            fi
+          fi
+          if [ "${BASE_SHA:-}" = "$ZERO_SHA" ] || { [ -n "${BASE_SHA:-}" ] && ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; }; then
+            echo "::error::Credential scan base is unresolvable (${BASE_SHA:-empty all-zero or missing}). Refusing to shrink the window to HEAD^."
+            exit 1
+          fi
+          if [ -z "${BASE_SHA:-}" ]; then
             BASE_SHA=$(git rev-parse HEAD^)
           fi
           git diff --unified=0 --no-color "$BASE_SHA" "$HEAD_SHA" -- \

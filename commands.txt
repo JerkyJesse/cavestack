@@ -115,3 +115,24 @@ git log -3 --oneline
 # StrReplace: Dockerfile.ci apt retry fail-closed (3 loops)
 # StrReplace: skill-docs/actionlint/windows-setup-e2e/make-pdf-gate concurrency PR number
 # StrReplace: CHANGELOG contributor CI note
+
+# 2026-08-24 — bugbot verify/fix pass (apt retry, fork concurrency, setup E2E, GitLab titles, credential scan)
+git status && git branch -vv && git log -5 --oneline && git rev-parse --abbrev-ref HEAD
+# Read: Dockerfile.ci, actionlint.yml, skill-docs.yml, make-pdf-gate.yml, windows-setup-e2e.yml, .gitlab-ci.yml, quality-gate.yml
+# Read: bin/cavestack-pr-title-rewrite.sh, pr-title-sync.yml, setup, cavestack-redact-prepush, quality-gate.yml
+# StrReplace: windows-setup-e2e.yml run bash ./setup --no-prefix --no-plan-tune-hooks + install-layout assert
+# StrReplace: .gitlab-ci.yml pr-title-sync uses bin/cavestack-pr-title-rewrite.sh
+# StrReplace: quality-gate.yml refuse HEAD^ shrink on all-zero/missing before; fetch old tip or fail closed
+curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.13"
+export PATH="$HOME/.bun/bin:$PATH"
+bun install --frozen-lockfile
+bun test test/pr-title-rewrite.test.ts test/workflow-concurrency.test.ts test/pr-title-sync-workflow-safety.test.ts test/gate-secret-scan.test.ts
+bash bin/cavestack-pr-title-rewrite.sh 1.2.3.4 "v1.2.3.4"
+bash bin/cavestack-pr-title-rewrite.sh 1.2.3.4 "v1.2.3"
+bash bin/cavestack-pr-title-rewrite.sh 1.2.3.4 "feat: foo"
+rg -n "github.head_ref" .github/workflows
+rg -n '\[ "\$i" = 3 \] && exit 1' .github/docker/Dockerfile.ci
+rg -n "cavestack-pr-title-rewrite" .gitlab-ci.yml
+git add .github/workflows/quality-gate.yml .github/workflows/windows-setup-e2e.yml .gitlab-ci.yml commands.txt
+git commit -m "fix: run Windows setup E2E and fail-closed credential scan base"
+git push -u origin mechapip/cloud-agent-1787580158725-j7j21

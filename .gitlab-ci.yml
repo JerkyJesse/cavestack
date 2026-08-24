@@ -53,20 +53,15 @@ pr-title-sync:
       changes:
         - VERSION
   script:
-    - apt-get update -qq && apt-get install -qq -y curl jq git
+    - apt-get update -qq && apt-get install -qq -y curl jq git bash
     - curl -fsSL https://gitlab.com/gitlab-org/cli/-/releases/permalink/latest/downloads/glab_linux_amd64.deb -o glab.deb && dpkg -i glab.deb
     - VERSION=$(cat VERSION | tr -d '[:space:]')
     - TITLE="$CI_MERGE_REQUEST_TITLE"
     - |
-      if printf '%s' "$TITLE" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ '; then
-        PREFIX=$(printf '%s' "$TITLE" | awk '{print $1}')
-        REST=$(printf '%s' "$TITLE" | sed 's/^v[0-9][0-9.]* //')
-        if [ "v$VERSION" != "$PREFIX" ]; then
-          echo "Rewriting: $PREFIX ... → v$VERSION ..."
-          glab mr update "$CI_MERGE_REQUEST_IID" -t "v$VERSION $REST"
-        else
-          echo "Title already matches v$VERSION; no change."
-        fi
+      NEW_TITLE=$(bash bin/cavestack-pr-title-rewrite.sh "$VERSION" "$TITLE")
+      if [ "$NEW_TITLE" = "$TITLE" ]; then
+        echo "Title already matches VERSION; no change."
       else
-        echo "Title does not use v<X.Y.Z.W> prefix — leaving alone."
+        echo "Rewriting MR title to match VERSION $VERSION"
+        glab mr update "$CI_MERGE_REQUEST_IID" -t "$NEW_TITLE"
       fi
