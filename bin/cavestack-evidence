@@ -34,7 +34,8 @@
  * in the ledger; it cannot prove that an expected lane ever ran.
  */
 
-import { mkdirSync, openSync, writeSync, closeSync, readdirSync, statSync, unlinkSync, chmodSync } from "fs";
+import { openSync, writeSync, closeSync, readdirSync, statSync, unlinkSync, chmodSync } from "fs";
+import { mkdirpSync } from "../lib/mkdirp";
 import { join, dirname } from "path";
 import { spawnSync } from "child_process";
 import { appendJsonl, readJsonl } from "../lib/jsonl-store";
@@ -137,7 +138,7 @@ function pruneOldLogs(logsDir: string): void {
 /** Exclusive-open a collision-safe log file. Returns undefined on failure. */
 function openLog(logsDir: string, label: string, cmdSha: string): { fd: number; path: string } | undefined {
   try {
-    mkdirSync(logsDir, { recursive: true });
+    mkdirpSync(logsDir);
     pruneOldLogs(logsDir);
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     const base = `${ts}-${label}-${process.pid}-${cmdSha.slice(0, 8)}`;
@@ -175,7 +176,7 @@ async function cmdRun(argv: string[]): Promise<number> {
   let paths: ReturnType<typeof ledgerPath> | undefined;
   try {
     paths = ledgerPath();
-    mkdirSync(paths.dir, { recursive: true });
+    mkdirpSync(paths.dir);
   } catch (e: any) {
     warn(`ledger setup failed (${e?.message ?? e}) — result will not be recorded`);
   }

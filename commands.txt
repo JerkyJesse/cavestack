@@ -146,3 +146,44 @@ rg -n "CAVESTACK_SKIP_PLAYWRIGHT|ensure_playwright_browser|CAVESTACK_SKIP_FONTS"
 git add setup commands.txt
 git commit -m "fix: honor CAVESTACK_SKIP_PLAYWRIGHT in setup"
 git push -u origin mechapip/cloud-agent-1787580158725-j7j21
+
+# 2026-08-24 â€” Cursor setup retry after deleting locked server-node.mjs
+Remove-Item browse\dist\server-node.mjs -Force
+$env:CAVESTACK_SKIP_PLAYWRIGHT = "1"
+& "C:\Program Files\Git\bin\bash.exe" -lc 'export PATH="C:\Users\jerky/.bun/bin:"; export CAVESTACK_SKIP_PLAYWRIGHT=1; ./setup --host cursor --prefix'
+
+# 2026-08-24 â€” verify Cursor skill YAML name===folder + desc<=1024
+bun -e "/* parse ~/.cursor/skills/cavestack-*/SKILL.md */"
+
+# 2026-08-24 â€” Windows head lock: bun outfile is RAW; never head live server-node.mjs
+# (browse/scripts/build-node-server.sh)
+
+# 2026-08-24 â€” rebuild node server after RAW-outfile fix
+
+# 2026-08-24 — rebuild node server via bun inject (no Git Bash head)
+$env:PATH = "$env:USERPROFILE\.bun\bin;$env:PATH"
+Get-ChildItem browse\dist\server-node* -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+& "C:\Program Files\Git\bin\bash.exe" -lc 'export PATH="C:\Users\jerky/.bun/bin:"; bash browse/scripts/build-node-server.sh'
+
+# 2026-08-24 — in-memory Bun.build for Windows node server
+bun browse/scripts/build-node-server.ts
+
+# 2026-08-24 — smoke browse --help + copy bundle into Cursor runtime
+$repoBrowse = "browse\dist\browse.exe"
+$inst = "C:\Users\jerky\.cursor\skills\cavestack\browse\dist"
+Copy-Item browse\dist\server-node.mjs, browse\dist\bun-polyfill.cjs $inst -Force -ErrorAction Continue
+& $repoBrowse --help
+& "\browse.exe" --help
+bash "C:\Users\jerky\.cursor\skills\cavestack\bin\cavestack-skills" list
+bun test test/build-script-shell-compat.test.ts browse/test/inject-node-polyfill.test.ts test/enforce-description-limit.test.ts test/mkdirp.test.ts test/setup-host-dispatch.test.ts test/host-config.test.ts make-pdf/test/browse-client.test.ts test/gen-skill-docs.test.ts
+
+bun test test/build-script-shell-compat.test.ts browse/test/inject-node-polyfill.test.ts test/enforce-description-limit.test.ts test/mkdirp.test.ts test/setup-host-dispatch.test.ts make-pdf/test/browseClient.test.ts
+
+# 2026-08-24 ? ship
+git status -sb
+git add AGENTS.md CHANGELOG.md README.md VERSION bin browse/scripts browse/test/inject-node-polyfill.test.ts commands.txt docs/designs/SIDEBAR_MESSAGE_FLOW.md hosts/cursor.ts lib make-pdf package.json pair-agent scripts setup test
+git commit
+git push -u origin HEAD
+gh pr create
+gh pr merge
+git checkout main

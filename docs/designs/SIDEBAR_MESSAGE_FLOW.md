@@ -35,14 +35,14 @@ T+500ms   sidebar-agent.ts spawned by CLI
 
 T+1-3s    Extension loads in Chromium
             ├── background.js: health poll every 1s (fast startup)
-            │     └── GET /health → gets auth token
+            │     └── GET /health → liveness only (no token)
             ├── content.js: injects on welcome page
             │     └── Does NOT fire cavestack-extension-ready (waits for sidebar)
             └── Side panel: may auto-open via chrome.sidePanel.open()
 
 T+2-10s   Side panel connects
             ├── tryConnect() → asks background for port/token
-            ├── Fallback: direct GET /health for token
+            ├── Fallback: POST /extension-token (pinned chrome-extension Origin)
             ├── updateConnection(url, token)
             │     ├── Starts chat polling (1s interval)
             │     ├── Starts tab polling (2s interval)
@@ -125,20 +125,22 @@ The arrow does NOT hide when the extension loads. Only when the sidebar connects
 ```
 Server starts → AUTH_TOKEN = crypto.randomUUID()
     │
-    ├── GET /health (no auth) → returns { token: AUTH_TOKEN }
+    ├── GET /health (no auth) → liveness/status only; NEVER a token
     │
-    ├── background.js checkHealth() → authToken = data.token
-    │     └── Refreshes on EVERY health poll (fixes stale token on restart)
+    ├── POST /extension-token (chrome-extension Origin) → AUTH_TOKEN
     │
-    ├── sidepanel.js tryConnect() → serverToken from background or /health
+    ├── background.js checkHealth() → liveness poll; token from /extension-token
+    │     └── Re-bootstraps token via POST /extension-token on restart
+    │
+    ├── sidepanel.js tryConnect() → serverToken from background or /extension-token
     │     └── Used for chat polling: Authorization: Bearer ${serverToken}
     │
     └── sidebar-agent.ts refreshToken() → reads from .cavestack/browse.json
           └── Used for event relay: Authorization: Bearer ${authToken}
 ```
 
-If the server restarts, all three components get fresh tokens within 10s
-(background health poll interval).
+If the server restarts, the extension re-bootstraps via `POST /extension-token`
+(health polls stay liveness-only).
 
 ## Model Routing
 

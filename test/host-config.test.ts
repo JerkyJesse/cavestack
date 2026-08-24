@@ -509,6 +509,15 @@ describe('host config correctness', () => {
     expect(codex.frontmatter.descriptionLimitBehavior).toBe('error');
   });
 
+  test('cursor has 1024-char description limit with truncate behavior', () => {
+    expect(cursor.frontmatter.descriptionLimit).toBe(1024);
+    expect(cursor.frontmatter.descriptionLimitBehavior).toBe('truncate');
+  });
+
+  test('cursor install is prefixable', () => {
+    expect(cursor.install.prefixable).toBe(true);
+  });
+
   test('codex generates metadata (openai.yaml, format hardcoded in gen-skill-docs)', () => {
     expect(codex.generation.generateMetadata).toBe(true);
   });

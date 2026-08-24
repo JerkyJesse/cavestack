@@ -28,6 +28,7 @@
 import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
+import { mkdirpSync } from "../lib/mkdirp";
 import * as path from "path";
 import { scan, type Finding } from "../lib/redact-engine";
 
@@ -349,7 +350,7 @@ function logSkip(reason: string): void {
   try {
     const home = process.env.CAVESTACK_HOME || path.join(os.homedir(), ".cavestack");
     const dir = path.join(home, "security");
-    fs.mkdirSync(dir, { recursive: true });
+    mkdirpSync(dir);
     fs.appendFileSync(
       path.join(dir, "prepush-skip.jsonl"),
       JSON.stringify({ ts: new Date().toISOString(), reason }) + "\n",

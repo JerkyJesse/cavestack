@@ -6,7 +6,8 @@ designer, QA lead, release engineer, debugger, and more.
 
 **Multi-host (v2.1+).** Claude Code is the primary host (caveman hooks, full skill
 set). Cursor, Kiro, Codex, Factory, OpenCode, Slate, OpenClaw, Hermes, and GBrain
-install from the same `./setup --host` flag. Caveman mode is Claude-only — other
+install from the same `./setup --host` flag. For Cursor: `./setup --host cursor --prefix`
+writes `~/.cursor/skills/cavestack-*`. Caveman mode is Claude-only — other
 hosts skip `/caveman` and related skills.
 
 Project instructions live in [CLAUDE.md](CLAUDE.md). Most of it (structure,

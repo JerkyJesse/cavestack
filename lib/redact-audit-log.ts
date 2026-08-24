@@ -19,6 +19,7 @@ import * as os from "os";
 import * as path from "path";
 import { createHash } from "crypto";
 import { appendJsonl } from "./jsonl-store";
+import { mkdirpSync } from "./mkdirp";
 
 export interface SemanticReviewEntry {
   ts: string;
@@ -42,7 +43,7 @@ export function sha256(s: string): string {
 export function appendSemanticReview(entry: SemanticReviewEntry): void {
   try {
     const dir = securityDir();
-    fs.mkdirSync(dir, { recursive: true });
+    mkdirpSync(dir);
     const file = path.join(dir, "semantic-reviews.jsonl");
     // 0600 at create via appendJsonl's mode opt; the chmod backstop covers
     // files created looser by pre-mode versions.

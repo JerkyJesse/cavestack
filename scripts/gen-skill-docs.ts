@@ -523,12 +523,41 @@ policy:
 }
 
 /**
+ * Enforce a host description character cap.
+ * `truncate` actually shortens the string (word boundary when possible).
+ */
+export function enforceDescriptionLimit(
+  description: string,
+  limit: number | null | undefined,
+  behavior: 'error' | 'truncate' | 'warn' | 'truncate' = 'error',
+  label: string,
+): string {
+  if (!limit || description.length <= limit) return description;
+  if (behavior === 'error') {
+    throw new Error(
+      `${label} description is ${description.length} chars (max ${limit}). Compress the description in the .tmpl file.`,
+    );
+  }
+  if (behavior === 'warn') {
+    console.warn(`WARNING: ${label} description exceeds ${limit} chars`);
+    return description;
+  }
+  // 'truncate' and 'truncate' both shorten.
+  const budget = Math.max(1, limit - 1);
+  const slice = description.slice(0, budget);
+  const breakAt = slice.lastIndexOf(' ');
+  const trimmed = (breakAt >= Math.floor(budget * 0.6) ? slice.slice(0, breakAt) : slice).trimEnd();
+  return `${trimmed}…`;
+}
+
+/**
  * Transform frontmatter for external hosts.
  * Claude: strips `sensitive:` field (only Factory uses it).
  * Codex: keeps name + description only, enforces 1024-char limit.
  * Factory: keeps name + description + user-invocable, conditionally adds disable-model-invocation.
+ * Cursor: allowlist name+description, truncate at 1024 chars.
  */
-function transformFrontmatter(content: string, host: Host): string {
+function transformFrontmatter(content: string, host: Host, nameOverride?: string): string {
   const hostConfig = getHostConfig(host);
   const fm = hostConfig.frontmatter;
 
@@ -551,23 +580,14 @@ function transformFrontmatter(content: string, host: Host): string {
   if (fmEnd === -1) return content;
   const frontmatter = content.slice(fmStart + 4, fmEnd);
   const body = content.slice(fmEnd + 4);
-  const { name, description } = extractNameAndDescription(content);
-
-  // Description limit enforcement
-  if (fm.descriptionLimit) {
-    const behavior = fm.descriptionLimitBehavior || 'error';
-    if (description.length > fm.descriptionLimit) {
-      if (behavior === 'error') {
-        throw new Error(
-          `${hostConfig.displayName} description for "${name}" is ${description.length} chars (max ${fm.descriptionLimit}). ` +
-          `Compress the description in the .tmpl file.`
-        );
-      } else if (behavior === 'warn') {
-        console.warn(`WARNING: ${hostConfig.displayName} description for "${name}" exceeds ${fm.descriptionLimit} chars`);
-      }
-      // 'truncate' — silently proceed
-    }
-  }
+  const { name: extractedName, description: rawDescription } = extractNameAndDescription(content);
+  const name = nameOverride ?? extractedName;
+  const description = enforceDescriptionLimit(
+    rawDescription,
+    fm.descriptionLimit,
+    fm.descriptionLimitBehavior || 'error',
+    `${hostConfig.displayName} "${name}"`,
+  );
 
   // Build frontmatter with allowed fields
   const indentedDesc = description.split('\n').map(l => `  ${l}`).join('\n');
@@ -810,8 +830,11 @@ function processExternalHost(
   // Extract hook safety prose BEFORE transforming frontmatter (which strips hooks)
   const safetyProse = extractHookSafetyProse(tmplContent);
 
-  // Transform frontmatter (host-aware)
-  let result = transformFrontmatter(content, host);
+  // Transform frontmatter (host-aware). Cursor requires YAML `name:` === folder
+  // name or it drops the skill. Other hosts keep the template's unprefixed name
+  // (Codex/Factory goldens, and those hosts do not require the match).
+  const nameForYaml = host === 'cursor' ? name : undefined;
+  let result = transformFrontmatter(content, host, nameForYaml);
 
   // Insert safety advisory at the top of the body (after frontmatter)
   if (safetyProse) {
@@ -973,6 +996,7 @@ function findTemplates(): string[] {
   return discoverTemplates(ROOT).map(t => path.join(ROOT, t.tmpl));
 }
 
+if (import.meta.main) {
 const ALL_HOSTS: Host[] = ALL_HOST_NAMES as Host[];
 const hostsToRun: Host[] = HOST_ARG_VAL === 'all' ? ALL_HOSTS : [HOST];
 const failures: { host: string; error: Error }[] = [];
@@ -1161,4 +1185,5 @@ if (!DRY_RUN) {
       console.error(`[gen-llms-txt] FAILED: ${msg}`);
     }
   })();
+}
 }

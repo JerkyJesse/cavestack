@@ -336,7 +336,12 @@ to `~/.codex/skills/cavestack/browse-remote.json`.
 
 Cursor's AI can run terminal commands. The instruction block works as-is.
 When using `--local cursor`, credentials are written to
-`~/.cursor/skills/cavestack/browse-remote.json`.
+`~/.cursor/skills/cavestack/browse-remote.json`. That is **credentials only** —
+it is not a CaveStack skill install. Skills come from:
+
+```bash
+./setup --host cursor --prefix
+```
 
 ## Revoking access
 

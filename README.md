@@ -38,11 +38,11 @@ Open new Claude Code session. Caveman mode active. No `/caveman` needed. Just wo
 ### Cursor
 
 ```bash
-git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
-cd ~/.claude/skills/cavestack && ./setup --host cursor
+git clone https://github.com/JerkyJesse/cavestack.git ~/cavestack
+cd ~/cavestack && ./setup --host cursor --prefix
 ```
 
-Skills land in `~/.cursor/skills/cavestack-*`. Caveman hooks skipped (Cursor has its own voice).
+Skills land in `~/.cursor/skills/cavestack-*`. Caveman hooks skipped (Cursor has its own voice). `pair-agent --local cursor` writes browse credentials only — that is not a skill install.
 
 ### Kiro
 
@@ -92,7 +92,7 @@ Six judgment-layer skills embody the "think before code" moat:
 | Thing | What It Do |
 |-------|-----------|
 | 50+ skills | All installed, all invokable. Hero six featured, others by full name. |
-| Multi-host | Claude Code, Cursor, Kiro, Codex, Factory, OpenCode, Slate, OpenClaw, Hermes, GBrain. `./setup --host cursor` (or `all`). |
+| Multi-host | Claude Code, Cursor, Kiro, Codex, Factory, OpenCode, Slate, OpenClaw, Hermes, GBrain. `./setup --host cursor --prefix` (or `all`). |
 | Pairing revoke | `$B tunnel revoke <name>` deletes every token for that agent. Re-pair with a narrower `--restrict` takes effect immediately. `--client root` rejected. |
 | Browse `/health` | Liveness only. Does **not** serve the root token. Extension bootstrap is `POST /extension-token`. |
 | Caveman default | No command needed. First response = terse. Automatic. (Claude only) |
@@ -204,7 +204,7 @@ cavestack-settings-hook install-caveman  # re-enable
 
 ## Trouble?
 
-**Skill not show up?** `cd ~/.claude/skills/cavestack && ./setup` (Claude), `./setup --host cursor` (Cursor), or `./setup --host kiro` (Kiro)
+**Skill not show up?** `cd ~/.claude/skills/cavestack && ./setup` (Claude), `cd ~/cavestack && ./setup --host cursor --prefix` (Cursor), or `cd ~/.kiro/skills/cavestack && ./setup --host kiro` (Kiro)
 
 **`/browse` fail?** `cd ~/.claude/skills/cavestack && bun install && bun run build`
 
@@ -265,8 +265,8 @@ cd ~/.claude/skills/cavestack && ./setup
 
 **Cursor:**
 ```bash
-git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
-cd ~/.claude/skills/cavestack && ./setup --host cursor
+git clone https://github.com/JerkyJesse/cavestack.git ~/cavestack
+cd ~/cavestack && ./setup --host cursor --prefix
 ```
 
 **Kiro:**
@@ -333,7 +333,7 @@ To re-enable it later:
 
 | Problem | Solution |
 |---------|----------|
-| Skills not showing up | `cd ~/.claude/skills/cavestack && ./setup` (or `./setup --host cursor` / `--host kiro`) |
+| Skills not showing up | Claude: `cd ~/.claude/skills/cavestack && ./setup`. Cursor: `cd ~/cavestack && ./setup --host cursor --prefix`. Kiro: `cd ~/.kiro/skills/cavestack && ./setup --host kiro`. |
 | `/browse` fails | `cd ~/.claude/skills/cavestack && bun install && bun run build` |
 | Stale install | Run `/cavestack-upgrade` or set `auto_upgrade: true` in `~/.cavestack/config.yaml` |
 | Caveman not firing | Verify `~/.claude/settings.json` has `SessionStart` and `UserPromptSubmit` hooks pointing at `caveman-activate.js` and `caveman-mode-tracker.js`. Re-register with `cavestack-settings-hook install-caveman`. Ensure Node.js is on PATH. |
