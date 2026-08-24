@@ -276,6 +276,8 @@ describe('Server auth security', () => {
     // Must probe the tunnel URL
     expect(pairSection).toContain('cliProbe');
     expect(pairSection).toContain('Tunnel unreachable from CLI');
+    expect(pairSection).toContain('${pairData.tunnel_url}/connect');
+    expect(pairSection).not.toContain('${pairData.tunnel_url}/health');
     // Must fall through to restart logic on failure
     expect(pairSection).toContain('attempting restart');
   });

@@ -107,3 +107,4 @@ bun run test:free -- --wall-timeout 1200
 bun test design/test/auth.test.ts design/test/variants-retry-after.test.ts test/cavestack-slug-parity.test.ts --timeout 30000
 git push -u origin mechapip/cloud-agent-1787580158725-j7j21
 bun run test:free -- --wall-timeout 1200
+bun test browse/test/server-auth.test.ts browse/test/dual-listener.test.ts --timeout 15000

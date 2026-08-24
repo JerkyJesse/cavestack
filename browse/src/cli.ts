@@ -1334,7 +1334,9 @@ async function handlePairAgent(state: ServerState, args: string[]): Promise<void
     // Server already verified the tunnel is alive, but double-check from CLI side
     // in case of race condition between server probe and our request
     try {
-      const cliProbe = await fetch(`${pairData.tunnel_url}/health`, {
+      // Dual-listener: /health is local-only. Probe GET /connect, the same
+      // unauth alive endpoint /tunnel/start uses on the tunnel surface.
+      const cliProbe = await fetch(`${pairData.tunnel_url}/connect`, {
         headers: { 'ngrok-skip-browser-warning': 'true' },
         signal: AbortSignal.timeout(5000),
       });
