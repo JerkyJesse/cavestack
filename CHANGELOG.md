@@ -29,7 +29,7 @@ You can now install CaveStack on Cursor, Codex, Factory, OpenCode, Slate, OpenCl
 ### For contributors
 
 - Free tests shard via `bun run test:free` / `scripts/test-free-shards.ts`. CI adds `free-tests.yml`, Windows free tests, dependabot, OSV, and dependency-review. Voice/slop scripts are unchanged.
-- CI image apt retry loops fail closed on the last attempt so a dead mirror cannot cache an empty-packages layer as success. Workflow concurrency keys on PR number, not branch name, so two forks cannot cancel each other.
+- CI image apt retry loops fail closed on the last attempt so a dead mirror cannot cache an empty-packages layer as success. Workflow concurrency keys on PR number, not branch name, so two forks cannot cancel each other. Windows `./setup` copies dereference git symlinks (`cp -R -L`) so `cs-*` aliases no longer abort install without Developer Mode.
 - Locked parity baseline remains `test/fixtures/parity-baseline-v1.44.1.json`.
 - Caveman default stays `full`. Voice profiles live in `voices/`. Do not overwrite `hooks/caveman-*`.
 

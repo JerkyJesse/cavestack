@@ -154,7 +154,8 @@ const HOST_ROOTS: Record<string, (sandbox: string) => { script: string; rootDir:
 // runner without Developer Mode that silently degrades to a copy — the exact
 // bug _link_or_copy works around — so skip there, matching the behavior-matrix
 // precedent in setup-windows-fallback.test.ts. The IS_WINDOWS=1 cells exercise
-// the Windows copy branch itself, which is plain `cp -R` and portable.
+// the Windows copy branch itself, which is `cp -R -L` (dereference nested
+// git symlinks) and portable.
 describe.skipIf(process.platform === 'win32')('setup: bin commands resolve sibling lib from every host root', () => {
   for (const [host, buildScript] of Object.entries(HOST_ROOTS)) {
     test(`${host} root (symlink install): cavestack-learnings-log imports ../lib and writes the learning`, () => {

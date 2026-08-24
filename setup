@@ -98,11 +98,11 @@ _link_or_copy() {
     if [ ! -e "$src" ]; then
       return 0
     fi
-    if [ -d "$src" ]; then
-      cp -R "$src" "$dst"
-    else
-      cp -f "$src" "$dst"
-    fi
+    # -L follows nested git symlinks (bin/cs-* aliases, connect-chrome).
+    # Plain `cp -R` tries to recreate them as native Windows symlinks and
+    # fails without Developer Mode:
+    #   cp: cannot create symbolic link '.../bin/cs-artifacts-init': No such file or directory
+    cp -R -L "$src" "$dst"
   else
     ln -snf "$src" "$dst"
   fi

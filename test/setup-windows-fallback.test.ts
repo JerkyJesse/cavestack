@@ -44,6 +44,12 @@ describe('setup: _link_or_copy invariant (D7)', () => {
     expect(offending).toEqual([]);
   });
 
+  test('Windows copy dereferences nested git symlinks (cs-* aliases)', () => {
+    const helper = extractHelper();
+    expect(helper).toContain('cp -R -L');
+    expect(helper).not.toMatch(/cp -R "\$src" "\$dst"/);
+  });
+
   test('Windows-copy note message exists in setup', () => {
     expect(SETUP_SRC).toContain('Windows install uses file copies');
     expect(SETUP_SRC).toContain('_print_windows_copy_note_once');
@@ -136,5 +142,30 @@ describe.skipIf(process.platform === 'win32')('setup: _link_or_copy helper — b
     expect(r.ok).toBe(true);
     expect(r.targetExists).toBe(true);
     expect(r.targetIsSymlink).toBe(false);
+  });
+
+  test('IS_WINDOWS=1 + dir with relative symlink → regular file, not a Windows symlink', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-helper-symlink-'));
+    try {
+      const src = path.join(tmp, 'source');
+      const dst = path.join(tmp, 'dest');
+      fs.mkdirSync(src);
+      fs.writeFileSync(path.join(src, 'cavestack-artifacts-init'), 'real-bin\n');
+      fs.symlinkSync('cavestack-artifacts-init', path.join(src, 'cs-artifacts-init'));
+      const helper = extractHelper();
+      const script = `IS_WINDOWS=1\n${helper}\n_link_or_copy "${src}" "${dst}"\n`;
+      const result = spawnSync('bash', ['-c', script], {
+        encoding: 'utf-8',
+        timeout: 5000,
+      });
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+      const alias = fs.lstatSync(path.join(dst, 'cs-artifacts-init'));
+      expect(alias.isSymbolicLink()).toBe(false);
+      expect(alias.isFile()).toBe(true);
+      expect(fs.readFileSync(path.join(dst, 'cs-artifacts-init'), 'utf-8')).toBe('real-bin\n');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });
