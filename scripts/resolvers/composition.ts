@@ -23,6 +23,8 @@ export function generateInvokeSkill(ctx: TemplateContext, args?: string[]): stri
   const DEFAULT_SKIPS = [
     'Preamble (run first)',
     'AskUserQuestion Format',
+    'Completeness Principle — Boil the Ocean',
+    'Search Before Building',
     'Contributor Mode',
     'Completion Status Protocol',
     'Telemetry (run last)',

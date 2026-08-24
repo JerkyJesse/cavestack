@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.1.0.0] - 2026-08-24 — Hosts, pairing truth, GBrain
+
+You can now install CaveStack on Cursor, Codex, Factory, OpenCode, Slate, OpenClaw, Hermes, and GBrain — not just Claude Code and Kiro. Pairing a browser agent actually revokes when you tell it to. `/health` no longer hands out the browse token. Freeze and careful hooks actually block. Windows setup stops flashing consoles and bricking the state dir.
+
+### Added
+
+- **Eight more hosts** — `./setup --host cursor` installs into `~/.cursor/skills/cavestack-*`. Codex, Factory, OpenCode, Slate, OpenClaw, Hermes, and GBrain have the same `defineHost()` factory. Caveman hooks stay Claude-only.
+- **`/setup-gbrain`** — one-command path to a persistent agent memory ([GBrain](https://github.com/garrytan/gbrain)). Semantic code search plus cross-session plans, retros, and decisions. Full walkthrough: [USING_GBRAIN_WITH_CAVESTACK.md](USING_GBRAIN_WITH_CAVESTACK.md).
+- **Apple App Store journey in `/ship`** — when the branch is an iOS/macOS release, ship walks TestFlight / App Store Connect instead of pretending every ship is a GitHub PR.
+- **`$B tunnel revoke` / `$B tunnel agents`** — the documented kill switch for a paired browser agent is real. Revoke deletes every token for that client, then re-reads the agent list to prove it is gone.
+- **Browse daemon persistence** — cookies and tabs can survive a restart (`BROWSE_PERSIST_STATE=1`). macOS XProtect quarantine on Chromium is healed instead of leaving a dead daemon. A healthy daemon is never killed on `browse start` unless you pass `--force-restart`.
+- **Egress ledger, redact, artifacts, version helpers** — `cavestack-egress`, `cavestack-redact`, `cavestack-next-version`, `cavestack-artifacts-*`, plus `cs-*` short aliases for every new bin.
+
+### Fixed
+
+- **Re-pair now tightens access immediately.** Narrowing a paired agent (`--restrict` / `--domain`) revokes the old session and frees its tabs on the spot. Broaden/refresh leaves a working session alone. `--client root` is rejected — that name is the omnipotent sentinel, not a scoped agent.
+- **`GET /health` no longer serves the root browse token.** Bootstrap is `POST /extension-token` with a pinned chrome-extension Origin. Headed mode used to leak `AUTH_TOKEN` to any localhost caller.
+- **`/freeze` and `/careful` actually run.** Claude Code ignores a top-level `permissionDecision`. Decisions now nest under `hookSpecificOutput`. Commands are JSON-parsed, not grepped, so a quoted `rm -rf` no longer slips through.
+- **`./setup` heals `~/.claude/settings.json`.** Dead worktree hook paths are pruned and re-pointed at `~/.claude/skills/cavestack`. Corrupt JSON is fail-closed (never replaced with `{}`). Windows hooks get the `bash ` prefix. Concurrent setup can no longer clobber the file.
+- **Temp files work on macOS and Windows.** `mktemp` templates keep `XXXXXX` at the end and use `$TMPDIR` / `$TMP` (never a hardcoded `/tmp`). Windows state dirs use SID-based `icacls`. Spawned consoles stay hidden (`windowsHide`). `browse/scripts/build-node-server.sh` no longer dies on a glob/`head` pipeline.
+
+### Changed
+
+- **Playwright 1.62.1** (Windows spawn patch) and **diff 9.0.0**.
+- **Host factory** — adding a host is one file in `hosts/` plus a registry line. See [docs/ADDING_A_HOST.md](docs/ADDING_A_HOST.md).
+
+### For contributors
+
+- Free tests shard via `bun run test:free` / `scripts/test-free-shards.ts`. CI adds `free-tests.yml`, Windows free tests, dependabot, OSV, and dependency-review. Voice/slop scripts are unchanged.
+- Caveman default stays `full`. Voice profiles live in `voices/`. Do not overwrite `hooks/caveman-*`.
+
 ## [2.0.0.0] - 2026-08-12 — Multi-Host + Feature Parity
 
 CaveStack is no longer Claude-only. Kiro joins as a first-class host target,

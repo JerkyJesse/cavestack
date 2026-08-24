@@ -8,29 +8,37 @@
 set -e
 
 CAVESTACK_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+# Windows (MSYS/Git Bash): convert to a Windows-style path — Bun cannot open
+# MSYS /c/... absolute paths ("FileNotFound opening root directory").
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) CAVESTACK_DIR="$(cygpath -m "$CAVESTACK_DIR")" ;;
+esac
 SRC_DIR="$CAVESTACK_DIR/browse/src"
 DIST_DIR="$CAVESTACK_DIR/browse/dist"
+mkdir -p "$DIST_DIR"
 
 echo "Building Node-compatible server bundle..."
 
 # Step 1: Transpile server.ts to a single .mjs bundle (externalize runtime deps)
-# Bun 1.3+ emits .node asset files (ngrok native bindings) alongside, which
-# requires --outdir instead of --outfile. Use --entry-naming to control the
-# emitted bundle filename.
+#
+# Externalize packages with native addons, dynamic imports, or runtime resolution.
+# If you add a new dependency that uses `await import()` or has a .node addon,
+# add it here. Otherwise `bun build --outfile` will fail with
+# "cannot write multiple output files without an output directory".
 bun build "$SRC_DIR/server.ts" \
   --target=node \
-  --outdir "$DIST_DIR" \
-  --entry-naming "server-node.mjs" \
+  --outfile "$DIST_DIR/server-node.mjs" \
   --external playwright \
   --external playwright-core \
   --external diff \
-  --external "bun:sqlite"
+  --external "bun:sqlite" \
+  --external "@ngrok/ngrok"
 
 # Step 2: Post-process
 # Replace import.meta.dir with a resolvable reference
 perl -pi -e 's/import\.meta\.dir/__browseNodeSrcDir/g' "$DIST_DIR/server-node.mjs"
 # Stub out bun:sqlite (macOS-only cookie import, not needed on Windows)
-perl -pi -e 's|import { Database } from "bun:sqlite";|const Database = null; // bun:sqlite stubbed on Node|g' "$DIST_DIR/server-node.mjs"
+perl -pi -e 's|import \{ Database \} from "bun:sqlite";|const Database = null; // bun:sqlite stubbed on Node|g' "$DIST_DIR/server-node.mjs"
 
 # Step 3: Create the final file with polyfill header injected after the first line
 {

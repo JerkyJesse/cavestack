@@ -74,9 +74,11 @@ cavestack/
 │   │   └── snapshot.ts  # SNAPSHOT_FLAGS metadata array
 │   ├── test/        # Integration tests + fixtures
 │   └── dist/        # Compiled binary
-├── hosts/           # Host config (Claude only since v1.3)
-│   ├── claude.ts    # Claude Code host config
-│   └── index.ts     # Single-entry registry (claude)
+├── hosts/           # Host configs (claude, cursor, kiro, codex, factory, opencode, slate, openclaw, hermes, gbrain)
+│   ├── define-host.ts # Shared factory + caveman skip lists
+│   ├── claude.ts    # Claude Code host config (prefixable, caveman on)
+│   ├── kiro.ts      # Kiro host config
+│   └── index.ts     # Registry of all hosts
 ├── scripts/         # Build + DX tooling
 │   ├── gen-skill-docs.ts  # Template → SKILL.md generator
 │   ├── host-config.ts     # HostConfig interface + validator

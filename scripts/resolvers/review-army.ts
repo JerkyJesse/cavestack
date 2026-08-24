@@ -13,8 +13,8 @@ import type { TemplateContext } from './types';
 
 function generateSpecialistSelection(ctx: TemplateContext): string {
   const isShip = ctx.skillName === 'ship';
-  const stepSel = isShip ? '3.55' : '4.5';
-  const stepMerge = isShip ? '3.56' : '4.6';
+  const stepSel = isShip ? '9.1' : '4.5';
+  const stepMerge = isShip ? '9.2' : '4.6';
   const nextStep = isShip ? 'the Fix-First flow (item 4)' : 'Step 5';
   return `## Step ${stepSel}: Review Army — Specialist Dispatch
 
@@ -30,8 +30,9 @@ STACK=""
 [ -f go.mod ] && STACK="\${STACK}go "
 [ -f Cargo.toml ] && STACK="\${STACK}rust "
 echo "STACK: \${STACK:-unknown}"
-DIFF_INS=$(git diff origin/<base> --stat | tail -1 | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
-DIFF_DEL=$(git diff origin/<base> --stat | tail -1 | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo "0")
+DIFF_BASE=$(git merge-base origin/<base> HEAD)
+DIFF_INS=$(git diff "$DIFF_BASE" --stat | tail -1 | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
+DIFF_DEL=$(git diff "$DIFF_BASE" --stat | tail -1 | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo "0")
 DIFF_LINES=$((DIFF_INS + DIFF_DEL))
 echo "DIFF_LINES: $DIFF_LINES"
 # Detect test framework for specialist test stub generation
@@ -105,7 +106,7 @@ If learnings are found, include them: "Past learnings for this domain: {learning
 4. Instructions:
 
 "You are a specialist code reviewer. Read the checklist below, then run
-\`git diff origin/<base>\` to get the full diff. Apply the checklist against the diff.
+\`DIFF_BASE=$(git merge-base origin/<base> HEAD) && git diff "$DIFF_BASE"\` to get the full diff. Apply the checklist against the diff.
 
 For each finding, output a JSON object on its own line:
 {\\"severity\\":\\"CRITICAL|INFORMATIONAL\\",\\"confidence\\":N,\\"path\\":\\"file\\",\\"line\\":N,\\"category\\":\\"category\\",\\"summary\\":\\"description\\",\\"fix\\":\\"recommended fix\\",\\"fingerprint\\":\\"path:line:category\\",\\"specialist\\":\\"name\\"}
@@ -128,16 +129,16 @@ CHECKLIST:
 
 **Subagent configuration:**
 - Use \`subagent_type: "general-purpose"\`
-- Do NOT use \`run_in_background\` — all specialists must complete before merge
+- Pass \`run_in_background: false\` on every specialist Agent call — subagents run in the BACKGROUND by default since Claude Code v2.1.198, and all specialists must complete before merge. (Merely omitting the flag no longer produces a foreground run; it must be explicitly false.)
 - If any specialist subagent fails or times out, log the failure and continue with results from successful specialists. Specialists are additive — partial results are better than no results.`;
 }
 
 function generateFindingsMerge(ctx: TemplateContext): string {
   const isShip = ctx.skillName === 'ship';
-  const stepMerge = isShip ? '3.56' : '4.6';
-  const stepSel = isShip ? '3.55' : '4.5';
+  const stepMerge = isShip ? '9.2' : '4.6';
+  const stepSel = isShip ? '9.1' : '4.5';
   const fixFirstRef = isShip ? 'the Fix-First flow (item 4)' : 'Step 5 Fix-First';
-  const critPassRef = isShip ? 'the checklist pass (Step 3.5)' : 'the CRITICAL pass findings from Step 4';
+  const critPassRef = isShip ? 'the checklist pass (Step 9)' : 'the CRITICAL pass findings from Step 4';
   const persistRef = isShip ? 'the review-log persist' : 'the review-log entry in Step 5.8';
   return `### Step ${stepMerge}: Collect and merge findings
 
@@ -202,7 +203,7 @@ Remember these stats — you will need them for the review-log entry in Step 5.8
 
 function generateRedTeam(ctx: TemplateContext): string {
   const isShip = ctx.skillName === 'ship';
-  const stepMerge = isShip ? '3.56' : '4.6';
+  const stepMerge = isShip ? '9.2' : '4.6';
   const fixFirstRef = isShip ? 'the Fix-First flow (item 4)' : 'Step 5 Fix-First';
   return `### Red Team dispatch (conditional)
 
@@ -217,7 +218,7 @@ The Red Team subagent receives:
 
 Prompt: "You are a red team reviewer. The code has already been reviewed by N specialists
 who found the following issues: {merged findings summary}. Your job is to find what they
-MISSED. Read the checklist, run \`git diff origin/<base>\`, and look for gaps.
+MISSED. Read the checklist, run \`DIFF_BASE=$(git merge-base origin/<base> HEAD) && git diff "$DIFF_BASE"\`, and look for gaps.
 Output findings as JSON objects (same schema as the specialists). Focus on cross-cutting
 concerns, integration boundary issues, and failure modes that specialist checklists
 don't cover."

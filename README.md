@@ -16,7 +16,7 @@
 
 ## What This
 
-AI builder framework. Caveman mode = default. Every response: short, direct, no fluff. 50+ skills. Same power. 75% fewer words. Now runs on **Claude Code** and **Kiro**.
+AI builder framework. Caveman mode = default. Every response: short, direct, no fluff. 50+ skills. Same power. 75% fewer words. Runs on **Claude Code**, **Cursor**, **Kiro**, Codex, Factory, OpenCode, Slate, OpenClaw, Hermes, and GBrain.
 
 Other AI tools: walls of text. Filler words. "I'd be happy to help you with that." Apologies for things that aren't wrong. Summaries of what you just said back to you.
 
@@ -24,7 +24,7 @@ CaveStack: answer. Done.
 
 ## Install (one line)
 
-Need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Kiro](https://kiro.dev) + Git.
+Need an AI coding host + Git.
 Bun auto-installs if missing (with SHA256-verified installer).
 
 ### Claude Code
@@ -35,6 +35,15 @@ curl -fsSL https://cavestack.jerkyjesse.com/install | sh
 
 Open new Claude Code session. Caveman mode active. No `/caveman` needed. Just works.
 
+### Cursor
+
+```bash
+git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
+cd ~/.claude/skills/cavestack && ./setup --host cursor
+```
+
+Skills land in `~/.cursor/skills/cavestack-*`. Caveman hooks skipped (Cursor has its own voice).
+
 ### Kiro
 
 ```bash
@@ -42,10 +51,21 @@ git clone https://github.com/JerkyJesse/cavestack.git ~/.kiro/skills/cavestack
 cd ~/.kiro/skills/cavestack && ./setup --host kiro
 ```
 
-Open new Kiro session. All skills available. Caveman hooks are skipped for Kiro
-(Kiro has its own interaction model).
+Open new Kiro session. All skills available. Caveman hooks skipped.
 
-### Both (install for all detected hosts)
+### Other hosts
+
+```bash
+./setup --host codex      # OpenAI Codex CLI
+./setup --host factory    # Factory Droid
+./setup --host opencode   # OpenCode
+./setup --host slate
+./setup --host openclaw
+./setup --host hermes
+./setup --host gbrain
+```
+
+### All detected hosts
 
 ```bash
 git clone https://github.com/JerkyJesse/cavestack.git ~/cavestack
@@ -72,7 +92,9 @@ Six judgment-layer skills embody the "think before code" moat:
 | Thing | What It Do |
 |-------|-----------|
 | 50+ skills | All installed, all invokable. Hero six featured, others by full name. |
-| Multi-host | Claude Code + Kiro. `./setup --host kiro` or `--host all`. |
+| Multi-host | Claude Code, Cursor, Kiro, Codex, Factory, OpenCode, Slate, OpenClaw, Hermes, GBrain. `./setup --host cursor` (or `all`). |
+| Pairing revoke | `$B tunnel revoke <name>` deletes every token for that agent. Re-pair with a narrower `--restrict` takes effect immediately. `--client root` rejected. |
+| Browse `/health` | Liveness only. Does **not** serve the root token. Extension bootstrap is `POST /extension-token`. |
 | Caveman default | No command needed. First response = terse. Automatic. (Claude only) |
 | Locked to full | No lite/ultra toggles. `stop caveman` disables per session. `/caveman` resumes. |
 | Skill discovery | `cavestack-skills list` or `/help` — no website round-trip |
@@ -170,6 +192,8 @@ cavestack-settings-hook install-caveman  # re-enable
 /canary          post-deploy monitoring loop
 /benchmark       page load + Core Web Vitals baseline
 /pair-agent      share browser with remote AI agents
+/setup-gbrain    persistent agent memory (GBrain)
+/ios-qa          drive a real iPhone from the agent
 /careful         warn before destructive commands
 /freeze          restrict edits to one directory
 /guard           /careful + /freeze combined
@@ -180,7 +204,7 @@ cavestack-settings-hook install-caveman  # re-enable
 
 ## Trouble?
 
-**Skill not show up?** `cd ~/.claude/skills/cavestack && ./setup` (Claude) or `cd ~/.kiro/skills/cavestack && ./setup --host kiro` (Kiro)
+**Skill not show up?** `cd ~/.claude/skills/cavestack && ./setup` (Claude), `./setup --host cursor` (Cursor), or `./setup --host kiro` (Kiro)
 
 **`/browse` fail?** `cd ~/.claude/skills/cavestack && bun install && bun run build`
 
@@ -189,8 +213,6 @@ cavestack-settings-hook install-caveman  # re-enable
 **Caveman not fire on new session?** Check `~/.claude/settings.json` has `hooks.SessionStart` pointing at `caveman-activate.js` and `hooks.UserPromptSubmit` pointing at `caveman-mode-tracker.js`. Re-register: `cavestack-settings-hook install-caveman`. Need Node.js on PATH — hooks run under Node, not Bun. (Claude only — Kiro doesn't use caveman hooks.)
 
 **Windows?** Works on Windows 10/11 via Git Bash or WSL. Both `bun` and `node` on PATH. Bun has known Playwright pipe issue ([bun#4253](https://github.com/oven-sh/bun/issues/4253)), `browse` falls back to Node for server.
-
-**`./setup` build error on Windows?** Known upstream glob issue in `browse/scripts/build-node-server.sh`. Main binaries still build. Non-blocking.
 
 **Claude can't see skills?** Add cavestack section to project's `CLAUDE.md`. `/office-hours` does this automatically on first run.
 
@@ -203,6 +225,12 @@ cavestack-settings-hook install-caveman  # re-enable
 ```
 
 Remove symlinks, hooks, state. Your files untouched.
+
+## GBrain — persistent knowledge for your coding agent
+
+`/setup-gbrain` walks install, init, MCP registration, and per-repo trust. After setup, `gbrain search` does semantic code search and finds past plans, retros, and decisions in `~/.cavestack/`.
+
+Full walkthrough: [USING_GBRAIN_WITH_CAVESTACK.md](USING_GBRAIN_WITH_CAVESTACK.md). Sync errors: [docs/gbrain-sync.md](docs/gbrain-sync.md).
 
 ## Credit
 
@@ -217,7 +245,7 @@ MIT. Caveman hooks: [Julius Brussee](https://github.com/JuliusBrussee/caveman). 
 
 CaveStack is an AI builder framework that ships with "caveman mode" enabled by default. Caveman mode compresses AI responses by approximately 75% without losing technical accuracy. Instead of opting into terse responses, CaveStack makes them the default behavior from the very first prompt.
 
-As of v2.0, CaveStack supports multiple AI hosts: **Claude Code** (primary, with caveman hooks) and **Kiro** (full skill support without caveman-specific hooks). The multi-host system uses a declarative config architecture — each host is defined in `hosts/*.ts` and the generator, setup, and tooling all read from those configs.
+As of v2.1, CaveStack supports Claude Code (primary, with caveman hooks), Cursor (`~/.cursor/skills/cavestack-*`), Kiro, Codex, Factory, OpenCode, Slate, OpenClaw, Hermes, and GBrain. Each host is one file in `hosts/*.ts`; the generator, setup, and tooling read from those configs. Caveman hooks stay Claude-only.
 
 ### Why does this exist?
 
@@ -227,12 +255,18 @@ CaveStack solves this by forking the upstream framework and making terse the bas
 
 ### Installation
 
-CaveStack requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Kiro](https://kiro.dev), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/) (Claude Code hooks), and Git.
+CaveStack requires an AI coding host ([Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Cursor](https://cursor.com), [Kiro](https://kiro.dev), or another supported host), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/) (Claude Code hooks), and Git.
 
 **Claude Code:**
 ```bash
 git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
 cd ~/.claude/skills/cavestack && ./setup
+```
+
+**Cursor:**
+```bash
+git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
+cd ~/.claude/skills/cavestack && ./setup --host cursor
 ```
 
 **Kiro:**
@@ -241,13 +275,13 @@ git clone https://github.com/JerkyJesse/cavestack.git ~/.kiro/skills/cavestack
 cd ~/.kiro/skills/cavestack && ./setup --host kiro
 ```
 
-**Both hosts:**
+**All detected hosts:**
 ```bash
 git clone https://github.com/JerkyJesse/cavestack.git ~/cavestack
 cd ~/cavestack && ./setup --host all
 ```
 
-After setup, open a new session in your preferred host. For Claude Code, caveman mode will be active automatically. For Kiro, all workflow skills are available without the caveman voice layer.
+After setup, open a new session in your preferred host. For Claude Code, caveman mode is active automatically. Other hosts get the workflow skills without the caveman voice layer.
 
 ### Features
 
@@ -299,11 +333,10 @@ To re-enable it later:
 
 | Problem | Solution |
 |---------|----------|
-| Skills not showing up | `cd ~/.claude/skills/cavestack && ./setup` |
+| Skills not showing up | `cd ~/.claude/skills/cavestack && ./setup` (or `./setup --host cursor` / `--host kiro`) |
 | `/browse` fails | `cd ~/.claude/skills/cavestack && bun install && bun run build` |
 | Stale install | Run `/cavestack-upgrade` or set `auto_upgrade: true` in `~/.cavestack/config.yaml` |
 | Caveman not firing | Verify `~/.claude/settings.json` has `SessionStart` and `UserPromptSubmit` hooks pointing at `caveman-activate.js` and `caveman-mode-tracker.js`. Re-register with `cavestack-settings-hook install-caveman`. Ensure Node.js is on PATH. |
-| Windows build error | Known upstream glob issue in `browse/scripts/build-node-server.sh`. Primary binaries still build successfully. Non-blocking for most workflows. |
 | Claude can't see skills | Add a cavestack section to your project's `CLAUDE.md`. The `/office-hours` skill does this automatically on first run. |
 
 ### Reporting Bugs

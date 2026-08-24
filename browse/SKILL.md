@@ -2,12 +2,11 @@
 name: browse
 preamble-tier: 1
 version: 1.1.0
-description: |
-  Fast headless browser for QA + dogfooding. Navigate URLs, interact with elements,
-  verify state, diff before/after, take annotated screenshots, check responsive layouts,
-  test forms/uploads, handle dialogs, assert element states. ~100ms/command. Use when
-  testing features, verifying deploys, dogfooding flows, filing bugs with evidence.
-  Triggers: "open in browser", "test the site", "take a screenshot", "dogfood this". (cavestack)
+description: Fast headless browser for QA testing and site dogfooding. (cavestack)
+triggers:
+  - browse a page
+  - headless browser
+  - take page screenshot
 allowed-tools:
   - Bash
   - Read
@@ -16,6 +15,16 @@ allowed-tools:
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
+
+
+## When to invoke this skill
+
+Navigate any URL, interact with
+elements, verify page state, diff before/after actions, take annotated screenshots, check
+responsive layouts, test forms and uploads, handle dialogs, and assert element states.
+~100ms per command. Use when you need to test a feature, verify a deployment, dogfood a
+user flow, or file a bug with evidence. Use when asked to "open in browser", "test the
+site", "take a screenshot", or "dogfood this".
 
 ## Preamble (run first)
 
@@ -37,11 +46,55 @@ echo "SKILL_PREFIX: $_SKILL_PREFIX"
 source <(~/.claude/skills/cavestack/bin/cavestack-repo-mode 2>/dev/null) || true
 REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
+_SESSION_KIND=$(~/.claude/skills/cavestack/bin/cavestack-session-kind 2>/dev/null || echo "interactive")
+case "$_SESSION_KIND" in spawned|headless|interactive) ;; *) _SESSION_KIND="interactive" ;; esac
+echo "SESSION_KIND: $_SESSION_KIND"
+# Conductor host: AskUserQuestion is unreliable here (native disabled, MCP
+# variant flaky), so skills render decisions as prose instead of calling the
+# tool. Gated on !headless so an eval/CI run INSIDE Conductor (CAVESTACK_HEADLESS)
+# still BLOCKs rather than rendering prose to nobody.
+if [ "$_SESSION_KIND" != "headless" ] && { [ -n "${CONDUCTOR_WORKSPACE_PATH:-}" ] || [ -n "${CONDUCTOR_PORT:-}" ]; }; then
+  echo "CONDUCTOR_SESSION: true"
+fi
+_ACTIVATED=$([ -f ~/.cavestack/.activated ] && echo "yes" || echo "no")
+_FIRST_LOOP_SHOWN=$([ -f ~/.cavestack/.first-loop-tip-shown ] && echo "yes" || echo "no")
+echo "ACTIVATED: $_ACTIVATED"
+echo "FIRST_LOOP_SHOWN: $_FIRST_LOOP_SHOWN"
+# First-run project detection: run the detector ONLY on the first-ever skill run
+# (ACTIVATED=no, interactive) so it stays off the hot path for every run after.
+_FIRST_TASK=""
+if [ "$_ACTIVATED" = "no" ] && [ "$_SESSION_KIND" != "headless" ]; then
+  _FIRST_TASK=$(~/.claude/skills/cavestack/bin/cavestack-first-task-detect 2>/dev/null || true)
+fi
+echo "FIRST_TASK: $_FIRST_TASK"
+_LAKE_SEEN=$([ -f ~/.cavestack/.completeness-intro-seen ] && echo "yes" || echo "no")
+echo "LAKE_INTRO: $_LAKE_SEEN"
+_TEL=$(~/.claude/skills/cavestack/bin/cavestack-config get telemetry 2>/dev/null || true)
+_TEL_PROMPTED=$([ -f ~/.cavestack/.telemetry-prompted ] && echo "yes" || echo "no")
 _TEL_START=$(date +%s)
 _SESSION_ID="$$-$(date +%s)"
+echo "TELEMETRY: ${_TEL:-off}"
+echo "TEL_PROMPTED: $_TEL_PROMPTED"
+_EXPLAIN_LEVEL=$(~/.claude/skills/cavestack/bin/cavestack-config get explain_level 2>/dev/null || echo "default")
+if [ "$_EXPLAIN_LEVEL" != "default" ] && [ "$_EXPLAIN_LEVEL" != "terse" ]; then _EXPLAIN_LEVEL="default"; fi
+echo "EXPLAIN_LEVEL: $_EXPLAIN_LEVEL"
+_QUESTION_TUNING=$(~/.claude/skills/cavestack/bin/cavestack-config get question_tuning 2>/dev/null || echo "false")
+echo "QUESTION_TUNING: $_QUESTION_TUNING"
+_UPDATE_CHECK=$(~/.claude/skills/cavestack/bin/cavestack-config get update_check 2>/dev/null || echo "true")
+echo "UPDATE_CHECK: $_UPDATE_CHECK"
 mkdir -p ~/.cavestack/analytics
-echo '{"skill":"browse","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.cavestack/analytics/skill-usage.jsonl 2>/dev/null || true
-# Learnings count
+if [ "$_TEL" != "off" ]; then
+echo '{"skill":"browse","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(_repo=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null | tr -cd 'a-zA-Z0-9._-'); echo "${_repo:-unknown}")'"}'  >> ~/.cavestack/analytics/skill-usage.jsonl 2>/dev/null || true
+fi
+for _PF in $(find ~/.cavestack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
+  if [ -f "$_PF" ]; then
+    if [ "$_TEL" != "off" ] && [ -x "$HOME/.claude/skills/cavestack/bin/cavestack-telemetry-log" ]; then
+      ~/.claude/skills/cavestack/bin/cavestack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true
+    fi
+    rm -f "$_PF" 2>/dev/null || true
+  fi
+  break
+done
 eval "$(~/.claude/skills/cavestack/bin/cavestack-slug 2>/dev/null)" 2>/dev/null || true
 _LEARN_FILE="${CAVESTACK_HOME:-$HOME/.cavestack}/projects/${SLUG:-unknown}/learnings.jsonl"
 if [ -f "$_LEARN_FILE" ]; then
@@ -53,26 +106,16 @@ if [ -f "$_LEARN_FILE" ]; then
 else
   echo "LEARNINGS: 0"
 fi
-# Session timeline: record skill start (local-only, never sent anywhere)
 ~/.claude/skills/cavestack/bin/cavestack-timeline-log '{"skill":"browse","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
-# Check if CLAUDE.md has routing rules
 _HAS_ROUTING="no"
-if [ -f CLAUDE.md ] && grep -q "## Skill routing" CLAUDE.md 2>/dev/null; then
-  _HAS_ROUTING="yes"
-fi
+for _RF in CLAUDE.md AGENTS.md; do
+  if [ -f "$_RF" ] && grep -q "## Skill routing" "$_RF" 2>/dev/null; then
+    _HAS_ROUTING="yes"
+  fi
+done
 _ROUTING_DECLINED=$(~/.claude/skills/cavestack/bin/cavestack-config get routing_declined 2>/dev/null || echo "false")
 echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
-# Build philosophy injection: gate on HTML comment marker (not H2 header)
-# to avoid false positives from CHANGELOG/doc quotes of the heading.
-_HAS_BUILD_PHIL="no"
-if [ -f CLAUDE.md ] && grep -q "<!-- cavestack-build-philosophy -->" CLAUDE.md 2>/dev/null; then
-  _HAS_BUILD_PHIL="yes"
-fi
-_BUILD_PHIL_DECLINED=$(~/.claude/skills/cavestack/bin/cavestack-config get build_philosophy_declined 2>/dev/null || echo "false")
-echo "HAS_BUILD_PHIL: $_HAS_BUILD_PHIL"
-echo "BUILD_PHIL_DECLINED: $_BUILD_PHIL_DECLINED"
-# Vendoring deprecation: detect if CWD has a vendored cavestack copy
 _VENDORED="no"
 if [ -d ".claude/skills/cavestack" ] && [ ! -L ".claude/skills/cavestack" ]; then
   if [ -f ".claude/skills/cavestack/VERSION" ] || [ -d ".claude/skills/cavestack/.git" ]; then
@@ -80,29 +123,110 @@ if [ -d ".claude/skills/cavestack" ] && [ ! -L ".claude/skills/cavestack" ]; the
   fi
 fi
 echo "VENDORED_CAVESTACK: $_VENDORED"
-# Detect spawned session (OpenClaw or other orchestrator)
+echo "MODEL_OVERLAY: claude"
+_CHECKPOINT_MODE=$(~/.claude/skills/cavestack/bin/cavestack-config get checkpoint_mode 2>/dev/null || echo "explicit")
+_CHECKPOINT_PUSH=$(~/.claude/skills/cavestack/bin/cavestack-config get checkpoint_push 2>/dev/null || echo "false")
+echo "CHECKPOINT_MODE: $_CHECKPOINT_MODE"
+echo "CHECKPOINT_PUSH: $_CHECKPOINT_PUSH"
+# Plan-mode hint for skills like /spec that branch behavior on plan-mode state.
+# Claude Code exposes plan mode via system reminders; we detect best-effort
+# from CLAUDE_PLAN_FILE (set by the harness when plan mode is active) and
+# fall back to "inactive". Codex hosts and Claude execution mode both end up
+# inactive, which is the safe default (defaults to file+execute pipeline).
+if [ -n "${CLAUDE_PLAN_FILE:-}${CAVESTACK_PLAN_MODE_FORCE:-}" ]; then
+  export CAVESTACK_PLAN_MODE="active"
+elif [ "${CAVESTACK_PLAN_MODE:-}" = "active" ]; then
+  export CAVESTACK_PLAN_MODE="active"
+else
+  export CAVESTACK_PLAN_MODE="inactive"
+fi
+echo "CAVESTACK_PLAN_MODE: $CAVESTACK_PLAN_MODE"
 [ -n "$OPENCLAW_SESSION" ] && echo "SPAWNED_SESSION: true" || true
 ```
 
-If `PROACTIVE` is `"false"`, do not proactively suggest cavestack skills AND do not
-auto-invoke skills based on conversation context. Only run skills the user explicitly
-types (e.g., /qa, /ship). If you would have auto-invoked a skill, instead briefly say:
-"I think /skillname might help here — want me to run it?" and wait for confirmation.
-The user opted out of proactive behavior.
+## Plan Mode Safe Operations
 
-If `SKILL_PREFIX` is `"true"`, the user has namespaced skill names. When suggesting
-or invoking other cavestack skills, use the `/cavestack-` prefix (e.g., `/cavestack-qa` instead
-of `/qa`, `/cavestack-ship` instead of `/ship`). Disk paths are unaffected — always use
-`~/.claude/skills/cavestack/[skill-name]/SKILL.md` for reading skill files.
+In plan mode, allowed because they inform the plan: `$B`, `$D`, `codex exec`/`codex review`, writes to `~/.cavestack/`, writes to the plan file, and `open` for generated artifacts.
 
-If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/cavestack/cavestack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running cavestack v{to} (just updated!)" and continue.
+## Skill Invocation During Plan Mode
 
-If `PROACTIVE_PROMPTED` is `no`:
-Ask the user about proactive behavior. Use AskUserQuestion:
+If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; any AskUserQuestion the skill fires is the workflow operating within plan mode, not a violation of it — and a skill whose instructions resolve a question themselves (e.g. a plan-mode auto-select) may legitimately not ask it. AskUserQuestion (any variant — `mcp__*__AskUserQuestion` or native; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If AskUserQuestion is unavailable or a call fails, follow the AskUserQuestion Format failure fallback: `headless` → BLOCKED; `interactive` → the prose fallback (also satisfies end-of-turn). At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
 
-> cavestack can proactively figure out when you might need a skill while you work —
-> like suggesting /qa when you say "does this work?" or /investigate when you hit
-> a bug. We recommend keeping this on — it speeds up every part of your workflow.
+If `PROACTIVE` is `"false"`, do not auto-invoke or proactively suggest skills. If a skill seems useful, ask: "I think /skillname might help here — want me to run it?"
+
+If `SKILL_PREFIX` is `"true"`, suggest/invoke `/cavestack-*` names. Disk paths stay `~/.claude/skills/cavestack/[skill-name]/SKILL.md`.
+
+If `UPDATE_CHECK` is `"false"`, skip the next two lines — the update-check binary emits nothing in that mode, so there is no `UPGRADE_AVAILABLE` / `JUST_UPGRADED` output to act on.
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/cavestack/cavestack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined).
+
+If output shows `JUST_UPGRADED <from> <to>`: print "Running cavestack v{to} (just updated!)". If `SPAWNED_SESSION` is true, skip feature discovery.
+
+Feature discovery, max one prompt per session:
+- Missing `~/.claude/skills/cavestack/.feature-prompted-continuous-checkpoint`: AskUserQuestion for Continuous checkpoint auto-commits. If accepted, run `~/.claude/skills/cavestack/bin/cavestack-config set checkpoint_mode continuous`. Always touch marker.
+- Missing `~/.claude/skills/cavestack/.feature-prompted-model-overlay`: inform "Model overlays are active. MODEL_OVERLAY shows the patch." Always touch marker.
+
+After upgrade prompts, continue workflow.
+
+If `WRITING_STYLE_PENDING` is `yes`: ask once about writing style:
+
+> v1 prompts are simpler: first-use jargon glosses, outcome-framed questions, shorter prose. Keep default or restore terse?
+
+Options:
+- A) Keep the new default (recommended — good writing helps everyone)
+- B) Restore V0 prose — set `explain_level: terse`
+
+If A: leave `explain_level` unset (defaults to `default`).
+If B: run `~/.claude/skills/cavestack/bin/cavestack-config set explain_level terse`.
+
+Always run (regardless of choice):
+```bash
+rm -f ~/.cavestack/.writing-style-prompt-pending
+touch ~/.cavestack/.writing-style-prompted
+```
+
+Skip if `WRITING_STYLE_PENDING` is `no`.
+
+If `LAKE_INTRO` is `no`: say "cavestack follows the **Boil the Ocean** principle — do the complete thing when AI makes marginal cost near-zero. Read more: https://garryslist.org/posts/boil-the-ocean" Offer to open:
+
+```bash
+open https://garryslist.org/posts/boil-the-ocean
+touch ~/.cavestack/.completeness-intro-seen
+```
+
+Only run `open` if yes. Always run `touch`.
+
+If `TEL_PROMPTED` is `no` AND `LAKE_INTRO` is `yes`: ask telemetry once via AskUserQuestion:
+
+> Help cavestack get better. Share usage data only: skill, duration, crashes, stable device ID. No code or file paths. Your repo name is recorded locally only and stripped before any upload.
+
+Options:
+- A) Help cavestack get better! (recommended)
+- B) No thanks
+
+If A: run `~/.claude/skills/cavestack/bin/cavestack-config set telemetry community`
+
+If B: ask follow-up:
+
+> Anonymous mode sends only aggregate usage, no unique ID.
+
+Options:
+- A) Sure, anonymous is fine
+- B) No thanks, fully off
+
+If B→A: run `~/.claude/skills/cavestack/bin/cavestack-config set telemetry anonymous`
+If B→B: run `~/.claude/skills/cavestack/bin/cavestack-config set telemetry off`
+
+Always run:
+```bash
+touch ~/.cavestack/.telemetry-prompted
+```
+
+Skip if `TEL_PROMPTED` is `yes`.
+
+If `PROACTIVE_PROMPTED` is `no` AND `TEL_PROMPTED` is `yes`: ask once:
+
+> Let cavestack proactively suggest skills, like /qa for "does this work?" or /investigate for bugs?
 
 Options:
 - A) Keep it on (recommended)
@@ -116,7 +240,25 @@ Always run:
 touch ~/.cavestack/.proactive-prompted
 ```
 
-This only happens once. If `PROACTIVE_PROMPTED` is `yes`, skip this entirely.
+Skip if `PROACTIVE_PROMPTED` is `yes`.
+
+## First-run guidance (one-time)
+
+If `ACTIVATED` is `no` (first skill run on this machine) AND the preamble printed a non-empty `FIRST_TASK:` value that is NOT `nongit`: show ONE short, project-specific line mapped from the token, as a heads-up, then CONTINUE with whatever the user actually asked — do NOT halt their task. Map the token: `greenfield` → "Fresh repo — shape it first with `/spec` or `/office-hours`." `code_node`/`code_python`/`code_rust`/`code_go`/`code_ruby`/`code_ios` → "There's code here — `/qa` to see it work, or `/investigate` if something's off." `branch_ahead` → "Unshipped work on this branch — `/review` then `/ship`." `dirty_default` → "Uncommitted changes — `/review` before committing." `clean_default` → "Pick one: `/spec`, `/investigate`, or `/qa`." Then substitute the token you saw for TASK_TOKEN and run (best-effort), and mark activated:
+```bash
+~/.claude/skills/cavestack/bin/cavestack-telemetry-log --event-type first_task_scaffold_shown --skill "TASK_TOKEN" --outcome shown 2>/dev/null || true
+touch ~/.cavestack/.activated 2>/dev/null || true
+```
+
+If `ACTIVATED` is `no` but `FIRST_TASK:` is empty or `nongit` (headless, non-git, or nothing actionable): show nothing, just run `touch ~/.cavestack/.activated 2>/dev/null || true`.
+
+Else if `ACTIVATED` is `yes` AND `FIRST_LOOP_SHOWN` is `no`: say once as a heads-up (then continue):
+
+> Tip: cavestack pays off when you complete one loop — **plan → review → ship**. A common first loop: `/office-hours` or `/spec` to shape it, `/plan-eng-review` to lock it, then `/ship`.
+
+Then run `touch ~/.cavestack/.first-loop-tip-shown 2>/dev/null || true`.
+
+Skip this section if `ACTIVATED` and `FIRST_LOOP_SHOWN` are both `yes`.
 
 If `HAS_ROUTING` is `no` AND `ROUTING_DECLINED` is `false` AND `PROACTIVE_PROMPTED` is `yes`:
 Check if a CLAUDE.md file exists in the project root. If it does not exist, create it.
@@ -124,8 +266,6 @@ Check if a CLAUDE.md file exists in the project root. If it does not exist, crea
 Use AskUserQuestion:
 
 > cavestack works best when your project's CLAUDE.md includes skill routing rules.
-> This tells Claude to use specialized workflows (like /ship, /investigate, /qa)
-> instead of answering directly. It's a one-time addition, about 15 lines.
 
 Options:
 - A) Add routing rules to CLAUDE.md (recommended)
@@ -137,42 +277,34 @@ If A: Append this section to the end of CLAUDE.md:
 
 ## Skill routing
 
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
+When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.
 
 Key routing rules:
-- Product ideas, "is this worth building", brainstorming → invoke office-hours
-- Bugs, errors, "why is this broken", 500 errors → invoke investigate
-- Ship, deploy, push, create PR → invoke ship
-- QA, test the site, find bugs → invoke qa
-- Code review, check my diff → invoke review
-- Update docs after shipping → invoke document-release
-- Weekly retro → invoke retro
-- Design system, brand → invoke design-consultation
-- Visual audit, design polish → invoke design-review
-- Architecture review → invoke plan-eng-review
-- Save progress, checkpoint, resume → invoke checkpoint
-- Code quality, health check → invoke health
+- Product ideas/brainstorming → invoke /office-hours
+- Strategy/scope → invoke /plan-ceo-review
+- Architecture → invoke /plan-eng-review
+- Design system/plan review → invoke /design-consultation or /plan-design-review
+- Full review pipeline → invoke /autoplan
+- Bugs/errors → invoke /investigate
+- QA/testing site behavior → invoke /qa or /qa-only
+- Code review/diff check → invoke /review
+- Visual polish → invoke /design-review
+- Ship/deploy/PR → invoke /ship or /land-and-deploy
+- Save progress → invoke /context-save
+- Resume context → invoke /context-restore
+- Author a backlog-ready spec/issue → invoke /spec
 ```
 
 Then commit the change: `git add CLAUDE.md && git commit -m "chore: add cavestack skill routing rules to CLAUDE.md"`
 
-If B: run `~/.claude/skills/cavestack/bin/cavestack-config set routing_declined true`
-Say "No problem. You can add routing rules later by running `cavestack-config set routing_declined false` and re-running any skill."
+If B: run `~/.claude/skills/cavestack/bin/cavestack-config set routing_declined true` and say they can re-enable with `cavestack-config set routing_declined false`.
 
-This only happens once per project. If `HAS_ROUTING` is `yes` or `ROUTING_DECLINED` is `true`, skip this entirely.
+This only happens once per project. Skip if `HAS_ROUTING` is `yes` or `ROUTING_DECLINED` is `true`.
 
-If `VENDORED_CAVESTACK` is `yes`: This project has a vendored copy of cavestack at
-`.claude/skills/cavestack/`. Vendoring is deprecated. We will not keep vendored copies
-up to date, so this project's cavestack will fall behind.
-
-Use AskUserQuestion (one-time per project, check for `~/.cavestack/.vendoring-warned-$SLUG` marker):
+If `VENDORED_CAVESTACK` is `yes`, warn once via AskUserQuestion unless `~/.cavestack/.vendoring-warned-$SLUG` exists:
 
 > This project has cavestack vendored in `.claude/skills/cavestack/`. Vendoring is deprecated.
-> We won't keep this copy up to date, so you'll fall behind on new features and fixes.
->
-> Want to migrate to team mode? It takes about 30 seconds.
+> Migrate to team mode?
 
 Options:
 - A) Yes, migrate to team mode now
@@ -193,14 +325,166 @@ eval "$(~/.claude/skills/cavestack/bin/cavestack-slug 2>/dev/null)" 2>/dev/null 
 touch ~/.cavestack/.vendoring-warned-${SLUG:-unknown}
 ```
 
-This only happens once per project. If the marker file exists, skip entirely.
+If marker exists, skip.
 
 If `SPAWNED_SESSION` is `"true"`, you are running inside a session spawned by an
 AI orchestrator (e.g., OpenClaw). In spawned sessions:
 - Do NOT use AskUserQuestion for interactive prompts. Auto-choose the recommended option.
-- Do NOT run upgrade checks or routing injection.
+- Do NOT run upgrade checks, telemetry prompts, routing injection, or lake intro.
 - Focus on completing the task and reporting results via prose output.
 - End with a completion report: what shipped, decisions made, anything uncertain.
+
+## Artifacts Sync (skill start)
+
+```bash
+_CAVESTACK_HOME="${CAVESTACK_HOME:-$HOME/.cavestack}"
+# Prefer the v1.27.0.0 artifacts file; fall back to brain file for users
+# upgrading mid-stream before the migration script runs.
+if [ -f "$HOME/.cavestack-artifacts-remote.txt" ]; then
+  _BRAIN_REMOTE_FILE="$HOME/.cavestack-artifacts-remote.txt"
+else
+  _BRAIN_REMOTE_FILE="$HOME/.cavestack-brain-remote.txt"
+fi
+_BRAIN_SYNC_BIN="$HOME/.claude/skills/cavestack/bin/cavestack-brain-sync"
+_BRAIN_CONFIG_BIN="$HOME/.claude/skills/cavestack/bin/cavestack-config"
+
+# /sync-gbrain context-load: teach the agent to use gbrain when it's available.
+# Per-worktree pin: post-spike redesign uses kubectl-style `.gbrain-source` in the
+# git toplevel to scope queries. Look for the pin in the worktree (not a global
+# state file) so that opening worktree B without a pin doesn't claim "indexed"
+# just because worktree A was synced. Empty string when gbrain is not
+# configured (zero context cost for non-gbrain users).
+_GBRAIN_CONFIG="$HOME/.gbrain/config.json"
+if [ -f "$_GBRAIN_CONFIG" ] && command -v gbrain >/dev/null 2>&1; then
+  _GBRAIN_VERSION_OK=$(gbrain --version 2>/dev/null | grep -c '^gbrain ' || echo 0)
+  if [ "$_GBRAIN_VERSION_OK" -gt 0 ] 2>/dev/null; then
+    _GBRAIN_PIN_PATH=""
+    _REPO_TOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [ -n "$_REPO_TOP" ] && [ -f "$_REPO_TOP/.gbrain-source" ]; then
+      _GBRAIN_PIN_PATH="$_REPO_TOP/.gbrain-source"
+    fi
+    if [ -n "$_GBRAIN_PIN_PATH" ]; then
+      echo "GBrain configured. Prefer \`gbrain search\`/\`gbrain query\` over Grep for"
+      echo "semantic questions; use \`gbrain code-def\`/\`code-refs\`/\`code-callers\` for"
+      echo "symbol-aware code lookup. See \"## GBrain Search Guidance\" in CLAUDE.md."
+      echo "Run /sync-gbrain to refresh."
+    else
+      echo "GBrain configured but this worktree isn't pinned yet. Run \`/sync-gbrain --full\`"
+      echo "before relying on \`gbrain search\` for code questions in this worktree."
+      echo "Falls back to Grep until pinned."
+    fi
+  fi
+fi
+
+_BRAIN_SYNC_MODE=$("$_BRAIN_CONFIG_BIN" get artifacts_sync_mode 2>/dev/null || echo off)
+
+# Detect remote-MCP mode (Path 4 of /setup-gbrain). Local artifacts sync is
+# a no-op in remote mode; the brain server pulls from GitHub/GitLab on its
+# own cadence. Read claude.json directly to keep this preamble fast (no
+# subprocess to claude CLI on every skill start). Both registration scopes
+# are read (#2499): user scope, then the nearest-ancestor project scope.
+_GBRAIN_MCP_MODE="none"
+_GBRAIN_MCP_ENTRY=""
+if command -v jq >/dev/null 2>&1 && [ -f "$HOME/.claude.json" ]; then
+  _GBRAIN_MCP_ENTRY=$(jq -c --arg cwd "$PWD" '((.projects // {}) | to_entries | map(select((.key as $k | $cwd == $k or ($cwd | startswith($k + "/")) or ($cwd | startswith($k + "\\"))) and ((try .value.mcpServers.gbrain catch null) != null))) | sort_by(.key | length) | last | .value.mcpServers.gbrain) // .mcpServers.gbrain // empty' "$HOME/.claude.json" 2>/dev/null)
+  _GBRAIN_MCP_TYPE=$(printf '%s' "$_GBRAIN_MCP_ENTRY" | jq -r '.type // .transport // empty' 2>/dev/null)
+  case "$_GBRAIN_MCP_TYPE" in
+    url|http|sse) _GBRAIN_MCP_MODE="remote-http" ;;
+    stdio) _GBRAIN_MCP_MODE="local-stdio" ;;
+  esac
+fi
+
+if [ -f "$_BRAIN_REMOTE_FILE" ] && [ ! -d "$_CAVESTACK_HOME/.git" ] && [ "$_BRAIN_SYNC_MODE" = "off" ]; then
+  _BRAIN_NEW_URL=$(head -1 "$_BRAIN_REMOTE_FILE" 2>/dev/null | tr -d '[:space:]')
+  if [ -n "$_BRAIN_NEW_URL" ]; then
+    echo "ARTIFACTS_SYNC: artifacts repo detected: $_BRAIN_NEW_URL"
+    echo "ARTIFACTS_SYNC: run 'cavestack-brain-restore' to pull your cross-machine artifacts (or 'cavestack-config set artifacts_sync_mode off' to dismiss forever)"
+  fi
+fi
+
+if [ -d "$_CAVESTACK_HOME/.git" ] && [ "$_BRAIN_SYNC_MODE" != "off" ]; then
+  _BRAIN_LAST_PULL_FILE="$_CAVESTACK_HOME/.brain-last-pull"
+  _BRAIN_NOW=$(date +%s)
+  _BRAIN_DO_PULL=1
+  if [ -f "$_BRAIN_LAST_PULL_FILE" ]; then
+    _BRAIN_LAST=$(cat "$_BRAIN_LAST_PULL_FILE" 2>/dev/null || echo 0)
+    case "$_BRAIN_LAST" in ''|*[!0-9]*) _BRAIN_LAST=0 ;; esac
+    _BRAIN_AGE=$(( _BRAIN_NOW - _BRAIN_LAST ))
+    [ "$_BRAIN_AGE" -lt 86400 ] && _BRAIN_DO_PULL=0
+  fi
+  if [ "$_BRAIN_DO_PULL" = "1" ]; then
+    ( cd "$_CAVESTACK_HOME" && git fetch origin >/dev/null 2>&1 && git merge --ff-only "origin/$(git rev-parse --abbrev-ref HEAD)" >/dev/null 2>&1 ) || true
+    echo "$_BRAIN_NOW" > "$_BRAIN_LAST_PULL_FILE"
+  fi
+  "$_BRAIN_SYNC_BIN" --once 2>/dev/null || true
+fi
+
+if [ "$_GBRAIN_MCP_MODE" = "remote-http" ]; then
+  # Remote-MCP mode: local artifacts sync is a no-op (brain admin's server
+  # pulls from GitHub/GitLab). Show the user this is by design, not broken.
+  _GBRAIN_HOST=$(printf '%s' "${_GBRAIN_MCP_ENTRY:-}" | jq -r '.url // empty' 2>/dev/null | sed -E 's|^https?://([^/:]+).*|\1|' | head -1 | tr -cd 'A-Za-z0-9._-')
+  echo "ARTIFACTS_SYNC: remote-mode (managed by brain server ${_GBRAIN_HOST:-remote})"
+elif [ -d "$_CAVESTACK_HOME/.git" ] && [ "$_BRAIN_SYNC_MODE" != "off" ]; then
+  _BRAIN_QUEUE_DEPTH=0
+  # Spool-dir queue (one file per record); legacy .brain-queue.jsonl lines are
+  # counted too until the drain migrates them.
+  [ -d "$_CAVESTACK_HOME/.brain-queue.d" ] && _BRAIN_QUEUE_DEPTH=$(find "$_CAVESTACK_HOME/.brain-queue.d" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+  [ -f "$_CAVESTACK_HOME/.brain-queue.jsonl" ] && _BRAIN_QUEUE_DEPTH=$(( _BRAIN_QUEUE_DEPTH + $(wc -l < "$_CAVESTACK_HOME/.brain-queue.jsonl" | tr -d ' ') ))
+  [ -f "$_CAVESTACK_HOME/.brain-queue.jsonl.migrating" ] && _BRAIN_QUEUE_DEPTH=$(( _BRAIN_QUEUE_DEPTH + $(wc -l < "$_CAVESTACK_HOME/.brain-queue.jsonl.migrating" | tr -d ' ') ))
+  _BRAIN_LAST_PUSH="never"
+  [ -f "$_CAVESTACK_HOME/.brain-last-push" ] && _BRAIN_LAST_PUSH=$(cat "$_CAVESTACK_HOME/.brain-last-push" 2>/dev/null || echo never)
+  echo "ARTIFACTS_SYNC: mode=$_BRAIN_SYNC_MODE | last_push=$_BRAIN_LAST_PUSH | queue=$_BRAIN_QUEUE_DEPTH"
+else
+  echo "ARTIFACTS_SYNC: off"
+fi
+```
+
+
+
+Privacy stop-gate: if output shows `ARTIFACTS_SYNC: off`, `artifacts_sync_mode_prompted` is `false`, and gbrain is on PATH or `gbrain doctor --fast --json` works, ask once:
+
+> cavestack can publish your artifacts (CEO plans, designs, reports) to a private GitHub repo that GBrain indexes across machines. How much should sync?
+
+Options:
+- A) Everything allowlisted (recommended)
+- B) Only artifacts
+- C) Decline, keep everything local
+
+After answer:
+
+```bash
+# Chosen mode: full | artifacts-only | off
+"$_BRAIN_CONFIG_BIN" set artifacts_sync_mode <choice>
+"$_BRAIN_CONFIG_BIN" set artifacts_sync_mode_prompted true
+```
+
+If A/B and `~/.cavestack/.git` is missing, ask whether to run `cavestack-artifacts-init`. Do not block the skill.
+
+At skill END before telemetry:
+
+```bash
+"$HOME/.claude/skills/cavestack/bin/cavestack-brain-sync" --discover-new 2>/dev/null || true
+"$HOME/.claude/skills/cavestack/bin/cavestack-brain-sync" --once 2>/dev/null || true
+```
+
+
+## Model-Specific Behavioral Patch (claude)
+
+The following nudges are tuned for the claude model family. They are
+**subordinate** to skill workflow, STOP points, AskUserQuestion gates, plan-mode
+safety, and /ship review gates. If a nudge below conflicts with skill instructions,
+the skill wins. Treat these as preferences, not rules.
+
+**Todo-list discipline.** When working through a multi-step plan, mark each task
+complete individually as you finish it. Do not batch-complete at the end. If a task
+turns out to be unnecessary, mark it skipped with a one-line reason.
+
+**Think before heavy actions.** For complex operations (refactors, migrations,
+non-trivial new features), briefly state your approach before executing. This lets
+the user course-correct cheaply instead of mid-flight.
+
+**Dedicated tools over Bash.** Prefer Read, Edit, Write, Glob, Grep over shell
+equivalents (cat, sed, find, grep). The dedicated tools are cheaper and clearer.
 
 ## Voice
 
@@ -213,154 +497,70 @@ Stay direct, concrete, sharp. Name file, function, line number. No fluff.
 ## Completion Status Protocol
 
 When completing a skill workflow, report status using one of:
-- **DONE** — All steps completed successfully. Evidence provided for each claim.
-- **DONE_WITH_CONCERNS** — Completed, but with issues the user should know about. List each concern.
-- **BLOCKED** — Cannot proceed. State what is blocking and what was tried.
-- **NEEDS_CONTEXT** — Missing information required to continue. State exactly what you need.
+- **DONE** — completed with evidence.
+- **DONE_WITH_CONCERNS** — completed, but list concerns.
+- **BLOCKED** — cannot proceed; state blocker and what was tried.
+- **NEEDS_CONTEXT** — missing info; state exactly what is needed.
 
-### Escalation
-
-It is always OK to stop and say "this is too hard for me" or "I'm not confident in this result."
-
-Bad work is worse than no work. You will not be penalized for escalating.
-- If you have attempted a task 3 times without success, STOP and escalate.
-- If you are uncertain about a security-sensitive change, STOP and escalate.
-- If the scope of work exceeds what you can verify, STOP and escalate.
-
-Escalation format:
-```
-STATUS: BLOCKED | NEEDS_CONTEXT
-REASON: [1-2 sentences]
-ATTEMPTED: [what you tried]
-RECOMMENDATION: [what the user should do next]
-```
+Escalate after 3 failed attempts, uncertain security-sensitive changes, or scope you cannot verify. Format: `STATUS`, `REASON`, `ATTEMPTED`, `RECOMMENDATION`.
 
 ## Operational Self-Improvement
 
-Before completing, reflect on this session:
-- Did any commands fail unexpectedly?
-- Did you take a wrong approach and have to backtrack?
-- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
-- Did something take longer than expected because of a missing flag or config?
-
-If yes, log an operational learning for future sessions:
+Before completing, review the session for durable learnings and log each one —
+this step ALWAYS runs, it is not conditional on something feeling noteworthy
+(#2402: 43 of 44 learnings came from explicit /learn because "if you
+discovered" read as optional). A durable learning is a project quirk, command
+fix, pitfall, or pattern that would save 5+ minutes in a future session. If
+the review genuinely surfaces none, state "No durable learnings this session"
+in your completion summary — an explicit empty result, not a skipped step.
 
 ```bash
 ~/.claude/skills/cavestack/bin/cavestack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
 ```
 
-Replace SKILL_NAME with the current skill name. Only log genuine operational discoveries.
-Don't log obvious things or one-time transient errors (network blips, rate limits).
-A good test: would knowing this save 5+ minutes in a future session? If yes, log it.
+Do not log obvious facts or one-time transient errors.
 
-## Completion (run last)
+## Telemetry (run last)
 
-After the skill workflow completes (success, error, or abort), log the completion event.
-Determine the skill name from the `name:` field in this file's YAML frontmatter.
-Determine the outcome from the workflow result (success if completed normally, error
-if it failed, abort if the user interrupted).
+After workflow completion, log telemetry. Use skill `name:` from frontmatter. OUTCOME is success/error/abort/unknown.
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** This command writes to
-`~/.cavestack/analytics/` (user config directory, not project files). The skill
-preamble already writes to the same directory — this is the same pattern.
-Skipping this command loses session duration and outcome data.
+**PLAN MODE EXCEPTION — ALWAYS RUN:** This command writes telemetry to
+`~/.cavestack/analytics/`, matching preamble analytics writes.
 
 Run this bash:
 
 ```bash
 _TEL_END=$(date +%s)
 _TEL_DUR=$(( _TEL_END - _TEL_START ))
+rm -f ~/.cavestack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
 # Session timeline: record skill completion (local-only, never sent anywhere)
 ~/.claude/skills/cavestack/bin/cavestack-timeline-log '{"skill":"SKILL_NAME","event":"completed","branch":"'$(git branch --show-current 2>/dev/null || echo unknown)'","outcome":"OUTCOME","duration_s":"'"$_TEL_DUR"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null || true
-# Local analytics (never leaves machine)
+# Local analytics (gated on telemetry setting)
+if [ "$_TEL" != "off" ]; then
 echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.cavestack/analytics/skill-usage.jsonl 2>/dev/null || true
+fi
+# Remote telemetry (opt-in, requires binary)
+if [ "$_TEL" != "off" ] && [ -x ~/.claude/skills/cavestack/bin/cavestack-telemetry-log ]; then
+  ~/.claude/skills/cavestack/bin/cavestack-telemetry-log \
+    --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
+    --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" \
+    --error-message "ERROR_MESSAGE" --failed-step "FAILED_STEP" 2>/dev/null &
+fi
 ```
 
-Replace `SKILL_NAME` with the actual skill name from frontmatter, `OUTCOME` with
-success/error/abort, and `USED_BROWSE` with true/false based on whether `$B` was used.
-If you cannot determine the outcome, use "unknown".
-
-## Plan Mode Safe Operations
-
-When in plan mode, these operations are always allowed because they produce
-artifacts that inform the plan, not code changes:
-
-- `$B` commands (browse: screenshots, page inspection, navigation, snapshots)
-- `$D` commands (design: generate mockups, variants, comparison boards, iterate)
-- `codex exec` / `codex review` (outside voice, plan review, adversarial challenge)
-- Writing to `~/.cavestack/` (config, analytics, review logs, design artifacts, learnings)
-- Writing to the plan file (already allowed by plan mode)
-- `open` commands for viewing generated artifacts (comparison boards, HTML previews)
-
-These are read-only in spirit — they inspect the live site, generate visual artifacts,
-or get independent opinions. They do NOT modify project source files.
-
-## Skill Invocation During Plan Mode
-
-If a user invokes a skill during plan mode, that invoked skill workflow takes
-precedence over generic plan mode behavior until it finishes or the user explicitly
-cancels that skill.
-
-Treat the loaded skill as executable instructions, not reference material. Follow
-it step by step. Do not summarize, skip, reorder, or shortcut its steps.
-
-If the skill says to use AskUserQuestion, do that. Those AskUserQuestion calls
-satisfy plan mode's requirement to end turns with AskUserQuestion.
-
-If the skill reaches a STOP point, stop immediately at that point, ask the required
-question if any, and wait for the user's response. Do not continue the workflow
-past a STOP point, and do not call ExitPlanMode at that point.
-
-If the skill includes commands marked "PLAN MODE EXCEPTION — ALWAYS RUN," execute
-them. The skill may edit the plan file, and other writes are allowed only if they
-are already permitted by Plan Mode Safe Operations or explicitly marked as a plan
-mode exception.
-
-Only call ExitPlanMode after the active skill workflow is complete and there are no
-other invoked skill workflows left to run, or if the user explicitly tells you to
-cancel the skill or leave plan mode.
+Replace `SKILL_NAME`, `OUTCOME`, and `USED_BROWSE` before running.
+Replace `ERROR_MESSAGE` with a short description of the error (if outcome is error,
+otherwise use empty string ""), and `FAILED_STEP` with the step name or number where
+the failure occurred (if outcome is error, otherwise use empty string "").
 
 ## Plan Status Footer
 
-When you are in plan mode and about to call ExitPlanMode:
-
-1. Check if the plan file already has a `## CAVESTACK REVIEW REPORT` section.
-2. If it DOES — skip (a review skill already wrote a richer report).
-3. If it does NOT — run this command:
-
-\`\`\`bash
-~/.claude/skills/cavestack/bin/cavestack-review-read
-\`\`\`
-
-Then write a `## CAVESTACK REVIEW REPORT` section to the end of the plan file:
-
-- If the output contains review entries (JSONL lines before `---CONFIG---`): format the
-  standard report table with runs/status/findings per skill, same format as the review
-  skills use.
-- If the output is `NO_REVIEWS` or empty: write this placeholder table:
-
-\`\`\`markdown
-## CAVESTACK REVIEW REPORT
-
-| Review | Trigger | Why | Runs | Status | Findings |
-|--------|---------|-----|------|--------|----------|
-| CEO Review | \`/plan-ceo-review\` | Scope & strategy | 0 | — | — |
-| Codex Review | \`/codex review\` | Independent 2nd opinion | 0 | — | — |
-| Eng Review | \`/plan-eng-review\` | Architecture & tests (required) | 0 | — | — |
-| Design Review | \`/plan-design-review\` | UI/UX gaps | 0 | — | — |
-| DX Review | \`/plan-devex-review\` | Developer experience gaps | 0 | — | — |
-
-**VERDICT:** NO REVIEWS YET — run \`/autoplan\` for full review pipeline, or individual reviews above.
-\`\`\`
-
-**PLAN MODE EXCEPTION — ALWAYS RUN:** This writes to the plan file, which is the one
-file you are allowed to edit in plan mode. The plan file review report is part of the
-plan's living status.
+Skills that run plan reviews (`/plan-*-review`, `/codex review`) include the EXIT PLAN MODE GATE blocking checklist at the end of the skill, which verifies the plan file ends with `## CAVESTACK REVIEW REPORT` before ExitPlanMode is called. Skills that don't run plan reviews (operational skills like `/ship`, `/qa`, `/review`) typically don't operate in plan mode and have no review report to verify; this footer is a no-op for them. Writing the plan file is the one edit allowed in plan mode.
 
 # browse: QA Testing & Dogfooding
 
-Persistent headless Chromium. First call auto-starts (~3s), then ~100ms/command.
-State persists between calls (cookies, tabs, sessions).
+Persistent headless Chromium. First call auto-starts (~3s), then ~100ms per command.
+State persists between calls (cookies, tabs, login sessions).
 
 ## SETUP (run this check BEFORE any browse command)
 
@@ -368,7 +568,7 @@ State persists between calls (cookies, tabs, sessions).
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
 [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/cavestack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/cavestack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/cavestack/browse/dist/browse
+[ -z "$B" ] && B="$HOME/.claude/skills/cavestack/browse/dist/browse"
 if [ -x "$B" ]; then
   echo "READY: $B"
 else
@@ -400,7 +600,7 @@ If `NEEDS_SETUP`:
 
 ## Core QA Patterns
 
-### 1. Verify page loads
+### 1. Verify a page loads correctly
 ```bash
 $B goto https://yourapp.com
 $B text                          # content loads?
@@ -409,7 +609,7 @@ $B network                       # failed requests?
 $B is visible ".main-content"    # key elements present?
 ```
 
-### 2. Test user flow
+### 2. Test a user flow
 ```bash
 $B goto https://app.com/login
 $B snapshot -i                   # see all interactive elements
@@ -420,27 +620,39 @@ $B snapshot -D                   # diff: what changed after submit?
 $B is visible ".dashboard"       # success state present?
 ```
 
-### 3. Verify action worked
+### 3. Verify an action worked
 ```bash
 $B snapshot                      # baseline
 $B click @e3                     # do something
 $B snapshot -D                   # unified diff shows exactly what changed
 ```
 
-### 4. Visual evidence for bugs
+### 4. Visual evidence for bug reports
 ```bash
 $B snapshot -i -a -o /tmp/annotated.png   # labeled screenshot
 $B screenshot /tmp/bug.png                # plain screenshot
 $B console                                # error log
 ```
 
-### 5. Find all clickable elements (incl. non-ARIA)
+Two behaviors that silently invalidate screenshots (#2445 — designed, but
+surprising):
+- **`hover` scrolls its target into view.** Hovering anything below the fold
+  scrolls the page first, so a "rest state" shot taken afterwards captures
+  the wrong section with exit 0. Before a rest-state screenshot, hover only
+  something already visible, and assert position when it matters:
+  `$B js "window.scrollY"` should be `0` (or your intended offset).
+- **The tab persists across sessions.** The daemon keeps its tab between your
+  sessions, so `reload` or `screenshot` without a preceding `goto` can act on
+  whatever page earlier work left open. Start verification passes with an
+  explicit `$B goto <url>`, never a bare `reload`.
+
+### 5. Find all clickable elements (including non-ARIA)
 ```bash
 $B snapshot -C                   # finds divs with cursor:pointer, onclick, tabindex
-$B click @c1                     # interact
+$B click @c1                     # interact with them
 ```
 
-### 6. Assert element state
+### 6. Assert element states
 ```bash
 $B is visible ".modal"
 $B is enabled "#submit-btn"
@@ -451,20 +663,20 @@ $B is focused "#search-input"
 $B js "document.body.textContent.includes('Success')"
 ```
 
-### 7. Test responsive layout
+### 7. Test responsive layouts
 ```bash
 $B responsive /tmp/layout        # mobile + tablet + desktop screenshots
 $B viewport 375x812              # or set specific viewport
 $B screenshot /tmp/mobile.png
 ```
 
-### 8. Test file upload
+### 8. Test file uploads
 ```bash
 $B upload "#file-input" /path/to/file.pdf
 $B is visible ".upload-success"
 ```
 
-### 9. Test dialog
+### 9. Test dialogs
 ```bash
 $B dialog-accept "yes"           # set up handler
 $B click "#delete-button"        # trigger dialog
@@ -477,18 +689,146 @@ $B snapshot -D                   # verify deletion happened
 $B diff https://staging.app.com https://prod.app.com
 ```
 
-### 11. Show screenshots to user
-After `$B screenshot`, `$B snapshot -a -o`, or `$B responsive`, always Read output PNGs so user sees them. Without this, screenshots invisible.
+### 11. Show screenshots to the user
+After `$B screenshot`, `$B snapshot -a -o`, or `$B responsive`, always use the Read tool on the output PNG(s) so the user can see them. Without this, screenshots are invisible.
+
+### 12. Render local HTML (no HTTP server needed)
+Two paths, pick the cleaner one:
+```bash
+# HTML file on disk → goto file:// (absolute, or cwd-relative)
+$B goto file:///tmp/report.html
+$B goto file://./docs/page.html        # cwd-relative
+$B goto file://~/Documents/page.html   # home-relative
+
+# HTML generated in memory → load-html reads the file into setContent
+echo '<div class="tweet">hello</div>' > /tmp/tweet.html
+$B load-html /tmp/tweet.html
+```
+
+`goto file://...` is usually cleaner (URL is saved in state, relative asset URLs resolve against the file's dir, scale changes replay naturally). `load-html` uses `page.setContent()` — URL stays `about:blank`, but the content survives `viewport --scale` via in-memory replay. Both are scoped to files under cwd or `$TMPDIR`.
+
+### 13. Retina screenshots (deviceScaleFactor)
+```bash
+$B viewport 480x600 --scale 2       # 2x deviceScaleFactor
+$B load-html /tmp/tweet.html        # or: $B goto file://./tweet.html
+$B screenshot /tmp/out.png --selector .tweet-card
+# → /tmp/out.png is 2x the pixel dimensions of the element
+```
+Scale must be 1-3 (cavestack policy cap). Changing `--scale` recreates the browser context; refs from `snapshot` are invalidated (rerun `snapshot`), but `load-html` content is replayed automatically. Not supported in headed mode.
+
+### 14. Offline render mode (rasterize your own HTML/JSON, zero network)
+
+This is the blessed path for "I just want to turn my own local HTML or JSON into a
+PNG/PDF/bytes on disk" — Excalidraw diagrams, tweet/quote cards, og-images,
+report rasterization. It is **plain headless, shared Chromium, no proxy, no Xvfb,
+no anti-bot stealth**. Default `$B` is already exactly this; you do not pass
+`--headed` or `--proxy`. One Chromium per box, shared by every skill — **do not
+`npm i puppeteer` and ship a second browser** (see the note under the cheatsheet).
+
+Two output shapes, pick by what you have:
+
+**A) Visual output → `screenshot --selector` (preferred).** If the thing you want
+is a picture of something on the page, screenshot it. The PNG is written from the
+browser process straight to disk — the image bytes never cross the CDP wire.
+
+```bash
+echo '<div id="card" style="width:400px;height:200px;background:#1da1f2;color:#fff;padding:20px">hi</div>' > /tmp/card.html
+$B viewport 480x600 --scale 2
+$B load-html /tmp/card.html
+$B screenshot /tmp/card.png --selector '#card'   # disk path — no megabytes over CDP
+```
+(Use the disk path, NOT `screenshot --base64` — base64 serializes the bytes back
+through the command channel, which is the cost you're trying to avoid.)
+
+**B) Bytes a function returns → `js --out` / `eval --out`.** When a library hands
+you the result as a return value (a base64 data URL, a blob, computed JSON) rather
+than painting a stable element — e.g. Excalidraw's export function returns a PNG
+data URL — write the evaluate result straight to disk. `--out` decodes a
+`data:*;base64,...` result to raw bytes automatically (pass `--raw` to write the
+literal string). The payload is written by the daemon and never serialized back
+out to the CLI/stdout.
+
+```bash
+# Load the render bundle, signal readiness, then render-to-file.
+$B load-html /tmp/excalidraw-export.html        # bundle sets window.__render + a #done flag
+$B wait '#done'                                  # deterministic ready handshake
+$B js "window.__render(SCENE_JSON)" --out /tmp/diagram.png   # data URL → decoded PNG on disk
+```
+
+`--out` is a WRITE: it needs the `write` scope and is never allowed over the
+pair-agent tunnel (a remote agent can't write to your disk). Parent directories
+are created; malformed base64 errors instead of writing corrupt bytes. Pick A when
+you can (no CDP transfer at all); reach for B only when the bytes come back as a
+return value.
+
+## Puppeteer → browse cheatsheet
+
+Migrating from Puppeteer? Here's the 1:1 mapping for the core workflow:
+
+| Puppeteer | browse |
+|---|---|
+| `await page.goto(url)` | `$B goto <url>` |
+| `await page.setContent(html)` | `$B load-html <file>` (or `$B goto file://<abs>`) |
+| `await page.setViewport({width, height})` | `$B viewport WxH` |
+| `await page.setViewport({width, height, deviceScaleFactor: 2})` | `$B viewport WxH --scale 2` |
+| `await (await page.$('.x')).screenshot({path})` | `$B screenshot <path> --selector .x` |
+| `await page.screenshot({fullPage: true, path})` | `$B screenshot <path>` (full page default) |
+| `await page.screenshot({clip: {x, y, w, h}, path})` | `$B screenshot <path> --clip x,y,w,h` |
+| `const r = await page.evaluate(fn)` | `$B js "<expr>"` (result to stdout) |
+| `fs.writeFileSync(out, Buffer.from(dataUrl.split(',')[1],'base64'))` | `$B js "<expr>" --out <file>` (data URL auto-decoded) |
+
+Worked example (the tweet-renderer flow — Puppeteer → browse):
+
+```bash
+# Generate HTML in memory, render at 2x scale, screenshot the tweet card.
+echo '<div class="tweet-card" style="width:400px;height:200px;background:#1da1f2;color:white;padding:20px">hello</div>' > /tmp/tweet.html
+$B viewport 480x600 --scale 2
+$B load-html /tmp/tweet.html
+$B screenshot /tmp/out.png --selector .tweet-card
+# /tmp/out.png is 800x400 px, crisp (2x deviceScaleFactor).
+```
+
+Aliases: typing `setcontent` or `set-content` routes to `load-html` automatically. Typing a typo (`load-htm`) returns `Did you mean 'load-html'?`.
+
+**Don't bundle your own puppeteer/Chromium.** `browse` is the one shared Chromium
+per box. Skills that need to rasterize local HTML/JSON (diagrams, cards, og-images)
+should route through `browse` — `screenshot --selector` for visual output,
+`load-html` + `js --out` for bytes a function returns — instead of
+`npm i puppeteer` and downloading a second Chromium that drifts out of version sync.
+One install to pin, one daemon's lifecycle to manage.
+
+## Session Persistence (opt-in)
+
+By default the headless daemon's cookies and tab state die with it — a crash,
+version auto-restart, or `browse stop` logs you out of everything (#778).
+Opt in to persistence with `BROWSE_PERSIST_STATE=1` in the daemon's
+environment: the daemon then snapshots cookies + per-tab
+URL/localStorage/sessionStorage to `<stateDir>/session-state.json` (0600)
+every 30 seconds and at clean shutdown, and restores it on the next launch.
+
+Facts that matter:
+- **Default OFF.** Cookies on disk are a real cost; the user opts in.
+- **Headless only.** Headed mode's persistent Chromium profile already owns
+  its state; replaying tabs would clobber the user's window.
+- **Never persisted:** loaded HTML and tab ownership — a tampered state file
+  cannot smuggle content past load-html's checks or forge ownership. Cookies
+  for localhost, `.internal`, and cloud-metadata addresses are dropped on
+  restore.
+- **Corrupt state** is moved to `session-state.json.corrupt` (kept for
+  diagnosis) and the daemon boots fresh — persistence can never block a
+  launch. The boot log says which happened: `Session state restored: N
+  cookies / M tabs` or `fresh session`.
 
 ## User Handoff
 
-When stuck in headless mode (CAPTCHA, complex auth, MFA), hand off to user:
+When you hit something you can't handle in headless mode (CAPTCHA, complex auth, multi-factor
+login), hand off to the user:
 
 ```bash
-# 1. Open visible Chrome at current page
+# 1. Open a visible Chrome at the current page
 $B handoff "Stuck on CAPTCHA at login page"
 
-# 2. Tell user what happened (via AskUserQuestion)
+# 2. Tell the user what happened (via AskUserQuestion)
 #    "I've opened Chrome at the login page. Please solve the CAPTCHA
 #     and let me know when you're done."
 
@@ -496,14 +836,50 @@ $B handoff "Stuck on CAPTCHA at login page"
 $B resume
 ```
 
-**When to handoff:**
-- CAPTCHAs / bot detection
-- MFA (SMS, authenticator app)
-- OAuth flows requiring user interaction
-- Complex interactions AI can't handle after 3 attempts
+**When to use handoff:**
+- CAPTCHAs or bot detection
+- Multi-factor authentication (SMS, authenticator app)
+- OAuth flows that require user interaction
+- Complex interactions the AI can't handle after 3 attempts
 
-Browser preserves all state (cookies, localStorage, tabs) across handoff.
-After `resume`, get fresh snapshot of wherever user left off.
+The browser preserves all state (cookies, localStorage, tabs) across the handoff.
+After `resume`, you get a fresh snapshot of wherever the user left off.
+
+## Headed Mode + Proxy + Anti-Bot Sites
+
+For sites that block headless browsers, fingerprint Playwright defaults, or require routing through an authenticated SOCKS5 proxy (residential VPN, etc.), browse exposes three coordinated flags:
+
+```bash
+# Headed mode — visible Chromium window. Auto-spawns Xvfb on Linux
+# containers without DISPLAY (no extra setup needed on Debian/Ubuntu).
+browse --headed goto https://example.com
+
+# SOCKS5 with auth (Chromium can't prompt for SOCKS5 creds itself —
+# browse runs a local 127.0.0.1 bridge that handles the auth handshake).
+browse --proxy socks5://user:pass@residential.proxy.host:1080 goto https://example.com
+
+# HTTP/HTTPS proxy (passes through to Chromium directly):
+browse --proxy http://corp-proxy:3128 goto https://example.com
+
+# Browser-triggered file download (Content-Disposition, redirect chain,
+# anti-bot CDN — falls back from page.request.fetch() to browser native
+# download handler):
+browse download "https://protected.example.com/file" /tmp/file.bin --navigate
+
+# Combined: headed + proxy + navigate-download
+browse --headed --proxy socks5://user:pass@host:1080 \
+  download "https://protected.example.com/file" /tmp/file.bin --navigate
+```
+
+**Credential policy.** Pass creds via either the URL (`socks5://user:pass@host`) OR the env vars `BROWSE_PROXY_USER` and `BROWSE_PROXY_PASS` — never both. Browse refuses with a clear hint when both are set, because silent override creates "works on my machine" debugging traps.
+
+**Daemon discipline.** Browse runs as a long-lived daemon. `--proxy` and `--headed` change daemon-startup config, so they only apply on a fresh daemon. If a daemon is already running with different config, browse refuses and tells you to `browse disconnect` first. No silent restart that would drop tab state, cookies, or logged-in sessions.
+
+**Stealth.** When `--headed` or `--proxy` are set, browse masks `navigator.webdriver` (the obvious automation tell) via Chromium's `--disable-blink-features=AutomationControlled` plus a small init script. We do NOT fake `navigator.plugins`, `navigator.languages`, or `window.chrome` — modern fingerprinters check those for consistency, and synthesizing fixed values can flag MORE bot-like, not less.
+
+**Container support.** `--headed` on Linux without `DISPLAY` automatically picks a free X display (`:99`, `:100`, ...) and spawns Xvfb. Cleanup on `browse disconnect` validates the recorded PID's `/proc/<pid>/cmdline` matches `Xvfb` AND start-time matches before sending any signal — no PID-reuse footguns. Standard Debian/Ubuntu containers work out of the box; minimal images (alpine, distroless) may also need fonts/dbus/gtk libs for headed Chromium to render.
+
+**Failure modes.** SOCKS5 upstream rejected or unreachable → fail-fast at startup with a redacted error after 3 retries (5s budget). Mid-stream upstream drop → browse kills the affected client connection only; no transport retries (which could corrupt browser traffic). Mismatched daemon config → exit 1 with a `browse disconnect` hint.
 
 ## Snapshot Flags
 
@@ -552,24 +928,24 @@ $B click @c1       # cursor-interactive ref (from -C)
 
 Refs are invalidated on navigation — run `snapshot` again after `goto`.
 
-## CSS Inspector & Style Mod
+## CSS Inspector & Style Modification
 
 ### Inspect element CSS
 ```bash
 $B inspect .header              # full CSS cascade for selector
 $B inspect                      # latest picked element from sidebar
-$B inspect --all                # include user-agent stylesheet
-$B inspect --history            # modification history
+$B inspect --all                # include user-agent stylesheet rules
+$B inspect --history            # show modification history
 ```
 
-### Modify styles
+### Modify styles live
 ```bash
 $B style .header background-color #1a1a1a   # modify CSS property
 $B style --undo                              # revert last change
 $B style --undo 2                            # revert specific change
 ```
 
-### Clean screenshot
+### Clean screenshots
 ```bash
 $B cleanup --all                 # remove ads, cookies, sticky, social
 $B cleanup --ads --cookies       # selective cleanup
@@ -583,7 +959,8 @@ $B prettyscreenshot --cleanup --scroll-to ".pricing" --width 1440 ~/Desktop/hero
 |---------|-------------|
 | `back` | History back |
 | `forward` | History forward |
-| `goto <url>` | Navigate to URL |
+| `goto <url>` | Navigate to URL (http://, https://, or file:// scoped to cwd/TEMP_DIR) |
+| `load-html <file> [--wait-until load|domcontentloaded|networkidle] [--tab-id <N>]  |  load-html --from-file <payload.json> [--tab-id <N>]` | Load HTML via setContent. Accepts a file path under safe-dirs (validated), OR --from-file <payload.json> with {"html":"...","waitUntil":"..."} for large inline HTML (Windows argv safe). |
 | `reload` | Reload page |
 | `url` | Print current URL |
 
@@ -611,7 +988,7 @@ $B prettyscreenshot --cleanup --scroll-to ".pricing" --width 1440 ~/Desktop/hero
 | Command | Description |
 |---------|-------------|
 | `archive [path]` | Save complete page as MHTML via CDP |
-| `download <url|@ref> [path] [--base64]` | Download URL or media element to disk using browser cookies |
+| `download <url|@ref> [path] [--base64] [--navigate]` | Download URL or media element to disk using browser cookies. Use --navigate for URLs that trigger browser downloads (CDN redirects, Content-Disposition, anti-bot protected sites) |
 | `scrape <images|videos|media> [--selector sel] [--dir path] [--limit N]` | Bulk download all media from page. Writes manifest.json |
 
 ### Interaction
@@ -627,41 +1004,42 @@ $B prettyscreenshot --cleanup --scroll-to ".pricing" --width 1440 ~/Desktop/hero
 | `fill <sel> <val>` | Fill input |
 | `header <name>:<value>` | Set custom request header (colon-separated, sensitive values auto-redacted) |
 | `hover <sel>` | Hover element |
-| `press <key>` | Press key — Enter, Tab, Escape, ArrowUp/Down/Left/Right, Backspace, Delete, Home, End, PageUp, PageDown, or modifiers like Shift+Enter |
-| `scroll [sel]` | Scroll element into view, or scroll to page bottom if no selector |
+| `press <key>` | Press a Playwright keyboard key against the focused element. Names are case-sensitive: Enter, Tab, Escape, ArrowUp/Down/Left/Right, Backspace, Delete, Home, End, PageUp, PageDown. Modifiers combine with +: Shift+Enter, Control+A, Meta+K. Single printable chars (a, A, 1) work too. Full key list: https://playwright.dev/docs/api/class-keyboard#keyboard-press |
+| `scroll [sel|@ref]` | With a selector, smooth-scrolls the element into view. Without a selector, jumps to page bottom. No --by/--to amount option; for pixel-precise scrolling use `js window.scrollTo(0, N)`. |
 | `select <sel> <val>` | Select dropdown option by value, label, or visible text |
 | `style <sel> <prop> <value> | style --undo [N]` | Modify CSS property on element (with undo support) |
 | `type <text>` | Type into focused element |
 | `upload <sel> <file> [file2...]` | Upload file(s) |
 | `useragent <string>` | Set user agent |
-| `viewport <WxH>` | Set viewport size |
+| `viewport [<WxH>] [--scale <n>]` | Set viewport size and optional deviceScaleFactor (1-3, for retina screenshots). --scale requires a context rebuild. |
 | `wait <sel|--networkidle|--load>` | Wait for element, network idle, or page load (timeout: 15s) |
 
 ### Inspection
 | Command | Description |
 |---------|-------------|
 | `attrs <sel|@ref>` | Element attributes as JSON |
+| `cdp <Domain.method> [json-params]` | Raw Chrome DevTools Protocol method dispatch. Deny-default: only methods enumerated in `browse/src/cdp-allowlist.ts` (CDP_ALLOWLIST const) are reachable; any other method 403s. Each allowlist entry declares scope (tab vs browser) and output (trusted vs untrusted) — untrusted methods (data-exfil-shaped, e.g. Network.getResponseBody) get UNTRUSTED-envelope wrapped output. To discover allowed methods: read `browse/src/cdp-allowlist.ts`. Example: `$B cdp Page.getLayoutMetrics`. |
 | `console [--clear|--errors]` | Console messages (--errors filters to error/warning) |
 | `cookies` | All cookies as JSON |
 | `css <sel> <prop>` | Computed CSS value |
 | `dialog [--clear]` | Dialog messages |
-| `eval <file>` | Run JavaScript from file and return result as string (path must be under /tmp or cwd) |
+| `eval <file> [--out <file>] [--raw]` | Run JavaScript from a file in the page context and return result as string. Path must resolve under /tmp or cwd (no traversal). Use eval for multi-line scripts; use js for one-liners. With --out <file>, the result is written to disk (base64 data URL decoded to bytes unless --raw); --out makes the invocation a WRITE (needs write scope, never allowed over the tunnel). |
 | `inspect [selector] [--all] [--history]` | Deep CSS inspection via CDP — full rule cascade, box model, computed styles |
-| `is <prop> <sel>` | State check (visible/hidden/enabled/disabled/checked/editable/focused) |
-| `js <expr>` | Run JavaScript expression and return result as string |
+| `is <prop> <sel|@ref>` | State check on element. Valid <prop> values: visible, hidden, enabled, disabled, checked, editable, focused (case-sensitive). <sel> accepts a CSS selector OR an @ref token from a prior snapshot (e.g. @e3, @c1) — refs are interchangeable with selectors anywhere a selector is expected. |
+| `js <expr> [--out <file>] [--raw]` | Run inline JavaScript expression in the page context and return result as string. Same JS sandbox as eval; the only difference is js takes an inline expr while eval reads from a file. With --out <file>, the result is written to disk instead of returned (a base64 data URL is decoded to raw bytes unless --raw is given) — ideal for rasterizing local renders to PNG without serializing megabytes back through the CLI. --out makes the invocation a WRITE (needs write scope, never allowed over the tunnel). |
 | `network [--clear]` | Network requests |
 | `perf` | Page load timings |
-| `storage [set k v]` | Read all localStorage + sessionStorage as JSON, or set <key> <value> to write localStorage |
+| `storage  |  storage set <key> <value>` | Read both localStorage and sessionStorage as JSON. With "set <key> <value>", write to localStorage only (sessionStorage is read-only via this command — set it with `js sessionStorage.setItem(...)`). |
 | `ux-audit` | Extract page structure for UX behavioral analysis — site ID, nav, headings, text blocks, interactive elements. Returns JSON for agent interpretation. |
 
 ### Visual
 | Command | Description |
 |---------|-------------|
 | `diff <url1> <url2>` | Text diff between pages |
-| `pdf [path]` | Save as PDF |
+| `pdf [path] [--format letter|a4|legal] [--width <dim> --height <dim>] [--margins <dim>] [--margin-top <dim> --margin-right <dim> --margin-bottom <dim> --margin-left <dim>] [--header-template <html>] [--footer-template <html>] [--page-numbers] [--tagged] [--outline] [--print-background] [--prefer-css-page-size] [--toc] [--tab-id <N>]  |  pdf --from-file <payload.json> [--tab-id <N>]` | Save the current page as PDF. Supports page layout (--format, --width, --height, --margins, --margin-*), structure (--toc waits for Paged.js), branding (--header-template, --footer-template, --page-numbers), accessibility (--tagged, --outline), and --from-file <payload.json> for large payloads. Use --tab-id <N> to target a specific tab. |
 | `prettyscreenshot [--scroll-to sel|text] [--cleanup] [--hide sel...] [--width px] [path]` | Clean screenshot with optional cleanup, scroll positioning, and element hiding |
 | `responsive [prefix]` | Screenshots at mobile (375x812), tablet (768x1024), desktop (1280x720). Saves as {prefix}-mobile.png etc. |
-| `screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]` | Save screenshot (supports element crop via CSS/@ref, --clip region, --viewport) |
+| `screenshot [--selector <css>] [--viewport] [--clip x,y,w,h] [--base64] [selector|@ref] [path]` | Save screenshot. --selector targets a specific element (explicit flag form). Positional selectors starting with ./#/@/[ still work. |
 
 ### Snapshot
 | Command | Description |
@@ -671,17 +1049,20 @@ $B prettyscreenshot --cleanup --scroll-to ".pricing" --width 1440 ~/Desktop/hero
 ### Meta
 | Command | Description |
 |---------|-------------|
-| `chain` | Run commands from JSON stdin. Format: [["cmd","arg1",...],...] |
+| `chain  (JSON via stdin)` | Run a sequence of commands from JSON on stdin. One JSON array of arrays, each inner array is [cmd, ...args]. Output is one JSON result per command. Pipe a JSON array (e.g. `[["goto","https://example.com"],["text","h1"]]`) to `$B chain` and it runs the goto then the text command in order. Stops at the first error. |
+| `domain-skill save|list|show|edit|promote-to-global|rollback|rm <host?>` | Per-site notes the agent writes for itself. Host is derived from the active tab. Lifecycle: `save` adds a quarantined note → after N=3 successful uses without the prompt-injection classifier flagging it, the note auto-promotes to "active" → `promote-to-global` lifts it to the global tier (machine-wide, all projects). The classifier flag is set automatically by the L4 prompt-injection scan; agents do not set it manually. Use `list` / `show` to inspect, `edit` to revise, `rollback` to demote, `rm` to tombstone. |
 | `frame <sel|@ref|--name n|--url pattern|main>` | Switch to iframe context (or main to return) |
 | `inbox [--clear]` | List messages from sidebar scout inbox |
+| `skill list|show|run|test|rm <name?> [--arg k=v]... [--timeout=Ns]` | Run a browser-skill: deterministic Playwright script that drives the daemon over loopback HTTP. 3-tier lookup (project > global > bundled). Spawned scripts get a per-spawn scoped token (read+write only) — never the daemon root token. |
 | `watch [stop]` | Passive observation — periodic snapshots while user browses |
 
 ### Tabs
 | Command | Description |
 |---------|-------------|
 | `closetab [id]` | Close tab |
-| `newtab [url]` | Open new tab |
+| `newtab [url] [--json]` | Open new tab. With --json, returns {"tabId":N,"url":...} for programmatic use (make-pdf). |
 | `tab <id>` | Switch to tab |
+| `tab-each <command> [args...]` | Run a command on every open tab. Returns JSON with per-tab results. |
 | `tabs` | List open tabs |
 
 ### Server
@@ -691,6 +1072,7 @@ $B prettyscreenshot --cleanup --scroll-to ".pricing" --width 1440 ~/Desktop/hero
 | `disconnect` | Disconnect headed browser, return to headless mode |
 | `focus [@ref]` | Bring headed browser window to foreground (macOS) |
 | `handoff [message]` | Open visible Chrome at current page for user takeover |
+| `memory [--json]` | Snapshot Bun heap + per-tab JS heap + Chromium process tree + bounded buffer sizes. JSON output with --json. |
 | `restart` | Restart server |
 | `resume` | Re-snapshot after user takeover, return control to AI |
 | `state save|load <name>` | Save/load browser state (cookies + URLs) |

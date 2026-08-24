@@ -4,6 +4,7 @@ import type { SkillTestResult } from './helpers/session-runner';
 import { EvalCollector } from './helpers/eval-store';
 import type { EvalTestEntry } from './helpers/eval-store';
 import { selectTests, detectBaseBranch, getChangedFiles, E2E_TOUCHFILES, E2E_TIERS, GLOBAL_TOUCHFILES } from './helpers/touchfiles';
+import { extractSkillHead } from './helpers/skill-fixture';
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -59,11 +60,14 @@ if (evalsEnabled && process.env.EVALS_TIER) {
 
 // --- Helper functions ---
 
-/** Copy all SKILL.md files for auto-discovery.
- *  Install to BOTH project-level (.claude/skills/) AND user-level (~/.claude/skills/)
- *  because Claude Code discovers skills from both locations. In CI containers,
- *  $HOME may differ from the working directory, so we need both paths to ensure
- *  the Skill tool appears in Claude's available tools list. */
+/** Install SKILL.md fixtures for auto-discovery.
+ *  Installs to project-level (.claude/skills/) only. Writing to the user's
+ *  ~/.claude/skills/ is unsafe: it may contain symlinks from the real cavestack
+ *  install that point to different worktrees or dangling targets.
+ *
+ *  ROUTING tests only read each skill's frontmatter (name + description) to
+ *  pick a skill, so install frontmatter + the first ~30 body lines instead
+ *  of ~20 full 1000-1900-line files (CLAUDE.md: "extract, don't copy"). */
 function installSkills(tmpDir: string) {
   const skillDirs = [
     '', // root cavestack SKILL.md
@@ -73,24 +77,16 @@ function installSkills(tmpDir: string) {
     'cavestack-upgrade', 'humanizer',
   ];
 
-  // Install to both project-level and user-level skill directories
-  const homeDir = process.env.HOME || os.homedir();
-  const installTargets = [
-    path.join(tmpDir, '.claude', 'skills'),        // project-level
-    path.join(homeDir, '.claude', 'skills'),        // user-level (~/.claude/skills/)
-  ];
+  const targetBase = path.join(tmpDir, '.claude', 'skills');
 
   for (const skill of skillDirs) {
     const srcPath = path.join(ROOT, skill, 'SKILL.md');
     if (!fs.existsSync(srcPath)) continue;
 
     const skillName = skill || 'cavestack';
-
-    for (const targetBase of installTargets) {
-      const destDir = path.join(targetBase, skillName);
-      fs.mkdirSync(destDir, { recursive: true });
-      fs.copyFileSync(srcPath, path.join(destDir, 'SKILL.md'));
-    }
+    const destDir = path.join(targetBase, skillName);
+    fs.mkdirSync(destDir, { recursive: true });
+    fs.writeFileSync(path.join(destDir, 'SKILL.md'), extractSkillHead(srcPath));
   }
 
   // Write a CLAUDE.md with explicit routing instructions.
@@ -139,7 +135,7 @@ function createRoutingWorkDir(suffix: string): string {
   // Clone the repo checkout into a tmpDir so concurrent tests don't interfere
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `routing-${suffix}-`));
   // Copy essential context files
-  const filesToCopy = ['CLAUDE.md', 'README.md', 'package.json'];
+  const filesToCopy = ['CLAUDE.md', 'README.md', 'package.json', 'ETHOS.md'];
   for (const f of filesToCopy) {
     const src = path.join(ROOT, f);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(tmpDir, f));

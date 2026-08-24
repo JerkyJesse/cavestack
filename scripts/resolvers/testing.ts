@@ -3,41 +3,70 @@ import type { TemplateContext } from './types';
 export function generateTestBootstrap(_ctx: TemplateContext): string {
   return `## Test Framework Bootstrap
 
-**Detect existing test framework and project runtime:**
+**Read the project's CLAUDE.md (and TESTING.md if present) FIRST.** If it documents a test command, the project already told you: no detection, no bootstrap. Skip the rest of bootstrap and use that command in Step 5.
+
+**Otherwise gather markers. Every marker below is EVIDENCE for the question you ask — never a command to run blind.** A marker tells you which ecosystem you're in and which command to OFFER. It does not tell you the command works. Do not execute a candidate test command to "check" it: a probe on a project that never had that runner fails loudly and teaches you nothing, and installing a second framework over a working one is worse.
 
 \`\`\`bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
-# Detect project runtime
-[ -f Gemfile ] && echo "RUNTIME:ruby"
+# Definitive ecosystem markers (presence = ecosystem, NOT a command to run)
+[ -f manage.py ] && echo "RUNTIME:python FRAMEWORK:django MARKER:manage.py"
+{ [ -f pyproject.toml ] || [ -f pytest.ini ] || [ -f tox.ini ] || [ -f setup.cfg ] || [ -f requirements.txt ]; } && echo "RUNTIME:python"
+[ -f Gemfile ] || [ -f Rakefile ] || [ -f .rspec ] && echo "RUNTIME:ruby"
 [ -f package.json ] && echo "RUNTIME:node"
-[ -f requirements.txt ] || [ -f pyproject.toml ] && echo "RUNTIME:python"
 [ -f go.mod ] && echo "RUNTIME:go"
 [ -f Cargo.toml ] && echo "RUNTIME:rust"
 [ -f composer.json ] && echo "RUNTIME:php"
 [ -f mix.exs ] && echo "RUNTIME:elixir"
+[ -f pom.xml ] && echo "RUNTIME:jvm BUILD:maven"
+{ [ -f build.gradle ] || [ -f build.gradle.kts ]; } && echo "RUNTIME:jvm BUILD:gradle"
 # Detect sub-frameworks
 [ -f Gemfile ] && grep -q "rails" Gemfile 2>/dev/null && echo "FRAMEWORK:rails"
 [ -f package.json ] && grep -q '"next"' package.json 2>/dev/null && echo "FRAMEWORK:nextjs"
-# Check for existing test infrastructure
-ls jest.config.* vitest.config.* playwright.config.* .rspec pytest.ini pyproject.toml phpunit.xml 2>/dev/null
-ls -d test/ tests/ spec/ __tests__/ cypress/ e2e/ 2>/dev/null
+# Existing test path — config files, declared scripts, AND test FILES.
+# A project with real tests and no config file is the common miss.
+ls jest.config.* vitest.config.* playwright.config.* .rspec pytest.ini tox.ini phpunit.xml* 2>/dev/null
+[ -f package.json ] && grep -q '"test"[[:space:]]*:' package.json && echo "SCRIPT:package.json test"
+[ -f Makefile ] && grep -qE '^(test|check):' Makefile && echo "TARGET:make test"
+[ -f pyproject.toml ] && grep -q "pytest" pyproject.toml && echo "CONFIG:pyproject pytest"
+git ls-files | grep -cE '(^|/)(tests?|spec|__tests__)/|(^|/)tests?\\.py$|(^|/)test_[^/]+\\.py$|_test\\.(go|py|rb|ts|js|exs)$|\\.(test|spec)\\.[jt]sx?$|_spec\\.rb$|Test\\.(java|kt)$' | sed 's/^/TESTFILES:/'
+# Rust keeps unit tests inside src/, so file names alone miss them
+[ -f Cargo.toml ] && git grep -lF '#[test]' -- 'src' >/dev/null 2>&1 && echo "TESTS:rust in-source"
 # Check opt-out marker
 [ -f .cavestack/no-test-bootstrap ] && echo "BOOTSTRAP_DECLINED"
 \`\`\`
 
-**If test framework detected** (config files or test directories found):
-Print "Test framework detected: {name} ({N} existing tests). Skipping bootstrap."
+Map the markers to the command you will OFFER — never to one you run on a guess:
+
+| Marker | Ecosystem | Candidate command to offer |
+|--------|-----------|----------------------------|
+| \`manage.py\` | Django | \`python manage.py test\` (or \`pytest\` when pytest-django is in the deps) |
+| \`pytest.ini\` / \`tox.ini\` / pytest in \`pyproject.toml\` / \`test_*.py\` | Python | \`pytest\` |
+| \`go.mod\` (+ any \`*_test.go\`) | Go | \`go test ./...\` |
+| \`Cargo.toml\` | Rust | \`cargo test\` |
+| \`pom.xml\` | JVM (Maven) | \`mvn test\` |
+| \`build.gradle\` / \`build.gradle.kts\` | JVM (Gradle) | \`./gradlew test\` |
+| \`Gemfile\` / \`Rakefile\` / \`.rspec\` | Ruby | \`bundle exec rspec\`, \`bin/rails test\`, or \`rake test\` |
+| \`mix.exs\` | Elixir | \`mix test\` |
+| \`composer.json\` | PHP | \`composer test\` or \`./vendor/bin/phpunit\` |
+| \`package.json\` with a \`test\` script | Node | that script, run with the package manager the lockfile names |
+| \`Makefile\` with a \`test:\` target | any | \`make test\` |
+
+**If ANY existing-test evidence appears** (a config file, a declared test script or make target, a nonzero \`TESTFILES:\` count, or \`TESTS:rust in-source\`): the project has tests. **Do NOT bootstrap.** Print "Existing tests detected: {the evidence}." Then get the command the same way Step 5 does — CLAUDE.md/TESTING.md if documented, otherwise AskUserQuestion offering the candidates from the table above plus "Other", and persist the answer to CLAUDE.md's \`## Testing\` section so it is never asked again. When the ecosystem ships a runner (Django, Go, Rust, Elixir, Maven/Gradle), that runner is the candidate — never install a second framework beside a working one.
 Read 2-3 existing test files to learn conventions (naming, imports, assertion style, setup patterns).
-Store conventions as prose context for use in Phase 8e.5 or Step 3.4. **Skip the rest of bootstrap.**
+Store conventions as prose context for use in Phase 8e.5 or Step 7. **Skip the rest of bootstrap.**
+
+Absent config files and absent \`tests/\` directories are NOT evidence of "no tests": Django keeps tests in \`<app>/tests.py\`, Go in \`*_test.go\` beside the source, Rust in \`#[test]\` blocks inside \`src/\`. A green \`python manage.py test\` with no \`pytest.ini\` is a tested project, not a bootstrap candidate.
 
 **If BOOTSTRAP_DECLINED** appears: Print "Test bootstrap previously declined — skipping." **Skip the rest of bootstrap.**
 
-**If NO runtime detected** (no config files found): Use AskUserQuestion:
+**If NO ecosystem marker matched:** Use AskUserQuestion:
 "I couldn't detect your project's language. What runtime are you using?"
 Options: A) Node.js/TypeScript B) Ruby/Rails C) Python D) Go E) Rust F) PHP G) Elixir H) This project doesn't need tests.
+If the runtime you need isn't listed, offer "Other" and take the runtime plus the test command as free text.
 If user picks H → write \`.cavestack/no-test-bootstrap\` and continue without tests.
 
-**If runtime detected but no test framework — bootstrap:**
+**If an ecosystem matched but there is no existing-test evidence at all — bootstrap:**
 
 ### B2. Research best practices
 
@@ -53,7 +82,9 @@ If WebSearch is unavailable, use this built-in knowledge table:
 | Node.js | vitest + @testing-library | jest + @testing-library |
 | Next.js | vitest + @testing-library/react + playwright | jest + cypress |
 | Python | pytest + pytest-cov | unittest |
+| Django | pytest + pytest-django | Django's built-in \`manage.py test\` (unittest) |
 | Go | stdlib testing + testify | stdlib only |
+| JVM (Maven/Gradle) | JUnit 5 + AssertJ | JUnit 5 only |
 | Rust | cargo test (built-in) + mockall | — |
 | PHP | phpunit + mockery | pest |
 | Elixir | ExUnit (built-in) + ex_machina | — |
@@ -202,18 +233,23 @@ Before analyzing coverage, detect the project's test framework:
 
 \`\`\`bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
-# Detect project runtime
-[ -f Gemfile ] && echo "RUNTIME:ruby"
+# Detect project runtime (markers are evidence, not commands to run blind)
+[ -f manage.py ] && echo "RUNTIME:python FRAMEWORK:django"
+{ [ -f pyproject.toml ] || [ -f pytest.ini ] || [ -f tox.ini ] || [ -f setup.cfg ] || [ -f requirements.txt ]; } && echo "RUNTIME:python"
+[ -f Gemfile ] || [ -f Rakefile ] || [ -f .rspec ] && echo "RUNTIME:ruby"
 [ -f package.json ] && echo "RUNTIME:node"
-[ -f requirements.txt ] || [ -f pyproject.toml ] && echo "RUNTIME:python"
 [ -f go.mod ] && echo "RUNTIME:go"
 [ -f Cargo.toml ] && echo "RUNTIME:rust"
-# Check for existing test infrastructure
-ls jest.config.* vitest.config.* playwright.config.* cypress.config.* .rspec pytest.ini phpunit.xml 2>/dev/null
-ls -d test/ tests/ spec/ __tests__/ cypress/ e2e/ 2>/dev/null
+[ -f pom.xml ] && echo "RUNTIME:jvm BUILD:maven"
+{ [ -f build.gradle ] || [ -f build.gradle.kts ]; } && echo "RUNTIME:jvm BUILD:gradle"
+# Check for existing test infrastructure — config files, scripts, AND test files
+ls jest.config.* vitest.config.* playwright.config.* cypress.config.* .rspec pytest.ini tox.ini phpunit.xml 2>/dev/null
+[ -f package.json ] && grep -q '"test"[[:space:]]*:' package.json && echo "SCRIPT:package.json test"
+[ -f Makefile ] && grep -qE '^(test|check):' Makefile && echo "TARGET:make test"
+git ls-files | grep -cE '(^|/)(tests?|spec|__tests__)/|(^|/)tests?\\.py$|(^|/)test_[^/]+\\.py$|_test\\.(go|py|rb|ts|js|exs)$|\\.(test|spec)\\.[jt]sx?$|_spec\\.rb$|Test\\.(java|kt)$' | sed 's/^/TESTFILES:/'
 \`\`\`
 
-3. **If no framework detected:**${mode === 'ship' ? ' falls through to the Test Framework Bootstrap step (Step 2.5) which handles full setup.' : ' still produce the coverage diagram, but skip test generation.'}`);
+3. **If no framework detected:**${mode === 'ship' ? ' falls through to the Test Framework Bootstrap step (Step 4) which handles full setup.' : ' still produce the coverage diagram, but skip test generation.'}`);
 
   // ── Before/after count (ship only) ──
   if (mode === 'ship') {
@@ -222,7 +258,7 @@ ls -d test/ tests/ spec/ __tests__/ cypress/ e2e/ 2>/dev/null
 
 \`\`\`bash
 # Count test files before any generation
-find . -name '*.test.*' -o -name '*.spec.*' -o -name '*_test.*' -o -name '*_spec.*' | grep -v node_modules | wc -l
+git ls-files 2>/dev/null | grep -E '(\\.test\\.|\\.spec\\.|_test\\.|_spec\\.)' | wc -l
 \`\`\`
 
 Store this number for the PR body.`);
@@ -338,48 +374,26 @@ When uncertain whether a change is a regression, err on the side of writing the 
 Include BOTH code paths and user flows in the same diagram. Mark E2E-worthy and eval-worthy paths:
 
 \`\`\`
-CODE PATH COVERAGE
-===========================
-[+] src/services/billing.ts
-    │
-    ├── processPayment()
-    │   ├── [★★★ TESTED] Happy path + card declined + timeout — billing.test.ts:42
-    │   ├── [GAP]         Network timeout — NO TEST
-    │   └── [GAP]         Invalid currency — NO TEST
-    │
-    └── refundPayment()
-        ├── [★★  TESTED] Full refund — billing.test.ts:89
-        └── [★   TESTED] Partial refund (checks non-throw only) — billing.test.ts:101
+CODE PATHS                                            USER FLOWS
+[+] src/services/billing.ts                           [+] Payment checkout
+  ├── processPayment()                                  ├── [★★★ TESTED] Complete purchase — checkout.e2e.ts:15
+  │   ├── [★★★ TESTED] happy + declined + timeout      ├── [GAP] [→E2E] Double-click submit
+  │   ├── [GAP]         Network timeout                 └── [GAP]        Navigate away mid-payment
+  │   └── [GAP]         Invalid currency
+  └── refundPayment()                                 [+] Error states
+      ├── [★★  TESTED] Full refund — :89                ├── [★★  TESTED] Card declined message
+      └── [★   TESTED] Partial (non-throw only) — :101  └── [GAP]        Network timeout UX
 
-USER FLOW COVERAGE
-===========================
-[+] Payment checkout flow
-    │
-    ├── [★★★ TESTED] Complete purchase — checkout.e2e.ts:15
-    ├── [GAP] [→E2E] Double-click submit — needs E2E, not just unit
-    ├── [GAP]         Navigate away during payment — unit test sufficient
-    └── [★   TESTED]  Form validation errors (checks render only) — checkout.test.ts:40
+LLM integration: [GAP] [→EVAL] Prompt template change — needs eval test
 
-[+] Error states
-    │
-    ├── [★★  TESTED] Card declined message — billing.test.ts:58
-    ├── [GAP]         Network timeout UX (what does user see?) — NO TEST
-    └── [GAP]         Empty cart submission — NO TEST
-
-[+] LLM integration
-    │
-    └── [GAP] [→EVAL] Prompt template change — needs eval test
-
-─────────────────────────────────
-COVERAGE: 5/13 paths tested (38%)
-  Code paths: 3/5 (60%)
-  User flows: 2/8 (25%)
-QUALITY:  ★★★: 2  ★★: 2  ★: 1
-GAPS: 8 paths need tests (2 need E2E, 1 needs eval)
-─────────────────────────────────
+COVERAGE: 5/13 paths tested (38%)  |  Code paths: 3/5 (60%)  |  User flows: 2/8 (25%)
+QUALITY: ★★★:2 ★★:2 ★:1  |  GAPS: 8 (2 E2E, 1 eval)
 \`\`\`
 
-**Fast path:** All paths covered → "${mode === 'ship' ? 'Step 3.4' : mode === 'review' ? 'Step 4.75' : 'Test review'}: All new code paths have test coverage ✓" Continue.`);
+Legend: ★★★ behavior + edge + error  |  ★★ happy path  |  ★ smoke check
+[→E2E] = needs integration test  |  [→EVAL] = needs LLM eval
+
+**Fast path:** All paths covered → "${mode === 'ship' ? 'Step 7' : mode === 'review' ? 'Step 4.75' : 'Test review'}: All new code paths have test coverage ✓" Continue.`);
 
   // ── Mode-specific action section ──
   if (mode === 'plan') {
@@ -432,7 +446,7 @@ This file is consumed by \`/qa\` and \`/qa-only\` as primary test input. Include
     sections.push(`
 **5. Generate tests for uncovered paths:**
 
-If test framework detected (or bootstrapped in Step 2.5):
+If test framework detected (or bootstrapped in Step 4):
 - Prioritize error handlers and edge cases first (happy paths are more likely already tested)
 - Read 2-3 existing test files to match conventions exactly
 - Generate unit tests. Mock all external dependencies (DB, API, Redis).
@@ -446,13 +460,13 @@ Caps: 30 code paths max, 20 tests generated max (code + user flow combined), 2-m
 
 If no test framework AND user declined bootstrap → diagram only, no generation. Note: "Test generation skipped — no test framework configured."
 
-**Diff is test-only changes:** Skip Step 3.4 entirely: "No new application code paths to audit."
+**Diff is test-only changes:** Skip Step 7 entirely: "No new application code paths to audit."
 
 **6. After-count and coverage summary:**
 
 \`\`\`bash
 # Count test files after generation
-find . -name '*.test.*' -o -name '*.spec.*' -o -name '*_test.*' -o -name '*_spec.*' | grep -v node_modules | wc -l
+git ls-files 2>/dev/null | grep -E '(\\.test\\.|\\.spec\\.|_test\\.|_spec\\.)' | wc -l
 \`\`\`
 
 For PR body: \`Tests: {before} → {after} (+{delta} new)\`
@@ -566,8 +580,4 @@ export function generateTestCoverageAuditPlan(_ctx: TemplateContext): string {
 
 export function generateTestCoverageAuditShip(_ctx: TemplateContext): string {
   return generateTestCoverageAuditInner('ship');
-}
-
-export function generateTestCoverageAuditReview(_ctx: TemplateContext): string {
-  return generateTestCoverageAuditInner('review');
 }

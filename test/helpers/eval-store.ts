@@ -39,7 +39,16 @@ export function getProjectEvalDir(): string {
   return LEGACY_EVAL_DIR;
 }
 
-const DEFAULT_EVAL_DIR = getProjectEvalDir();
+/**
+ * Lazy + memoized so importing this module never spawns the cavestack-slug
+ * subprocess. Callers that pass an explicit dir or set CAVESTACK_EVAL_DIR
+ * (the sharded paid runner does, per shard) never pay for slug detection.
+ */
+let memoizedDefaultEvalDir: string | null = null;
+function defaultEvalDir(): string {
+  if (memoizedDefaultEvalDir === null) memoizedDefaultEvalDir = getProjectEvalDir();
+  return memoizedDefaultEvalDir;
+}
 
 // --- Interfaces ---
 
@@ -56,6 +65,7 @@ export interface EvalTestEntry {
   prompt?: string;
   output?: string;
   turns_used?: number;
+  tokens_used?: number;
   browse_errors?: string[];
 
   // LLM judge
@@ -68,7 +78,7 @@ export interface EvalTestEntry {
   last_tool_call?: string;    // e.g. "Write(review-output.md)"
 
   // Model + timing diagnostics (added for Sonnet/Opus split)
-  model?: string;                // e.g. 'claude-sonnet-4-6' or 'claude-opus-4-6'
+  model?: string;                // e.g. 'claude-sonnet-4-6' or 'claude-opus-4-7'
   first_response_ms?: number;    // time from spawn to first NDJSON line
   max_inter_turn_ms?: number;    // peak latency between consecutive tool calls
 
@@ -104,6 +114,8 @@ export interface EvalResult {
   total_duration_ms: number;
   wall_clock_ms?: number;     // wall-clock from collector creation to finalization (shows parallelism)
   tests: EvalTestEntry[];
+  /** Shard slug when the run was collected under <evalDir>/shards/<slug>/. */
+  shard?: string;
   _partial?: boolean;  // true for incremental saves, absent in final
 }
 
@@ -131,9 +143,93 @@ export interface ComparisonResult {
   unchanged: number;
   tool_count_before: number;
   tool_count_after: number;
+  /** After-tests that had a same-named entry in the before run. 0 = nothing was
+   *  actually compared, so no stability claim is warranted. */
+  matched?: number;
 }
 
 // --- Shared helpers ---
+
+/**
+ * Is this eval file an in-progress accumulator rather than a finalized run?
+ *
+ * True on either signal: the `_partial` flag inside the JSON (the authoritative
+ * role marker) OR a filename starting with `_partial` (catches accumulators
+ * whose body predates the flag, and flagged files that were renamed keep being
+ * caught by the flag). Every baseline lookup must exclude these — an
+ * accumulator carries the current run's tier, branch, and freshest timestamp,
+ * so treating it as a baseline makes the run compare against itself.
+ */
+export function isPartialEval(data: unknown, filename: string): boolean {
+  if (path.basename(filename).startsWith('_partial')) return true;
+  return Boolean((data as { _partial?: unknown } | null)?._partial);
+}
+
+/**
+ * List eval JSON files in `evalDir` plus one level of `<evalDir>/shards/<slug>/`
+ * subdirectories (where the sharded paid runner points each shard's collector).
+ * Returns absolute paths. Missing dirs yield [].
+ */
+export function listEvalJsonFiles(evalDir: string): string[] {
+  const jsonIn = (dir: string): string[] => {
+    let names: string[];
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      return [];
+    }
+    return names.filter(f => f.endsWith('.json')).map(f => path.join(dir, f));
+  };
+
+  const files = jsonIn(evalDir);
+  const shardsRoot = path.join(evalDir, 'shards');
+  let shardDirs: fs.Dirent[];
+  try {
+    shardDirs = fs.readdirSync(shardsRoot, { withFileTypes: true });
+  } catch {
+    return files;
+  }
+  for (const entry of shardDirs) {
+    if (!entry.isDirectory()) continue;
+    files.push(...jsonIn(path.join(shardsRoot, entry.name)));
+  }
+  return files;
+}
+
+/**
+ * Shard slug for an eval dir: when the dir is directly under a `shards/`
+ * directory (the sharded paid runner's per-shard CAVESTACK_EVAL_DIR layout),
+ * the dir name is the slug; otherwise null.
+ */
+export function shardSlugOfEvalDir(evalDir: string): string | null {
+  const normalized = path.resolve(evalDir);
+  return path.basename(path.dirname(normalized)) === 'shards' ? path.basename(normalized) : null;
+}
+
+/**
+ * Find the most recent finalized (non-partial) eval file for a tier, scanning
+ * `evalDir` and one level of `shards/<slug>/` subdirs. Shared by the budget
+ * regression gate and any tooling that needs "the latest real run".
+ */
+export function findLatestFinalizedRun(
+  evalDir: string,
+  tier: 'e2e' | 'llm-judge',
+): { filepath: string; result: EvalResult } | null {
+  let latest: { filepath: string; result: EvalResult; timestamp: string } | null = null;
+  for (const filepath of listEvalJsonFiles(evalDir)) {
+    let data: EvalResult;
+    try {
+      data = JSON.parse(fs.readFileSync(filepath, 'utf-8')) as EvalResult;
+    } catch { continue; }
+    if (isPartialEval(data, filepath)) continue;
+    if (data.tier !== tier) continue;
+    const timestamp = data.timestamp ?? '';
+    if (!latest || timestamp.localeCompare(latest.timestamp) > 0) {
+      latest = { filepath, result: data, timestamp };
+    }
+  }
+  return latest ? { filepath: latest.filepath, result: latest.result } : null;
+}
 
 /**
  * Determine if a planted-bug eval passed based on judge results vs ground truth thresholds.
@@ -171,8 +267,16 @@ export function extractToolSummary(transcript: any[]): Record<string, number> {
 }
 
 /**
- * Find the most recent prior eval file for comparison.
- * Prefers same branch, falls back to any branch.
+ * Find the most recent prior COMPLETED eval file for comparison.
+ * Scans the eval dir plus one level of `shards/<slug>/` subdirs. Prefers
+ * same shard slug (a shard's own history over another shard's or the flat
+ * dir's), then same branch, then falls back to anything.
+ *
+ * In-progress accumulators (`_partial: true`, written by savePartial after every
+ * test) are never candidates: the current run's own partial carries the current
+ * tier + branch and the freshest timestamp, so including it made every run
+ * compare against itself and report "no regressions" unconditionally. The
+ * exclusion is by role (the `_partial` flag), not by filename.
  */
 export function findPreviousRun(
   evalDir: string,
@@ -180,24 +284,22 @@ export function findPreviousRun(
   branch: string,
   excludeFile: string,
 ): string | null {
-  let files: string[];
-  try {
-    files = fs.readdirSync(evalDir).filter(f => f.endsWith('.json'));
-  } catch {
-    return null; // dir doesn't exist
-  }
-
   // Parse top-level fields from each file (cheap — no full tests array needed)
-  const entries: Array<{ file: string; branch: string; timestamp: string }> = [];
-  for (const file of files) {
-    if (file === path.basename(excludeFile)) continue;
-    const fullPath = path.join(evalDir, file);
+  const entries: Array<{ file: string; branch: string; timestamp: string; shard: string | null }> = [];
+  for (const fullPath of listEvalJsonFiles(evalDir)) {
+    if (path.resolve(fullPath) === path.resolve(excludeFile)) continue;
     try {
       const raw = fs.readFileSync(fullPath, 'utf-8');
       // Quick parse — only grab the fields we need
       const data = JSON.parse(raw);
+      if (isPartialEval(data, fullPath)) continue; // in-progress run, not a baseline
       if (data.tier !== tier) continue;
-      entries.push({ file: fullPath, branch: data.branch || '', timestamp: data.timestamp || '' });
+      entries.push({
+        file: fullPath,
+        branch: data.branch || '',
+        timestamp: data.timestamp || '',
+        shard: data.shard || shardSlugOfEvalDir(path.dirname(fullPath)),
+      });
     } catch { continue; }
   }
 
@@ -206,11 +308,17 @@ export function findPreviousRun(
   // Sort by timestamp descending
   entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
-  // Prefer same branch
-  const sameBranch = entries.find(e => e.branch === branch);
-  if (sameBranch) return sameBranch.file;
-
-  // Fallback: any branch
+  // Prefer same shard slug (null = the flat dir), then same branch, then any.
+  const targetShard = shardSlugOfEvalDir(path.dirname(excludeFile));
+  const preferences: Array<(e: typeof entries[number]) => boolean> = [
+    e => e.shard === targetShard && e.branch === branch,
+    e => e.shard === targetShard,
+    e => e.branch === branch,
+  ];
+  for (const matches of preferences) {
+    const hit = entries.find(matches);
+    if (hit) return hit.file;
+  }
   return entries[0].file;
 }
 
@@ -226,6 +334,7 @@ export function compareEvalResults(
   const deltas: TestDelta[] = [];
   let improved = 0, regressed = 0, unchanged = 0;
   let toolCountBefore = 0, toolCountAfter = 0;
+  let matched = 0;
 
   // Index before tests by name
   const beforeMap = new Map<string, EvalTestEntry>();
@@ -246,6 +355,7 @@ export function compareEvalResults(
 
     let statusChange: TestDelta['status_change'] = 'unchanged';
     if (beforeTest) {
+      matched++;
       if (!beforeTest.passed && afterTest.passed) { statusChange = 'improved'; improved++; }
       else if (beforeTest.passed && !afterTest.passed) { statusChange = 'regressed'; regressed++; }
       else { unchanged++; }
@@ -314,6 +424,7 @@ export function compareEvalResults(
     unchanged,
     tool_count_before: toolCountBefore,
     tool_count_after: toolCountAfter,
+    matched,
   };
 }
 
@@ -512,7 +623,17 @@ export function generateCommentary(c: ComparisonResult): string[] {
     }
   }
 
-  // 4. Overall summary
+  // 4. No baseline — say so. A run with nothing to compare against must never
+  //    read as "stable"; silence or a false all-clear is worse than no output.
+  if (c.matched === 0 && c.deltas.length > 0) {
+    notes.push(
+      `NO BASELINE: none of these ${c.deltas.length} test(s) appear in ${path.basename(c.before_file)}. ` +
+      'Nothing was compared, so this run says nothing about regressions.',
+    );
+    return notes;
+  }
+
+  // 5. Overall summary
   if (c.deltas.length >= 3 && regressions.length === 0) {
     const overallParts: string[] = [];
 
@@ -554,6 +675,71 @@ export function generateCommentary(c: ComparisonResult): string[] {
   return notes;
 }
 
+// --- Budget regression assertion ---
+
+export interface BudgetRegression {
+  testName: string;
+  metric: 'tools' | 'turns';
+  before: number;
+  after: number;
+  ratio: number;
+}
+
+/**
+ * Compute budget regressions: tests where tool calls or turns grew by more
+ * than `ratioCap` between two runs. Pure function — caller decides how to
+ * surface the result. Used by test/skill-budget-regression.test.ts and any
+ * future ship gate.
+ *
+ * `ratioCap` defaults to 2.0 (>2× growth is a regression). Override via
+ * `CAVESTACK_BUDGET_RATIO` env var. New tests with no prior data are skipped.
+ */
+export function findBudgetRegressions(
+  comparison: ComparisonResult,
+  opts?: { ratioCap?: number; minPriorTools?: number; minPriorTurns?: number },
+): BudgetRegression[] {
+  const envRatio = Number(process.env.CAVESTACK_BUDGET_RATIO);
+  const cap = opts?.ratioCap ?? (Number.isFinite(envRatio) && envRatio > 0 ? envRatio : 2.0);
+  // Floors avoid noise on tiny numbers (1 → 3 tools is 3× but meaningless).
+  const minPriorTools = opts?.minPriorTools ?? 5;
+  const minPriorTurns = opts?.minPriorTurns ?? 3;
+  const out: BudgetRegression[] = [];
+  for (const d of comparison.deltas) {
+    const beforeTools = Object.values(d.before.tool_summary ?? {}).reduce((a, b) => a + b, 0);
+    const afterTools  = Object.values(d.after.tool_summary  ?? {}).reduce((a, b) => a + b, 0);
+    const beforeTurns = d.before.turns_used ?? 0;
+    const afterTurns  = d.after.turns_used  ?? 0;
+    if (beforeTools >= minPriorTools && afterTools / beforeTools > cap) {
+      out.push({ testName: d.name, metric: 'tools', before: beforeTools, after: afterTools, ratio: afterTools / beforeTools });
+    }
+    if (beforeTurns >= minPriorTurns && afterTurns / beforeTurns > cap) {
+      out.push({ testName: d.name, metric: 'turns', before: beforeTurns, after: afterTurns, ratio: afterTurns / beforeTurns });
+    }
+  }
+  return out;
+}
+
+/**
+ * Throw if any test in the comparison exceeds the budget cap. Convenience
+ * wrapper around findBudgetRegressions for use in test assertions.
+ */
+export function assertNoBudgetRegression(
+  comparison: ComparisonResult,
+  opts?: { ratioCap?: number; minPriorTools?: number; minPriorTurns?: number },
+): void {
+  const regressions = findBudgetRegressions(comparison, opts);
+  if (regressions.length === 0) return;
+  const cap = opts?.ratioCap ?? (Number(process.env.CAVESTACK_BUDGET_RATIO) || 2.0);
+  const lines = regressions.map(
+    r => `  "${r.testName}" ${r.metric}: ${r.before} → ${r.after} (${r.ratio.toFixed(2)}× > ${cap.toFixed(2)}× cap)`,
+  );
+  throw new Error(
+    `Budget regression: ${regressions.length} test(s) exceeded ${cap.toFixed(2)}× prior usage:\n` +
+    lines.join('\n') +
+    `\n(Override per run: CAVESTACK_BUDGET_RATIO=<n>. ${comparison.before_file} vs ${comparison.after_file})`,
+  );
+}
+
 // --- EvalCollector ---
 
 function getGitInfo(): { branch: string; sha: string } {
@@ -584,11 +770,13 @@ export class EvalCollector {
   private tests: EvalTestEntry[] = [];
   private finalized = false;
   private evalDir: string;
+  private shard: string | null;
   private createdAt = Date.now();
 
   constructor(tier: 'e2e' | 'llm-judge', evalDir?: string) {
     this.tier = tier;
-    this.evalDir = evalDir || DEFAULT_EVAL_DIR;
+    this.evalDir = evalDir || process.env.CAVESTACK_EVAL_DIR || defaultEvalDir();
+    this.shard = shardSlugOfEvalDir(this.evalDir);
   }
 
   addTest(entry: EvalTestEntry): void {
@@ -619,6 +807,7 @@ export class EvalCollector {
         total_cost_usd: Math.round(totalCost * 100) / 100,
         total_duration_ms: totalDuration,
         tests: this.tests,
+        ...(this.shard ? { shard: this.shard } : {}),
         _partial: true,
       };
 
@@ -656,6 +845,7 @@ export class EvalCollector {
       total_duration_ms: totalDuration,
       wall_clock_ms: Date.now() - this.createdAt,
       tests: this.tests,
+      ...(this.shard ? { shard: this.shard } : {}),
     };
 
     // Write eval file
@@ -677,7 +867,11 @@ export class EvalCollector {
         const comparison = compareEvalResults(prevResult, result, prevFile, filepath);
         process.stderr.write(formatComparison(comparison) + '\n');
       } else {
-        process.stderr.write('\nFirst run — no comparison available.\n');
+        process.stderr.write(
+          `\nNO BASELINE: no completed prior ${this.tier} run found in ${this.evalDir}` +
+          ' (the in-progress accumulator is not a baseline). Nothing compared —' +
+          ' this run says nothing about regressions.\n',
+        );
       }
     } catch (err: any) {
       process.stderr.write(`\nCompare error: ${err.message}\n`);

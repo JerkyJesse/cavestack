@@ -1,54 +1,41 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { execFileSync, execSync } from 'child_process';
+import { describe, test as _bunTest, expect, beforeEach, afterEach } from 'bun:test';
+import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
+// Every test in this file shells out to cavestack-config + cavestack-relink (bash scripts
+// invoking subprocess work). Under parallel bun test load, subprocess spawn contends
+// with other suites and each test can drift ~200ms past the 5s default. Bump to 15s.
+// Object.assign preserves test.only / test.skip / test.each / test.todo sub-APIs.
+const test = Object.assign(
+  ((name: any, fn: any, timeout?: number) =>
+    _bunTest(name, fn, timeout ?? 15_000)) as typeof _bunTest,
+  _bunTest,
+);
+
 const ROOT = path.resolve(import.meta.dir, '..');
 const BIN = path.join(ROOT, 'bin');
-const IS_WINDOWS = process.platform === 'win32';
-
-// Windows: fs.symlinkSync requires admin or Developer Mode. cavestack-relink
-// creates symlinks, so without the privilege the binary itself fails before any
-// assertion runs. Probe once and skip relink/patch-names/migration describes
-// that depend on symlink creation.
-function canSymlink(): boolean {
-  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-relink-symprobe-'));
-  try {
-    const src = path.join(probeDir, 'src');
-    fs.writeFileSync(src, 'x');
-    fs.symlinkSync(src, path.join(probeDir, 'lnk'));
-    return true;
-  } catch {
-    return false;
-  } finally {
-    fs.rmSync(probeDir, { recursive: true, force: true });
-  }
-}
-
-const SYMLINK_OK = canSymlink();
 
 let tmpDir: string;
 let skillsDir: string;
 let installDir: string;
 
-// Parses a call-site string of the form `<path>/bin/cavestack-<name> arg1 arg2`
-// where <path> may contain spaces (e.g. "Bucket Of Pythons" on Windows).
-// Splitting on whitespace is unsafe when the binary path itself contains
-// spaces, so we anchor on the known binary-name shape.
 function run(cmd: string, env: Record<string, string> = {}, expectFail = false): string {
-  const m = cmd.match(/^(.+?cavestack-[a-z-]+)(?:\s+(.*))?$/);
-  if (!m) throw new Error(`run() cannot parse binary from: ${cmd}`);
-  const [, binary, argsStr] = m;
-  const args = argsStr ? argsStr.trim().split(/\s+/).filter(Boolean) : [];
   try {
-    return execFileSync('bash', [binary, ...args], {
+    return execSync(cmd, {
       cwd: ROOT,
-      env: { ...process.env, CAVESTACK_STATE_DIR: tmpDir, ...env },
+      // A sibling test file in the same shard PROCESS can leave CAVESTACK_HOME
+      // set on process.env; relink/config children must resolve state ONLY
+      // via the dirs this test passes (observed: 'fresh install' test saw a
+      // neighbor's skill_prefix and produced prefixed names).
+      env: (() => {
+        const child: Record<string, string | undefined> = { ...process.env, CAVESTACK_STATE_DIR: tmpDir, ...env };
+        if (!('CAVESTACK_HOME' in env)) delete child.CAVESTACK_HOME;
+        return child;
+      })(),
       encoding: 'utf-8',
-      // 30s: bash→bun spawns cost ~500ms-1s each on Windows and this file has
-      // tests that chain 4-8 run() calls back-to-back; 10s was not enough.
-      timeout: 30000,
+      timeout: 10000,
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
   } catch (e: any) {
@@ -96,7 +83,7 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-(SYMLINK_OK ? describe : describe.skip)('cavestack-relink (#578)', () => {
+describe('cavestack-relink (#578)', () => {
   // Test 11: prefixed symlinks when skill_prefix=true
   test('creates cavestack-* symlinks when skill_prefix=true', () => {
     setupMockInstall(['qa', 'ship', 'review']);
@@ -206,6 +193,109 @@ afterEach(() => {
     expect(fs.lstatSync(path.join(skillsDir, 'qa')).isSymbolicLink()).toBe(false);
     expect(fs.lstatSync(path.join(skillsDir, 'qa')).isDirectory()).toBe(true);
     expect(fs.lstatSync(path.join(skillsDir, 'qa', 'SKILL.md')).isSymbolicLink()).toBe(true);
+  });
+
+  test('creates a thin root alias wrapper for the /cavestack slash command', () => {
+    setupMockInstall(['qa']);
+    fs.writeFileSync(
+      path.join(installDir, 'SKILL.md'),
+      '---\nname: cavestack\ndescription: root\n---\n# cavestack',
+    );
+
+    run(`${path.join(installDir, 'bin', 'cavestack-config')} set skill_prefix false`, {
+      CAVESTACK_INSTALL_DIR: installDir,
+      CAVESTACK_SKILLS_DIR: skillsDir,
+    });
+    run(`${path.join(installDir, 'bin', 'cavestack-relink')}`, {
+      CAVESTACK_INSTALL_DIR: installDir,
+      CAVESTACK_SKILLS_DIR: skillsDir,
+    });
+
+    const aliasDir = path.join(skillsDir, '_cavestack-command');
+    const aliasSkill = path.join(aliasDir, 'SKILL.md');
+    expect(fs.lstatSync(aliasDir).isDirectory()).toBe(true);
+    expect(fs.lstatSync(aliasDir).isSymbolicLink()).toBe(false);
+    // #2511: the alias is a rewritten COPY, never a symlink. A symlinked
+    // alias re-serves the canonical `name: cavestack`; Claude Code refuses
+    // duplicate skill names and drops the entire personal-skills set.
+    expect(fs.lstatSync(aliasSkill).isSymbolicLink()).toBe(false);
+    const aliasContent = fs.readFileSync(aliasSkill, 'utf-8');
+    expect(aliasContent).toContain('name: _cavestack-command');
+    expect(aliasContent).not.toContain('name: cavestack\n');
+    // The rewrite happened on the COPY: the canonical source keeps its name.
+    expect(fs.readFileSync(path.join(installDir, 'SKILL.md'), 'utf-8')).toContain('name: cavestack');
+
+    run(`${path.join(installDir, 'bin', 'cavestack-config')} set skill_prefix true`, {
+      CAVESTACK_INSTALL_DIR: installDir,
+      CAVESTACK_SKILLS_DIR: skillsDir,
+    });
+    expect(fs.existsSync(aliasSkill)).toBe(true);
+  });
+
+  // #2201: connect-chrome ships as a dir SYMLINK to open-cavestack-browser. The
+  // discovery loop used to link it under its own basename while its SKILL.md
+  // carried `name: open-cavestack-browser` — a duplicate name that silently
+  // shadows the real skill (readdir-order roulette). Symlinked source dirs
+  // must be skipped; setup owns the rewritten-copy alias.
+  test('symlinked skill dirs are skipped, so no duplicate frontmatter names (#2201)', () => {
+    setupMockInstall(['open-cavestack-browser', 'qa']);
+    fs.symlinkSync(
+      path.join(installDir, 'open-cavestack-browser'),
+      path.join(installDir, 'connect-chrome'),
+    );
+    run(`${path.join(installDir, 'bin', 'cavestack-config')} set skill_prefix false`, {
+      CAVESTACK_INSTALL_DIR: installDir,
+      CAVESTACK_SKILLS_DIR: skillsDir,
+    });
+    run(`${path.join(installDir, 'bin', 'cavestack-relink')}`, {
+      CAVESTACK_INSTALL_DIR: installDir,
+      CAVESTACK_SKILLS_DIR: skillsDir,
+    });
+
+    expect(fs.existsSync(path.join(skillsDir, 'open-cavestack-browser'))).toBe(true);
+    expect(fs.existsSync(path.join(skillsDir, 'connect-chrome'))).toBe(false);
+
+    // No two installed SKILL.md files may share a frontmatter name.
+    const names: string[] = [];
+    for (const entry of fs.readdirSync(skillsDir)) {
+      const skillMd = path.join(skillsDir, entry, 'SKILL.md');
+      if (!fs.existsSync(skillMd)) continue;
+      const m = fs.readFileSync(skillMd, 'utf-8').match(/^name:\s*(\S+)/m);
+      if (m) names.push(m[1]);
+    }
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  // #2569: rendered :user variants live in ${CAVESTACK_HOME}/render/claude.
+  // relink must serve the render when present — otherwise any config change
+  // silently flips every skill back to the canonical (blockless) source.
+  test('prefers a rendered SKILL.md from CAVESTACK_HOME/render/claude (#2569)', () => {
+    setupMockInstall(['qa', 'ship']);
+    const renderDir = path.join(tmpDir, 'render', 'claude', 'qa');
+    fs.mkdirSync(renderDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(renderDir, 'SKILL.md'),
+      '---\nname: qa\ndescription: test\n---\nrendered brain-aware qa',
+    );
+
+    run(`${path.join(installDir, 'bin', 'cavestack-config')} set skill_prefix false`, {
+      CAVESTACK_INSTALL_DIR: installDir,
+      CAVESTACK_SKILLS_DIR: skillsDir,
+      CAVESTACK_HOME: tmpDir,
+    });
+    run(`${path.join(installDir, 'bin', 'cavestack-relink')}`, {
+      CAVESTACK_INSTALL_DIR: installDir,
+      CAVESTACK_SKILLS_DIR: skillsDir,
+      CAVESTACK_HOME: tmpDir,
+    });
+
+    const qaLink = path.join(skillsDir, 'qa', 'SKILL.md');
+    expect(fs.readlinkSync(qaLink)).toBe(path.join(renderDir, 'SKILL.md'));
+    expect(fs.readFileSync(qaLink, 'utf-8')).toContain('rendered brain-aware qa');
+    // ship has no render — canonical source link.
+    expect(fs.readlinkSync(path.join(skillsDir, 'ship', 'SKILL.md'))).toBe(
+      path.join(installDir, 'ship', 'SKILL.md'),
+    );
   });
 
   // FIRST INSTALL: --no-prefix must create ONLY flat names, zero cavestack-* pollution
@@ -410,11 +500,9 @@ describe('upgrade migrations', () => {
     expect(scripts.length).toBeGreaterThan(0);
     for (const script of scripts) {
       const fullPath = path.join(MIGRATIONS_DIR, script);
-      // Must be executable (skip on Windows — no POSIX exec bit)
-      if (!IS_WINDOWS) {
-        const stat = fs.statSync(fullPath);
-        expect(stat.mode & 0o111).toBeGreaterThan(0);
-      }
+      // Must be executable
+      const stat = fs.statSync(fullPath);
+      expect(stat.mode & 0o111).toBeGreaterThan(0);
       // Must parse without syntax errors (bash -n is a syntax check, doesn't execute)
       const result = execSync(`bash -n "${fullPath}" 2>&1`, { encoding: 'utf-8', timeout: 5000 });
       // bash -n outputs nothing on success
@@ -434,7 +522,6 @@ describe('upgrade migrations', () => {
   });
 
   test('v0.15.2.0 migration fixes stale directory symlinks', () => {
-    if (!SYMLINK_OK) return;
     setupMockInstall(['qa', 'ship', 'review']);
     // Simulate old state: directory symlinks (pre-v0.15.2.0 pattern)
     fs.symlinkSync(path.join(installDir, 'qa'), path.join(skillsDir, 'qa'));
@@ -463,7 +550,7 @@ describe('upgrade migrations', () => {
   });
 });
 
-(SYMLINK_OK ? describe : describe.skip)('cavestack-patch-names (#620/#578)', () => {
+describe('cavestack-patch-names (#620/#578)', () => {
   // Helper to read name: from SKILL.md frontmatter
   function readSkillName(skillDir: string): string | null {
     const content = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');

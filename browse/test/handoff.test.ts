@@ -18,24 +18,22 @@ let testServer: ReturnType<typeof startTestServer>;
 let bm: BrowserManager;
 let baseUrl: string;
 
-// Windows: Playwright chrome-headless-shell --remote-debugging-pipe handshake
-// hangs indefinitely. Skip browser-dependent describes; unit tests still run.
-const isWindows = process.platform === 'win32';
-const describeBrowser = isWindows ? describe.skip : describe;
-
 beforeAll(async () => {
-  if (isWindows) return;
   testServer = startTestServer(0);
   baseUrl = testServer.url;
 
   bm = new BrowserManager();
   await bm.launch();
-}, 60000);
+});
 
-afterAll(() => {
-  if (isWindows) return;
-  try { testServer.server.stop(); } catch {}
-  setTimeout(() => process.exit(0), 500);
+afterAll(async () => {
+  try { testServer.server.stop(true); } catch {}  // force-close keep-alives — a lingering Chromium connection otherwise blocks stop() forever
+  // Close only this file's own browser — never process.exit(): bun test runs
+  // all files in one process, so a delayed exit kills the whole suite
+  // (see test/no-suicide-exit.test.ts). close() can hang when the browser
+  // already died, and its internal 5s timeout ties bun's 5s hook timeout —
+  // so race it at 3s and abandon; the child is reaped at process exit.
+  try { await Promise.race([bm?.close(), new Promise((resolve) => setTimeout(resolve, 3000))]); } catch {}
 });
 
 // ─── Unit Tests: Failure Tracking (no browser needed) ────────────
@@ -86,7 +84,7 @@ describe('failure tracking', () => {
 
 // ─── Unit Tests: State Save/Restore (shared browser) ─────────────
 
-describeBrowser('saveState', () => {
+describe('saveState', () => {
   test('captures cookies and page URLs', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     await handleWriteCommand('cookie', ['testcookie=testvalue'], bm);
@@ -133,7 +131,7 @@ describeBrowser('saveState', () => {
   }, 15000);
 });
 
-describeBrowser('restoreState', () => {
+describe('restoreState', () => {
   test('state survives recreateContext round-trip', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     await handleWriteCommand('cookie', ['restored=yes'], bm);
@@ -151,7 +149,7 @@ describeBrowser('restoreState', () => {
 
 // ─── Unit Tests: Handoff Edge Cases ──────────────────────────────
 
-describeBrowser('handoff edge cases', () => {
+describe('handoff edge cases', () => {
   test('handoff when already headed returns no-op', async () => {
     (bm as any).isHeaded = true;
     const result = await bm.handoff('test');
@@ -179,8 +177,15 @@ describeBrowser('handoff edge cases', () => {
 // Each handoff test creates its own BrowserManager since handoff swaps the browser.
 // These tests run sequentially (one browser at a time) to avoid resource issues.
 
-describeBrowser('handoff integration', () => {
-  test('full handoff: cookies preserved, headed mode active, commands work', async () => {
+// Headed-mode launch is broken on current macOS (the rebrand invalidates the
+// Chrome-for-Testing bundle signature and XProtect kills the relaunch —
+// #2242, #2554, #2138). These three integration tests drive a real headed
+// handoff and fail ~5s in on any darwin box. They stay ENABLED on Linux CI.
+// Un-skip when the browse-daemon lifecycle wave lands the signature fix.
+const HEADED_BROKEN_ON_DARWIN = process.platform === 'darwin';
+
+describe('handoff integration', () => {
+  test.skipIf(HEADED_BROKEN_ON_DARWIN)('full handoff: cookies preserved, headed mode active, commands work', async () => {
     const hbm = new BrowserManager();
     await hbm.launch();
 
@@ -213,7 +218,7 @@ describeBrowser('handoff integration', () => {
     }
   }, 45000);
 
-  test('multi-tab handoff preserves all tabs', async () => {
+  test.skipIf(HEADED_BROKEN_ON_DARWIN)('multi-tab handoff preserves all tabs', async () => {
     const hbm = new BrowserManager();
     await hbm.launch();
 
@@ -230,7 +235,7 @@ describeBrowser('handoff integration', () => {
     }
   }, 45000);
 
-  test('handoff meta command joins args as message', async () => {
+  test.skipIf(HEADED_BROKEN_ON_DARWIN)('handoff meta command joins args as message', async () => {
     const hbm = new BrowserManager();
     await hbm.launch();
 

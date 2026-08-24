@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { resolveConfig, ensureStateDir, readVersionHash, getGitRoot, getRemoteSlug } from '../src/config';
+import { resolveConfig, ensureStateDir, readVersionHash, getGitRoot, getRemoteSlug, resolveCavestackHome, resolveChromiumProfile, cleanSingletonLocks } from '../src/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -58,6 +58,39 @@ describe('config', () => {
       ensureStateDir(config); // should not throw
       expect(fs.existsSync(config.stateDir)).toBe(true);
       // Cleanup
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    test('writes a self-contained .cavestack/.gitignore with * unconditionally', () => {
+      // Even with NO project .gitignore, the state dir must carry its own
+      // ignore so persisted cookies / network+audit logs can never be git-added.
+      const tmpDir = path.join(os.tmpdir(), `browse-selfignore-test-${Date.now()}`);
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.cavestack', 'browse.json') });
+      ensureStateDir(config);
+      const selfIgnore = path.join(config.stateDir, '.gitignore');
+      expect(fs.existsSync(selfIgnore)).toBe(true);
+      expect(fs.readFileSync(selfIgnore, 'utf-8')).toBe('*\n');
+      // No nesting: the ignore is directly inside the state dir, not .cavestack/.cavestack/.
+      expect(fs.existsSync(path.join(config.stateDir, '.cavestack'))).toBe(false);
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    test('writes the self-contained .gitignore even when git already ignores .cavestack/ (before the early return)', () => {
+      // Pins the load-bearing property: the state-dir ignore is written
+      // UNCONDITIONALLY, before the `if (isIgnoredByGit(...)) return` early exit.
+      // A git repo whose root .gitignore already lists .cavestack/ makes
+      // isIgnoredByGit true, so the early return fires — moving the write below
+      // it (the exact bug the fix removed) would skip the guard here.
+      const tmpDir = path.join(os.tmpdir(), `browse-gitignored-repo-test-${Date.now()}`);
+      fs.mkdirSync(tmpDir, { recursive: true });
+      Bun.spawnSync(['git', 'init'], { cwd: tmpDir, stdout: 'ignore', stderr: 'ignore' });
+      fs.writeFileSync(path.join(tmpDir, '.gitignore'), '.cavestack/\n');
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.cavestack', 'browse.json') });
+      ensureStateDir(config);
+      const selfIgnore = path.join(config.stateDir, '.gitignore');
+      expect(fs.existsSync(selfIgnore)).toBe(true);
+      expect(fs.readFileSync(selfIgnore, 'utf-8')).toBe('*\n');
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
@@ -124,6 +157,41 @@ describe('config', () => {
       expect(fs.existsSync(path.join(tmpDir, '.gitignore'))).toBe(false);
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
+
+    test('leaves .gitignore alone when git already ignores .cavestack/ globally', () => {
+      const { spawnSync } = require('child_process');
+      const tmpDir = path.join(os.tmpdir(), `browse-gitignore-global-${Date.now()}`);
+      fs.mkdirSync(tmpDir, { recursive: true });
+
+      // Set up a real git repo
+      spawnSync('git', ['init', '-q'], { cwd: tmpDir });
+      spawnSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir });
+      spawnSync('git', ['config', 'user.name', 'Test'], { cwd: tmpDir });
+
+      // Write a global excludes file that ignores .cavestack/
+      const excludesFile = path.join(tmpDir, 'global-gitignore');
+      fs.writeFileSync(excludesFile, '.cavestack/\n');
+      spawnSync('git', ['config', 'core.excludesFile', excludesFile], { cwd: tmpDir });
+
+      // .gitignore exists but does NOT contain .cavestack/
+      fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/\n');
+      spawnSync('git', ['add', '.gitignore'], { cwd: tmpDir });
+      spawnSync('git', ['commit', '-qm', 'init'], { cwd: tmpDir });
+
+      // Verify git knows .cavestack/ is ignored
+      const check = spawnSync('git', ['check-ignore', '-q', '.cavestack/'], { cwd: tmpDir });
+      expect(check.status).toBe(0);
+
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.cavestack', 'browse.json') });
+      ensureStateDir(config);
+
+      // .gitignore must NOT have been modified
+      const content = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf-8');
+      expect(content).toBe('node_modules/\n');
+      expect(fs.existsSync(path.join(tmpDir, '.cavestack'))).toBe(true);
+
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
   });
 
   describe('getRemoteSlug', () => {
@@ -136,24 +204,24 @@ describe('config', () => {
 
     test('parses SSH remote URLs', () => {
       // Test the regex directly since we can't mock Bun.spawnSync easily
-      const url = 'git@github.com:JerkyJesse/cavestack.git';
+      const url = 'git@github.com:garrytan/cavestack.git';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-cavestack');
+      expect(`${match![1]}-${match![2]}`).toBe('garrytan-cavestack');
     });
 
     test('parses HTTPS remote URLs', () => {
       const url = 'https://github.com/JerkyJesse/cavestack.git';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-cavestack');
+      expect(`${match![1]}-${match![2]}`).toBe('garrytan-cavestack');
     });
 
     test('parses HTTPS remote URLs without .git suffix', () => {
       const url = 'https://github.com/JerkyJesse/cavestack';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-cavestack');
+      expect(`${match![1]}-${match![2]}`).toBe('garrytan-cavestack');
     });
   });
 
@@ -312,5 +380,134 @@ describe('startup error log', () => {
     expect(content).toContain(errorMsg);
     expect(content).toMatch(/^\d{4}-\d{2}-\d{2}T/); // ISO timestamp prefix
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+describe('resolveCavestackHome', () => {
+  test('honors CAVESTACK_HOME env var when set', () => {
+    const orig = process.env.CAVESTACK_HOME;
+    process.env.CAVESTACK_HOME = '/tmp/custom-cavestack-home';
+    try {
+      expect(resolveCavestackHome()).toBe('/tmp/custom-cavestack-home');
+    } finally {
+      if (orig === undefined) delete process.env.CAVESTACK_HOME;
+      else process.env.CAVESTACK_HOME = orig;
+    }
+  });
+
+  test('falls back to os.homedir() + /.cavestack when env unset', () => {
+    const orig = process.env.CAVESTACK_HOME;
+    delete process.env.CAVESTACK_HOME;
+    try {
+      expect(resolveCavestackHome()).toBe(path.join(os.homedir(), '.cavestack'));
+    } finally {
+      if (orig !== undefined) process.env.CAVESTACK_HOME = orig;
+    }
+  });
+});
+
+describe('resolveChromiumProfile', () => {
+  test('explicit arg wins over env and default', () => {
+    const orig = process.env.CHROMIUM_PROFILE;
+    process.env.CHROMIUM_PROFILE = '/tmp/env-profile';
+    try {
+      expect(resolveChromiumProfile('/tmp/explicit-profile')).toBe('/tmp/explicit-profile');
+    } finally {
+      if (orig === undefined) delete process.env.CHROMIUM_PROFILE;
+      else process.env.CHROMIUM_PROFILE = orig;
+    }
+  });
+
+  test('CHROMIUM_PROFILE env honored when no explicit arg', () => {
+    const orig = process.env.CHROMIUM_PROFILE;
+    process.env.CHROMIUM_PROFILE = '/tmp/env-profile';
+    try {
+      expect(resolveChromiumProfile()).toBe('/tmp/env-profile');
+    } finally {
+      if (orig === undefined) delete process.env.CHROMIUM_PROFILE;
+      else process.env.CHROMIUM_PROFILE = orig;
+    }
+  });
+
+  test('falls back to resolveCavestackHome()/chromium-profile when nothing set', () => {
+    const origEnv = process.env.CHROMIUM_PROFILE;
+    const origHome = process.env.CAVESTACK_HOME;
+    delete process.env.CHROMIUM_PROFILE;
+    process.env.CAVESTACK_HOME = '/tmp/fallback-cavestack';
+    try {
+      expect(resolveChromiumProfile()).toBe('/tmp/fallback-cavestack/chromium-profile');
+    } finally {
+      if (origEnv !== undefined) process.env.CHROMIUM_PROFILE = origEnv;
+      if (origHome === undefined) delete process.env.CAVESTACK_HOME;
+      else process.env.CAVESTACK_HOME = origHome;
+    }
+  });
+
+  test('ignores empty-string explicit arg, falls through to env/default', () => {
+    const orig = process.env.CHROMIUM_PROFILE;
+    process.env.CHROMIUM_PROFILE = '/tmp/env-profile';
+    try {
+      expect(resolveChromiumProfile('')).toBe('/tmp/env-profile');
+    } finally {
+      if (orig === undefined) delete process.env.CHROMIUM_PROFILE;
+      else process.env.CHROMIUM_PROFILE = orig;
+    }
+  });
+});
+
+describe('cleanSingletonLocks', () => {
+  test('removes SingletonLock/Socket/Cookie when basename is chromium-profile', () => {
+    const tmpDir = path.join(os.tmpdir(), `clean-locks-${Date.now()}`, 'chromium-profile');
+    fs.mkdirSync(tmpDir, { recursive: true });
+    for (const f of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
+      fs.writeFileSync(path.join(tmpDir, f), 'stale');
+    }
+    cleanSingletonLocks(tmpDir);
+    for (const f of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
+      expect(fs.existsSync(path.join(tmpDir, f))).toBe(false);
+    }
+    fs.rmSync(path.dirname(tmpDir), { recursive: true, force: true });
+  });
+
+  test('refuses to clean unrecognized profile dir basename', () => {
+    const tmpDir = path.join(os.tmpdir(), `unrelated-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+    const lockFile = path.join(tmpDir, 'SingletonLock');
+    fs.writeFileSync(lockFile, 'should-survive');
+    const origWarn = console.warn;
+    let warned = '';
+    console.warn = (msg: string) => { warned = msg; };
+    try {
+      cleanSingletonLocks(tmpDir);
+      expect(warned).toContain('refusing to clean unrecognized profile dir');
+      expect(fs.existsSync(lockFile)).toBe(true); // not deleted
+    } finally {
+      console.warn = origWarn;
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test('respects explicit CHROMIUM_PROFILE env even with non-standard basename', () => {
+    const tmpDir = path.join(os.tmpdir(), `custom-name-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, 'SingletonLock'), 'stale');
+    const orig = process.env.CHROMIUM_PROFILE;
+    process.env.CHROMIUM_PROFILE = tmpDir;
+    try {
+      cleanSingletonLocks(tmpDir);
+      expect(fs.existsSync(path.join(tmpDir, 'SingletonLock'))).toBe(false);
+    } finally {
+      if (orig === undefined) delete process.env.CHROMIUM_PROFILE;
+      else process.env.CHROMIUM_PROFILE = orig;
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test('second call on empty dir does not throw (ENOENT swallowed)', () => {
+    const tmpDir = path.join(os.tmpdir(), `empty-locks-${Date.now()}`, 'chromium-profile');
+    fs.mkdirSync(tmpDir, { recursive: true });
+    expect(() => cleanSingletonLocks(tmpDir)).not.toThrow();
+    expect(() => cleanSingletonLocks(tmpDir)).not.toThrow();
+    fs.rmSync(path.dirname(tmpDir), { recursive: true, force: true });
   });
 });

@@ -73,7 +73,7 @@ let lastKillTs = 0;
 function getGitRoot(): string | null {
   try {
     const { execSync } = require('child_process');
-    return execSync('git rev-parse --show-toplevel', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    return execSync('git rev-parse --show-toplevel', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }).trim();
   } catch (err: any) {
     console.debug('[sidebar-agent] Not in a git repo:', err.message);
     return null;
@@ -295,6 +295,7 @@ async function askClaude(queueEntry: QueueEntry): Promise<void> {
 
     const proc = spawn('claude', claudeArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
       cwd: effectiveCwd,
       env: {
         ...process.env,

@@ -16,20 +16,38 @@ Detailed guides for every cavestack skill — philosophy, workflow, and examples
 | [`/design-html`](#design-html) | **Design Engineer** | Generates production-quality Pretext-native HTML. Works with approved mockups, CEO plans, design reviews, or from scratch. Text reflows on resize, heights adjust to content. Smart API routing per design type. Framework detection for React/Svelte/Vue. |
 | [`/qa`](#qa) | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
 | [`/qa-only`](#qa) | **QA Reporter** | Same methodology as /qa but report only. Use when you want a pure bug report without code changes. |
+| [`/scrape`](#scrape) | **Browser Data Extractor** | Pull data from a web page. First call prototypes via `$B`; subsequent calls on a matching intent run a codified browser-skill in ~200ms. |
+| [`/skillify`](#skillify) | **Skill Codifier** | Walks back through your conversation, finds the last `/scrape` prototype, synthesizes script + test + fixture, runs the test, asks before committing. |
 | [`/ship`](#ship) | **Release Engineer** | Sync main, run tests, audit coverage, push, open PR. Bootstraps test frameworks if you don't have one. One command. |
 | [`/land-and-deploy`](#land-and-deploy) | **Release Engineer** | Merge the PR, wait for CI and deploy, verify production health. One command from "approved" to "verified in production." |
 | [`/canary`](#canary) | **SRE** | Post-deploy monitoring loop. Watches for console errors, performance regressions, and page failures using the browse daemon. |
 | [`/benchmark`](#benchmark) | **Performance Engineer** | Baseline page load times, Core Web Vitals, and resource sizes. Compare before/after on every PR. Track trends over time. |
 | [`/cso`](#cso) | **Chief Security Officer** | OWASP Top 10 + STRIDE threat modeling security audit. Scans for injection, auth, crypto, and access control issues. |
 | [`/document-release`](#document-release) | **Technical Writer** | Update all project docs to match what you just shipped. Catches stale READMEs automatically. |
+| [`/document-generate`](#document-generate) | **Technical Writer** | Generate Diataxis docs (tutorial / how-to / reference / explanation) for a feature from code. |
 | [`/retro`](#retro) | **Eng Manager** | Team-aware weekly retro. Per-person breakdowns, shipping streaks, test health trends, growth opportunities. |
 | [`/browse`](#browse) | **QA Engineer** | Give the agent eyes. Real Chromium browser, real clicks, real screenshots. ~100ms per command. |
 | [`/setup-browser-cookies`](#setup-browser-cookies) | **Session Manager** | Import cookies from your real browser (Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages. |
 | [`/autoplan`](#autoplan) | **Review Pipeline** | One command, fully reviewed plan. Runs CEO → design → eng review automatically with encoded decision principles. Surfaces only taste decisions for your approval. |
+| [`/plan-devex-review`](#plan-devex-review) | **DX Reviewer** | Plan-stage DX review. TTHW (time-to-hello-world), magical moments, friction points, persona traces. Three modes: Expansion, Polish, Triage. |
+| [`/devex-review`](#devex-review) | **DX Reviewer (live)** | Live developer experience audit. Walks the actual onboarding flow, measures TTHW, catches the docs lies. |
+| [`/plan-tune`](#plan-tune) | **Question Tuner** | Self-tune AskUserQuestion sensitivity per question. Mark questions as never-ask, always-ask, or only-for-one-way. |
+| [`/spec`](#spec) | **Spec Author** | Turn vague intent into a precise, executable spec in five phases. Files a GitHub issue, optionally spawns a Claude Code agent in a fresh worktree, and lets `/ship` close the source issue on merge. |
 | [`/learn`](#learn) | **Memory** | Manage what cavestack learned across sessions. Review, search, prune, and export project-specific patterns and preferences. |
+| [`/context-save`](#context-save) | **Save State** | Save working context (git state, decisions, remaining work) so any future session can resume. |
+| [`/context-restore`](#context-restore) | **Restore State** | Resume from a saved context, even across Conductor workspace handoffs. |
+| [`/checkpoint`](#checkpoint) | **Session Checkpoint** | Save and resume working-state checkpoints (git, decisions, remaining work). |
+| [`/health`](#health) | **Code Quality Dashboard** | Wraps type checker, linter, tests, dead code detection. Computes a weighted 0-10 score; tracks trends over time. |
+| [`/landing-report`](#landing-report) | **Ship Queue Dashboard** | Read-only snapshot of the workspace-aware ship queue. Which version slots are claimed, which sibling workspaces have WIP. |
+| [`/benchmark-models`](#benchmark-models) | **Model Benchmark** | Side-by-side cross-model benchmark for skills (Claude vs GPT vs Gemini). Latency, tokens, cost, optional LLM-judged quality. |
+| [`/help`](#help) | **Skill Catalog** | In-session list of every cavestack skill. Hero set plus full catalog. |
 | | | |
 | **Multi-AI** | | |
 | [`/codex`](#codex) | **Second Opinion** | Independent review from OpenAI Codex CLI. Three modes: code review (pass/fail gate), adversarial challenge, and open consultation with session continuity. Cross-model analysis when both `/review` and `/codex` have run. |
+| [`/claude`](#claude) | **Claude Outside Voice** | Claude Code CLI wrapper for non-Claude hosts. Review, challenge, or consult. |
+| [`/pair-agent`](#pair-agent) | **Remote Agent Bridge** | Pair a remote AI agent (OpenClaw, Codex, Cursor, Hermes) with your browser. Scoped tunnel, locked allowlist, session token. |
+| [`/setup-gbrain`](#setup-gbrain) | **Memory Sync** | Set up gbrain for cross-machine session memory sync. One command from zero to live. |
+| [`/sync-gbrain`](#sync-gbrain) | **Keep Brain Current** | Refresh gbrain against this repo's code; teach the agent when to use `gbrain search`/`code-def` over Grep. Idempotent; safe to re-run. |
 | | | |
 | **Safety & Utility** | | |
 | [`/careful`](#safety--guardrails) | **Safety Guardrails** | Warns before destructive commands (rm -rf, DROP TABLE, force-push, git reset --hard). Override any warning. Common build cleanups whitelisted. |
@@ -39,6 +57,17 @@ Detailed guides for every cavestack skill — philosophy, workflow, and examples
 | [`/open-cavestack-browser`](#open-cavestack-browser) | **CaveStack Browser** | Launch CaveStack Browser with sidebar, anti-bot stealth, auto model routing, cookie import, and Claude Code integration. Watch every action live. |
 | [`/setup-deploy`](#setup-deploy) | **Deploy Configurator** | One-time setup for `/land-and-deploy`. Detects your platform, production URL, and deploy commands. |
 | [`/cavestack-upgrade`](#cavestack-upgrade) | **Self-Updater** | Upgrade cavestack to the latest version. Detects global vs vendored install, syncs both, shows what changed. |
+| [`/make-pdf`](#make-pdf) | **PDF Generator** | Turn any markdown file into a publication-quality PDF. Proper margins, page numbers, cover pages, clickable TOC. Mermaid/excalidraw fences render as vector diagrams; `--to html\|docx` for other formats. |
+| [`/diagram`](#diagram) | **Diagram Maker** | English in, diagram out: mermaid source + editable `.excalidraw` (open it on excalidraw.com, hand-drawn style) + rendered SVG/PNG. Fully offline. |
+| [`/ios-qa`](#ios-qa) | **iOS QA Lead** | Live-device iOS QA via USB CoreDevice tunnel + embedded StateServer. Reads Swift source, codegens accessors, drives the real iPhone. Optionally exposes the device over Tailscale for remote agents. |
+| [`/ios-fix`](#ios-fix) | **iOS Autonomous Fixer** | Closes the find→fix→verify loop on a real iPhone. Captures a reproducing snapshot, fixes the source, rebuilds, redeploys, verifies. |
+| [`/ios-design-review`](#ios-design-review) | **iOS Designer's Eye** | 10-dimension Apple HIG audit on a real iPhone. Rates each screen, says what would make it a 10. |
+| [`/ios-clean`](#ios-clean) | **iOS Bridge Cleanup** | Convenience wrapper to strip DebugBridge SPM + `#if DEBUG` wiring. The structural Release-build guard is in Package.swift + CI; this skill is for guided manual removals. |
+| [`/ios-sync`](#ios-sync) | **iOS Bridge Resync** | Regenerate accessors and Swift templates against the latest upstream cavestack. Run when you add new `@Observable` classes or upgrade cavestack. |
+| [`/caveman`](#caveman) | **Caveman Voice** | Always-on terse-response mode for Claude Code. Locked to full. Wenyan variants available. |
+| [`/caveman-commit`](#caveman-commit) | **Caveman Commit** | Caveman-voice commit helper. |
+| [`/caveman-help`](#caveman-help) | **Caveman Help** | Caveman-voice help. |
+| [`/caveman-review`](#caveman-review) | **Caveman Review** | Caveman-voice review helper. |
 
 ---
 

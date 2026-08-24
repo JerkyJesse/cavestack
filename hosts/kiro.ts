@@ -1,54 +1,17 @@
-import type { HostConfig } from '../scripts/host-config';
+import { defineHost } from './define-host';
 
-const kiro: HostConfig = {
+const kiro = defineHost({
   name: 'kiro',
   displayName: 'Kiro',
-  cliCommand: 'kiro',
-  cliAliases: [],
+  cliCommand: 'kiro-cli',
 
-  globalRoot: '.kiro/skills/cavestack',
-  localSkillRoot: '.kiro/skills/cavestack',
-  hostSubdir: '.kiro',
-  usesEnvVars: true,
-
-  frontmatter: {
-    mode: 'allowlist',
-    keepFields: ['name', 'description'],
-    descriptionLimit: null,
-  },
-
-  generation: {
-    generateMetadata: false,
-    skipSkills: ['codex', 'caveman', 'caveman-commit', 'caveman-help', 'caveman-review'],
-  },
-
-  pathRewrites: [
-    { from: '~/.claude/skills/cavestack', to: '~/.kiro/skills/cavestack' },
-    { from: '.claude/skills/cavestack', to: '.kiro/skills/cavestack' },
-    { from: '.claude/skills', to: '.kiro/skills' },
-    { from: '~/.cavestack/', to: '~/.cavestack/' },  // State dir stays the same
+  // Beyond the standard .claude/* trio, Kiro also cleans up codex-style paths:
+  // template prose that references ~/.codex/skills/cavestack or .codex/skills
+  // (e.g. cross-host examples) must land on Kiro's own paths.
+  extraPathRewrites: [
+    { from: '~/.codex/skills/cavestack', to: '~/.kiro/skills/cavestack' },
+    { from: '.codex/skills', to: '.kiro/skills' },
   ],
-
-  toolRewrites: {
-    'use the Bash tool': 'run this command',
-    'Claude Code': 'Kiro',
-  },
-
-  suppressedResolvers: [],
-
-  runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade', 'ETHOS.md'],
-    globalFiles: {
-      'review': ['checklist.md', 'TODOS-format.md'],
-    },
-  },
-
-  install: {
-    prefixable: false,
-    linkingStrategy: 'symlink-generated',
-  },
-
-  learningsMode: 'basic',
-};
+});
 
 export default kiro;

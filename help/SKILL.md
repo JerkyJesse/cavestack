@@ -1,13 +1,18 @@
 ---
 name: help
-description: |
-  In-session skill catalog. Shows all CaveStack skills with one-line descriptions,
-  grouped by hero (featured) and full list. Use when user asks "what skills exist",
-  "list skills", "/help", or is new to CaveStack and needs discovery without
-  leaving Claude Code.
+description: In-session skill catalog.
+
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
+
+
+## When to invoke this skill
+
+Shows all CaveStack skills with one-line descriptions,
+grouped by hero (featured) and full list. Use when user asks "what skills exist",
+"list skills", "/help", or is new to CaveStack and needs discovery without
+leaving Claude Code.
 
 # /help — In-session skill discovery
 

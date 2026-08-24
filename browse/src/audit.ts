@@ -13,11 +13,14 @@
  * All writes are best-effort — audit failures never cause command failures.
  */
 
-import * as fs from 'fs';
+import { appendSecureFile } from './file-permissions';
 
 export interface AuditEntry {
   ts: string;
   cmd: string;
+  /** If the agent typed an alias (e.g. 'setcontent'), the raw input is preserved here
+   *  while `cmd` holds the canonical name ('load-html'). Omitted when cmd === rawCmd. */
+  aliasOf?: string;
   args: string;
   origin: string;
   durationMs: number;
@@ -56,9 +59,10 @@ export function writeAuditEntry(entry: AuditEntry): void {
       hasCookies: entry.hasCookies,
       mode: entry.mode,
     };
+    if (entry.aliasOf) record.aliasOf = entry.aliasOf;
     if (truncatedError) record.error = truncatedError;
 
-    fs.appendFileSync(auditPath, JSON.stringify(record) + '\n');
+    appendSecureFile(auditPath, JSON.stringify(record) + '\n');
   } catch {
     // Audit write failures are silent — never block command execution
   }

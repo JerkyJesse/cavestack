@@ -22,13 +22,29 @@ function sliceBetween(source: string, startMarker: string, endMarker: string): s
 }
 
 describe('Server auth security', () => {
-  // Test 1: /health serves token conditionally (headed mode or chrome extension only)
-  test('/health serves token only in headed mode or to chrome extensions', () => {
+  // Test 1 (IRON RULE, inverted in v1.62): /health NEVER serves a token in
+  // ANY mode. Both carve-outs (headed-mode disjunct + chrome-extension://
+  // Origin disjunct) are gone. Token bootstrap moved to POST /extension-token
+  // with a pinned extension Origin.
+  test('/health never serves a token — no headed-mode or chrome-extension carve-out', () => {
     const healthBlock = sliceBetween(SERVER_SRC, "url.pathname === '/health'", "url.pathname === '/connect'");
-    // Token must be conditional, not unconditional
-    expect(healthBlock).toContain('AUTH_TOKEN');
-    expect(healthBlock).toContain('headed');
-    expect(healthBlock).toContain('chrome-extension://');
+    expect(healthBlock).not.toContain('token: authToken');
+    expect(healthBlock).not.toContain("getConnectionMode() === 'headed'");
+    expect(healthBlock).not.toContain("startsWith('chrome-extension://')");
+  });
+
+  // Test 1a: the pinned-origin bootstrap endpoint exists and gates on both
+  // the exact extension Origin and a loopback Host.
+  test('POST /extension-token gates on pinned Origin and loopback Host', () => {
+    const tokenBlock = sliceBetween(SERVER_SRC, "url.pathname === '/extension-token'", "url.pathname === '/health'");
+    expect(tokenBlock).toContain('CAVESTACK_EXTENSION_ID');
+    expect(tokenBlock).toContain('token: authToken');
+    // Host is parsed to a hostname (arrives as '127.0.0.1:34567'), never
+    // compared literally against the raw header.
+    expect(tokenBlock).toContain('.hostname');
+    expect(tokenBlock).toContain("'127.0.0.1'");
+    expect(tokenBlock).toContain("'localhost'");
+    expect(tokenBlock).toContain('403');
   });
 
   // Test 1b: /health does not expose sensitive browsing state
@@ -48,6 +64,22 @@ describe('Server auth security', () => {
     expect(scopeBlock).toContain('Domain not allowed');
   });
 
+  // Test 1d: validateAuth compares the bearer token in CONSTANT TIME with a
+  // length gate. A revert to `header === \`Bearer ${authToken}\`` keeps
+  // accept/reject behavior identical (functional tests still pass) but silently
+  // reintroduces the byte-by-byte timing side-channel; dropping the length gate
+  // makes timingSafeEqual throw RangeError (500 instead of 401) on a wrong-length
+  // token. Pin both properties, mirroring the token-registry sibling guard.
+  test('validateAuth uses constant-time comparison with a length gate', () => {
+    const authBlock = sliceBetween(SERVER_SRC, 'function validateAuth(req: Request): boolean {', '// Factory-scoped shutdown');
+    expect(authBlock).toContain('crypto.timingSafeEqual');
+    expect(authBlock).toContain('got.length === want.length');
+    // The null-header guard must remain (Buffer.from(null) would otherwise throw).
+    expect(authBlock).toContain('header === null');
+    // The raw === comparison of the header against the bearer string must be gone.
+    expect(authBlock).not.toContain('header === `Bearer ${authToken}`');
+  });
+
   // Test 2: /refs endpoint requires auth via validateAuth
   test('/refs endpoint requires authentication', () => {
     const refsBlock = sliceBetween(SERVER_SRC, "url.pathname === '/refs'", "url.pathname === '/activity/stream'");
@@ -62,23 +94,26 @@ describe('Server auth security', () => {
 
   // Test 4: /activity/history requires auth via validateAuth
   test('/activity/history requires authentication', () => {
-    const historyBlock = sliceBetween(SERVER_SRC, "url.pathname === '/activity/history'", 'Sidebar endpoints');
+    const historyBlock = sliceBetween(SERVER_SRC, "url.pathname === '/activity/history'", 'Batch endpoint');
     expect(historyBlock).toContain('validateAuth');
   });
 
   // Test 5: /activity/history has no wildcard CORS header
   test('/activity/history has no wildcard CORS header', () => {
-    const historyBlock = sliceBetween(SERVER_SRC, "url.pathname === '/activity/history'", 'Sidebar endpoints');
+    const historyBlock = sliceBetween(SERVER_SRC, "url.pathname === '/activity/history'", 'Batch endpoint');
     expect(historyBlock).not.toContain("'*'");
   });
 
-  // Test 6: /activity/stream requires auth (inline Bearer or ?token= check)
+  // Test 6: /activity/stream requires auth via Bearer OR view-only session cookie
+  // (N1: ?token= query param was dropped in v1.6.0.0 — URLs leak to logs/referer)
   test('/activity/stream requires authentication with inline token check', () => {
     const streamBlock = sliceBetween(SERVER_SRC, "url.pathname === '/activity/stream'", "url.pathname === '/activity/history'");
     expect(streamBlock).toContain('validateAuth');
-    expect(streamBlock).toContain('AUTH_TOKEN');
+    expect(streamBlock).toContain('validateSseSessionToken');
     // Should not have wildcard CORS for the SSE stream
     expect(streamBlock).not.toContain("Access-Control-Allow-Origin': '*'");
+    // ?token= query param must NOT be accepted anymore
+    expect(streamBlock).not.toContain("searchParams.get('token')");
   });
 
   // Test 7: /command accepts scoped tokens (not just root)
@@ -142,6 +177,30 @@ describe('Server auth security', () => {
     expect(handleBlock).toContain('Tab not owned by your agent');
   });
 
+  // Test 10a: tab gate is gated on own-only, not on isWrite
+  // Regression test for v1.20.0.0 footgun fix. Pre-fix the gate fired for
+  // any write command from any non-root token, which 403'd local skill
+  // spawns trying to drive the user's natural (unowned) tabs. The bundled
+  // hackernews-frontpage skill failed identically. The fix narrows the
+  // gate to `tabPolicy === 'own-only'` so pair-agent tunnel tokens stay
+  // strict while local shared-policy tokens (skill spawns) get unblocked.
+  test('tab gate predicate is own-only-scoped, not write-scoped', () => {
+    const handleBlock = sliceBetween(SERVER_SRC, "async function handleCommand", "Block mutation commands while watching");
+    // The gate condition must include the own-only check.
+    expect(handleBlock).toContain("tabPolicy === 'own-only'");
+    // It must NOT depend on WRITE_COMMANDS in the gate predicate (only inside
+    // the checkTabAccess call's isWrite arg, which is informational). The
+    // surrounding `if (...) {` for the gate must use `tabPolicy === 'own-only'`
+    // as the trigger, not `WRITE_COMMANDS.has(command) || ...`.
+    const gateLine = handleBlock.split('\n').find(l =>
+      l.includes("command !== 'newtab'") &&
+      l.includes('tokenInfo') &&
+      l.includes('tabPolicy')
+    );
+    expect(gateLine).toBeTruthy();
+    expect(gateLine).not.toMatch(/WRITE_COMMANDS\.has\(command\)\s*\|\|/);
+  });
+
   // Test 10b: chain command pre-validates subcommand scopes
   test('chain handler checks scope for each subcommand before dispatch', () => {
     const metaSrc = fs.readFileSync(path.join(import.meta.dir, '../src/meta-commands.ts'), 'utf-8');
@@ -165,8 +224,10 @@ describe('Server auth security', () => {
   });
 
   // Test 10d: server passes tokenInfo to handleMetaCommand
+  // v1.35.0.0: shutdown is now factory-scoped; the call site uses shutdownFn,
+  // a thin wrapper that delegates to activeShutdown (set by buildFetchHandler).
   test('server passes tokenInfo to handleMetaCommand', () => {
-    expect(SERVER_SRC).toContain('handleMetaCommand(command, args, browserManager, shutdown, tokenInfo,');
+    expect(SERVER_SRC).toContain('handleMetaCommand(command, args, browserManager, shutdownFn, tokenInfo,');
   });
 
   // Test 10e: activity attribution includes clientId
@@ -184,9 +245,9 @@ describe('Server auth security', () => {
     expect(pairBlock).toContain('verifiedTunnelUrl');
     expect(pairBlock).toContain('Tunnel probe failed');
     expect(pairBlock).toContain('marking tunnel as dead');
-    // Must reset tunnel state on failure
-    expect(pairBlock).toContain('tunnelActive = false');
-    expect(pairBlock).toContain('tunnelUrl = null');
+    // Must tear down tunnel state on failure (via closeTunnel helper — clears
+    // tunnelActive, tunnelUrl, tunnelListener, and the tunnel Bun.serve listener)
+    expect(pairBlock).toContain('closeTunnel()');
   });
 
   // Test 11b: /pair returns null tunnel_url when tunnel is dead
@@ -203,7 +264,8 @@ describe('Server auth security', () => {
     const tunnelBlock = sliceBetween(SERVER_SRC, "url.pathname === '/tunnel/start'", "url.pathname === '/refs'");
     // Must probe before returning cached URL
     expect(tunnelBlock).toContain('Cached tunnel is dead');
-    expect(tunnelBlock).toContain('tunnelActive = false');
+    // Must tear down tunnel state on stale detection (via closeTunnel helper)
+    expect(tunnelBlock).toContain('closeTunnel()');
     // Must fall through to restart when dead
     expect(tunnelBlock).toContain('restarting');
   });
@@ -283,7 +345,7 @@ describe('Server auth security', () => {
   // Regression: connect command crashed with "domains is not defined" because
   // a stray `domains,` variable was in the status fetch body (cli.ts:852).
   test('connect command status fetch body has no undefined variable references', () => {
-    const connectBlock = sliceBetween(CLI_SRC, 'Launching headed Chromium', 'Sidebar agent started');
+    const connectBlock = sliceBetween(CLI_SRC, 'Launching headed Chromium', 'Terminal agent started');
     // The status fetch should use a clean JSON body
     expect(connectBlock).toContain("command: 'status'");
     // Must NOT contain a bare `domains` reference in the fetch body
@@ -304,16 +366,21 @@ describe('Server auth security', () => {
     // The connect subprocess env must override BROWSE_PARENT_PID
     expect(pairBlock).toContain("BROWSE_PARENT_PID");
     expect(pairBlock).toContain("'0'");
-    // The connect command must propagate BROWSE_PARENT_PID=0 to serverEnv
-    const connectBlock = sliceBetween(CLI_SRC, 'Launching headed Chromium', 'Sidebar agent started');
-    expect(connectBlock).toContain("BROWSE_PARENT_PID");
-    expect(connectBlock).toContain("serverEnv.BROWSE_PARENT_PID");
+    // The connect command must propagate BROWSE_PARENT_PID=0 via the
+    // serverEnv object literal passed to startServer. The literal text
+    // `serverEnv.BROWSE_PARENT_PID` is NOT in source — the value is
+    // assigned via object-literal syntax (`BROWSE_PARENT_PID: '0'`)
+    // inside the `const serverEnv: Record<string, string> = { ... }`
+    // declaration. Assert both pieces appear in the connect block.
+    const connectBlock = sliceBetween(CLI_SRC, 'Launching headed Chromium', 'Terminal agent started');
+    expect(connectBlock).toContain("const serverEnv");
+    expect(connectBlock).toContain("BROWSE_PARENT_PID: '0'");
   });
 
   // Regression: newtab returned 403 for scoped tokens because the tab ownership
   // check ran before the newtab handler, checking the active tab (owned by root).
   test('newtab is excluded from tab ownership check', () => {
-    const ownershipBlock = sliceBetween(SERVER_SRC, 'Tab ownership check (for scoped tokens)', 'newtab with ownership for scoped tokens');
+    const ownershipBlock = sliceBetween(SERVER_SRC, 'Tab ownership check (own-only tokens / pair-agent isolation)', 'newtab with ownership for scoped tokens');
     // The ownership check condition must exclude newtab
     expect(ownershipBlock).toContain("command !== 'newtab'");
   });
@@ -340,5 +407,36 @@ describe('Server auth security', () => {
     // Must set HttpOnly session cookie
     expect(routeSrc).toContain('HttpOnly');
     expect(routeSrc).toContain('SameSite=Strict');
+  });
+});
+
+describe('Pair scope defaults and revocation surface', () => {
+  // Regression: the CLI only sent scopes when --restrict was passed, so the
+  // effective pairing default lived in two places (CLI omission + server
+  // fallback) and could silently drift. Both sides must reference the shared
+  // DEFAULT_PAIR_SCOPES constant, and the CLI must send scopes
+  // unconditionally (the old conditional-spread shape is banned).
+  test('/pair default and CLI pairing body share DEFAULT_PAIR_SCOPES', () => {
+    const pairBlock = sliceBetween(SERVER_SRC, "url.pathname === '/pair'", "url.pathname === '/tunnel/start'");
+    expect(pairBlock).toContain('DEFAULT_PAIR_SCOPES');
+    const cliBlock = sliceBetween(CLI_SRC, 'async function handlePairAgent', 'Determine the URL to use');
+    // Match the CODE shape, not a comment: a bare toContain('DEFAULT_PAIR_SCOPES')
+    // is satisfied by the explanatory comment and passes vacuously on a revert.
+    expect(cliBlock).toMatch(/scopes:\s*restrict\s*\?[\s\S]{0,200}?:\s*\[\.\.\.DEFAULT_PAIR_SCOPES\]/);
+    expect(cliBlock).not.toMatch(/\.\.\.\(restrict\s*\?/);
+  });
+
+  // control is the only scope behind an explicit flag; a scopes list must
+  // not be able to smuggle it into a pairing grant.
+  test('/pair rejects control inside a scopes list without the control flag', () => {
+    const pairBlock = sliceBetween(SERVER_SRC, "url.pathname === '/pair'", "url.pathname === '/tunnel/start'");
+    expect(pairBlock).toContain("pairBody.scopes.includes('control')");
+  });
+
+  // CLI-encoded clientIds (spaces, UTF-8) must round-trip through the revoke
+  // route; slicing the raw pathname 404s on every encoded name.
+  test('DELETE /token decodes the clientId path segment', () => {
+    const revokeBlock = sliceBetween(SERVER_SRC, "url.pathname.startsWith('/token/')", "url.pathname === '/agents'");
+    expect(revokeBlock).toContain('decodeURIComponent');
   });
 });

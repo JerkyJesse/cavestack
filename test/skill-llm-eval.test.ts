@@ -10,53 +10,41 @@
  * Cost: ~$0.05-0.15 per run (sonnet)
  */
 
-import { describe, test, expect, afterAll } from 'bun:test';
+import { afterAll, expect } from 'bun:test';
 import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import { callJudge, judge } from './helpers/llm-judge';
 import type { JudgeScore } from './helpers/llm-judge';
-import { EvalCollector } from './helpers/eval-store';
-import { selectTests, detectBaseBranch, getChangedFiles, LLM_JUDGE_TOUCHFILES, GLOBAL_TOUCHFILES } from './helpers/touchfiles';
-
-const ROOT = path.resolve(import.meta.dir, '..');
-// Run when EVALS=1 is set (requires ANTHROPIC_API_KEY in env)
-const evalsEnabled = !!process.env.EVALS;
-const describeEval = evalsEnabled ? describe : describe.skip;
+import { LLM_JUDGE_TOUCHFILES } from './helpers/touchfiles';
+// Runs when EVALS=1 is set (requires ANTHROPIC_API_KEY in env) — the EVALS
+// gate lives in the shared describeIfSelected. Selection machinery is shared
+// with the E2E suite; only the touchfiles table (LLM_JUDGE_TOUCHFILES, passed
+// explicitly below) differs. No EVALS_TIER filter applies here — LLM-judge
+// tests have no E2E_TIERS entries and run in both tier lanes.
+import {
+  ROOT,
+  computeDiffSelection,
+  createEvalCollector,
+  finalizeEvalCollector,
+  describeIfSelected as describeIfSelectedShared,
+  testConcurrentIfSelected,
+} from './helpers/e2e-helpers';
 
 // Eval result collector
-const evalCollector = evalsEnabled ? new EvalCollector('llm-judge') : null;
+const evalCollector = createEvalCollector('llm-judge');
 
-// --- Diff-based test selection ---
-let selectedTests: string[] | null = null;
+// --- Diff-based test selection (LLM_JUDGE_TOUCHFILES, not the E2E table) ---
+const selectedTests = computeDiffSelection(LLM_JUDGE_TOUCHFILES, 'LLM-judge');
 
-if (evalsEnabled && !process.env.EVALS_ALL) {
-  const baseBranch = process.env.EVALS_BASE
-    || detectBaseBranch(ROOT)
-    || 'main';
-  const changedFiles = getChangedFiles(baseBranch, ROOT);
-
-  if (changedFiles.length > 0) {
-    const selection = selectTests(changedFiles, LLM_JUDGE_TOUCHFILES, GLOBAL_TOUCHFILES);
-    selectedTests = selection.selected;
-    process.stderr.write(`\nLLM-judge selection (${selection.reason}): ${selection.selected.length}/${Object.keys(LLM_JUDGE_TOUCHFILES).length} tests\n`);
-    if (selection.skipped.length > 0) {
-      process.stderr.write(`  Skipped: ${selection.skipped.join(', ')}\n`);
-    }
-    process.stderr.write('\n');
-  }
-}
-
-/** Wrap a describe block to skip if none of its tests are selected. */
+/** Wrap a describe block to skip if none of THIS FILE's tests are selected. */
 function describeIfSelected(name: string, testNames: string[], fn: () => void) {
-  const anySelected = selectedTests === null || testNames.some(t => selectedTests!.includes(t));
-  (anySelected ? describeEval : describe.skip)(name, fn);
+  describeIfSelectedShared(name, testNames, fn, selectedTests);
 }
 
-/** Skip an individual test if not selected (for multi-test describe blocks). */
+/** Per-test gate against this file's selection (concurrent, as before). */
 function testIfSelected(testName: string, fn: () => Promise<void>, timeout: number) {
-  const shouldRun = selectedTests === null || selectedTests.includes(testName);
-  (shouldRun ? test.concurrent : test.skip)(testName, fn, timeout);
+  testConcurrentIfSelected(testName, fn, timeout, selectedTests);
 }
 
 describeIfSelected('LLM-as-judge quality evals', [
@@ -65,10 +53,10 @@ describeIfSelected('LLM-as-judge quality evals', [
 ], () => {
   testIfSelected('command reference table', async () => {
     const t0 = Date.now();
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    const start = content.indexOf('## Command Reference');
-    const end = content.indexOf('## Tips');
-    const section = content.slice(start, end);
+    // P2 (v1.2.0): the command reference moved from the root router to browse/SKILL.md.
+    const content = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
+    const start = content.indexOf('## Full Command List');
+    const section = content.slice(start);
 
     const scores = await judge('command reference table', section);
     console.log('Command reference scores:', JSON.stringify(scores, null, 2));
@@ -94,9 +82,10 @@ describeIfSelected('LLM-as-judge quality evals', [
 
   testIfSelected('snapshot flags reference', async () => {
     const t0 = Date.now();
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    const start = content.indexOf('## Snapshot System');
-    const end = content.indexOf('## Command Reference');
+    // P2 (v1.2.0): snapshot flags moved from the root router to browse/SKILL.md.
+    const content = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
+    const start = content.indexOf('## Snapshot Flags');
+    const end = content.indexOf('## CSS Inspector');
     const section = content.slice(start, end);
 
     const scores = await judge('snapshot flags reference', section);
@@ -145,9 +134,10 @@ describeIfSelected('LLM-as-judge quality evals', [
 
   testIfSelected('setup block', async () => {
     const t0 = Date.now();
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    // P2 (v1.2.0): the browse setup block moved from the root router to browse/SKILL.md.
+    const content = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
     const setupStart = content.indexOf('## SETUP');
-    const setupEnd = content.indexOf('## IMPORTANT');
+    const setupEnd = content.indexOf('## Core QA Patterns');
     const section = content.slice(setupStart, setupEnd);
 
     const scores = await judge('setup/binary discovery instructions', section);
@@ -172,10 +162,10 @@ describeIfSelected('LLM-as-judge quality evals', [
 
   testIfSelected('regression vs baseline', async () => {
     const t0 = Date.now();
-    const generated = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    const genStart = generated.indexOf('## Command Reference');
-    const genEnd = generated.indexOf('## Tips');
-    const genSection = generated.slice(genStart, genEnd);
+    // P2 (v1.2.0): the command reference moved from the root router to browse/SKILL.md.
+    const generated = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
+    const genStart = generated.indexOf('## Full Command List');
+    const genSection = generated.slice(genStart);
 
     const baseline = `## Command Reference
 
@@ -480,10 +470,10 @@ describeIfSelected('Baseline score pinning', ['baseline score pinning'], () => {
     const baselines = JSON.parse(fs.readFileSync(baselinesPath, 'utf-8'));
     const regressions: string[] = [];
 
-    const skillContent = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    const cmdStart = skillContent.indexOf('## Command Reference');
-    const cmdEnd = skillContent.indexOf('## Tips');
-    const cmdSection = skillContent.slice(cmdStart, cmdEnd);
+    // P2 (v1.2.0): the command reference moved from the root router to browse/SKILL.md.
+    const skillContent = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
+    const cmdStart = skillContent.indexOf('## Full Command List');
+    const cmdSection = skillContent.slice(cmdStart);
     const cmdScores = await judge('command reference table', cmdSection);
 
     for (const dim of ['clarity', 'completeness', 'actionability'] as const) {
@@ -540,7 +530,22 @@ async function runWorkflowJudge(opts: {
   const defaults = { clarity: 4, completeness: 3, actionability: 4 };
   const thresholds = { ...defaults, ...opts.thresholds };
 
-  const content = fs.readFileSync(path.join(ROOT, opts.skillPath), 'utf-8');
+  // Read the skeleton + sections UNION so carved skills (v2 plan T9) still
+  // expose markers that moved into sections/*.md (e.g. plan-eng's "## Review
+  // Sections" + "## CRITICAL RULE", plan-design's 7 passes). Without this the
+  // slice markers vanish from the skeleton and the judge scores empty content.
+  let content = fs.readFileSync(path.join(ROOT, opts.skillPath), 'utf-8');
+  const secDir = path.join(ROOT, path.dirname(opts.skillPath), 'sections');
+  const sectionBodies: string[] = [];
+  if (fs.existsSync(secDir)) {
+    for (const f of fs.readdirSync(secDir).sort()) {
+      if (f.endsWith('.md') && !f.endsWith('.md.tmpl')) {
+        const body = fs.readFileSync(path.join(secDir, f), 'utf-8');
+        sectionBodies.push(body);
+        content += '\n' + body;
+      }
+    }
+  }
   const startIdx = content.indexOf(opts.startMarker);
   if (startIdx === -1) throw new Error(`Start marker not found in ${opts.skillPath}: "${opts.startMarker}"`);
 
@@ -551,6 +556,17 @@ async function runWorkflowJudge(opts: {
     section = content.slice(startIdx, endIdx);
   } else {
     section = content.slice(startIdx);
+  }
+
+  // Two carve shapes exist. plan-eng/plan-design moved the MARKERS into the
+  // section files, so the slice above already reaches the carved content.
+  // document-release instead keeps its markers in the skeleton and carves the
+  // workflow BODY (Steps 2-9 → sections/release-body.md) AFTER the endMarker,
+  // so the marker slice drops it. Re-append any carved section the window
+  // excluded, so the judge always sees the full workflow the agent executes.
+  for (const body of sectionBodies) {
+    const head = body.trim().slice(0, 120);
+    if (head && !section.includes(head)) section += '\n' + body;
   }
 
   const scores = await callJudge<JudgeScore>(`You are evaluating the quality of ${opts.judgeContext} for an AI coding agent.
@@ -842,12 +858,4 @@ ${voiceSection}`);
 });
 
 // Module-level afterAll — finalize eval collector after all tests complete
-afterAll(async () => {
-  if (evalCollector) {
-    try {
-      await evalCollector.finalize();
-    } catch (err) {
-      console.error('Failed to save eval results:', err);
-    }
-  }
-});
+afterAll(() => finalizeEvalCollector(evalCollector));

@@ -70,7 +70,11 @@ else
 **Before doing ANY work, verify cavestack is installed:**
 
 ```bash
-test -d ~/.claude/skills/cavestack/bin && echo "CAVESTACK_OK" || echo "CAVESTACK_MISSING"
+_GS=""
+for _D in "${CAVESTACK_ROOT:-}" "$HOME/.claude/skills/cavestack" "$HOME/.codex/skills/cavestack" "$HOME/.factory/skills/cavestack" "$HOME/.kiro/skills/cavestack" "$HOME/.config/opencode/skills/cavestack" "$HOME/.slate/skills/cavestack" "$HOME/.cursor/skills/cavestack" "$HOME/.openclaw/skills/cavestack" "$HOME/.hermes/skills/cavestack" "$HOME/.gbrain/skills/cavestack" "$HOME/.cavestack/repos/cavestack"; do
+  [ -z "$_GS" ] && [ -n "$_D" ] && [ -d "$_D/bin" ] && _GS="$_D"
+done
+[ -n "$_GS" ] && echo "CAVESTACK_OK: $_GS" || echo "CAVESTACK_MISSING"
 ```
 
 If CAVESTACK_MISSING: STOP. Do not proceed. Tell the user:
@@ -87,7 +91,8 @@ Do not skip skills, ignore cavestack errors, or work around missing cavestack.
 
 Using cavestack skills: After install, skills like /qa, /ship, /review, /investigate,
 and /browse are available. Use /browse for all web browsing.
-Use ~/.claude/skills/cavestack/... for cavestack file paths (the global path).'
+Use the resolved install path above for cavestack file paths
+(default: ~/.claude/skills/cavestack).'
 fi
 
 # Check if CLAUDE.md already has a cavestack section
@@ -114,8 +119,17 @@ if [ "$MODE" = "required" ]; then
   cat > "$HOOKS_DIR/check-cavestack.sh" << 'HOOK_EOF'
 #!/bin/bash
 # Block skill usage when cavestack is not installed globally.
+#
+# Resolve the install root the way cavestack skill preambles do: the CAVESTACK_ROOT
+# env var first, then every host's global install location, then the migrated
+# repo location. Block only when NONE exist (#2500 — hardcoding
+# ~/.claude/skills/cavestack false-blocked Codex-host and migrated-repo installs).
+_CAVESTACK_ROOT=""
+for _D in "${CAVESTACK_ROOT:-}" "$HOME/.claude/skills/cavestack" "$HOME/.codex/skills/cavestack" "$HOME/.factory/skills/cavestack" "$HOME/.kiro/skills/cavestack" "$HOME/.config/opencode/skills/cavestack" "$HOME/.slate/skills/cavestack" "$HOME/.cursor/skills/cavestack" "$HOME/.openclaw/skills/cavestack" "$HOME/.hermes/skills/cavestack" "$HOME/.gbrain/skills/cavestack" "$HOME/.cavestack/repos/cavestack"; do
+  [ -z "$_CAVESTACK_ROOT" ] && [ -n "$_D" ] && [ -d "$_D/bin" ] && _CAVESTACK_ROOT="$_D"
+done
 
-if [ ! -d "$HOME/.claude/skills/cavestack/bin" ]; then
+if [ -z "$_CAVESTACK_ROOT" ]; then
   cat >&2 <<'MSG'
 BLOCKED: cavestack is not installed globally.
 
@@ -127,8 +141,8 @@ Install it:
 
 Then restart your AI coding tool.
 MSG
-  echo '{"permissionDecision":"deny","message":"cavestack is required but not installed. See stderr for install instructions."}'
-  exit 0
+  echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"cavestack is required but not installed. See stderr for install instructions."}}'
+  exit 2
 fi
 
 echo '{}'

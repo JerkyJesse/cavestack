@@ -13,3 +13,47 @@ git remote -v
 git branch -vv
 git log -8 --oneline
 Get-ChildItem -Force | Select-Object Name, Mode | Format-Table -AutoSize
+
+# 2026-08-24 cloud agent — gstack fetch + port
+git remote add gstack https://github.com/garrytan/gstack.git
+git fetch gstack main --depth=1
+git clone --depth 1 --single-branch --branch main https://github.com/garrytan/gstack.git /tmp/gstack-ref
+curl -fsSL https://bun.sh/install | bash
+python3 /tmp/port_gstack.py
+
+# 2026-08-24 — test/doc inventory fixes
+python3 <<PY  # scan tmpl descriptions for cavestack + 120-char first line
+git status -sb
+
+# 2026-08-24 — targeted free tests after inventory/YAML/skipSkills fixes
+bun test test/voice-density.test.ts test/voice-audit.test.ts test/caveman-voice-verify.test.ts test/behavioral-protocols.test.ts test/skill-validation.test.ts test/catalog-trim.test.ts test/skill-smoke.test.ts test/skill-coverage-floor.test.ts
+
+# 2026-08-24 — gen-skill-docs tests after skipSkills + YAML comment strip
+bun test test/gen-skill-docs.test.ts
+
+# 2026-08-24 — regen claude docs + coverage/catalog/llms tests
+bun run gen:skill-docs --host claude
+bun test test/skill-coverage-matrix.test.ts test/catalog-budget.test.ts test/llms-txt-shape.test.ts test/skill-census.test.ts
+
+# 2026-08-24 — retest coverage matrix + catalog budget after claude drop / ceiling bump
+bun test test/skill-coverage-matrix.test.ts test/catalog-budget.test.ts test/llms-txt-shape.test.ts
+
+# 2026-08-24 — regen skill docs for all hosts
+bun run gen:skill-docs --host all
+
+# 2026-08-24 — check dist tracking + host-config goldens
+git status --porcelain | grep dist
+git ls-files browse/dist design/dist
+bun test test/host-config.test.ts
+
+# 2026-08-24 — inventory status by path prefix before commit
+git status --porcelain | awk ...
+git log -3 --format
+
+# 2026-08-24 — check dist noise and existing PR
+git status --porcelain | grep dist
+gh pr view --json url,title,state,baseRefName
+gh pr list --head mechapip/cloud-agent-1787580158725-j7j21
+
+# 2026-08-24 — scan untracked files over 1MB before staging
+git status --porcelain -u | ... wc -c

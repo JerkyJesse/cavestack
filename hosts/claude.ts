@@ -1,15 +1,10 @@
-import type { HostConfig } from '../scripts/host-config';
+import { defineHost } from './define-host';
 
-const claude: HostConfig = {
+const claude = defineHost({
   name: 'claude',
   displayName: 'Claude Code',
-  cliCommand: 'claude',
-  cliAliases: [],
 
-  globalRoot: '.claude/skills/cavestack',
-  localSkillRoot: '.claude/skills/cavestack',
-  hostSubdir: '.claude',
-  usesEnvVars: false,
+  usesEnvVars: false,  // primary host — literal ~ paths, no $CAVESTACK_ROOT env vars
 
   frontmatter: {
     mode: 'denylist',
@@ -19,27 +14,19 @@ const claude: HostConfig = {
 
   generation: {
     generateMetadata: false,
-    skipSkills: [],
+    skipSkills: ['claude'],  // the /claude outside-voice skill is for non-Claude hosts; /codex stays (it IS a Claude skill wrapping codex exec)
   },
 
   pathRewrites: [],  // Claude is the primary host — no rewrites needed
   toolRewrites: {},
-  suppressedResolvers: [],
-
-  runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade'],
-    globalFiles: {
-      'review': ['checklist.md', 'TODOS-format.md'],
-    },
-  },
 
   install: {
-    prefixable: true,
     linkingStrategy: 'real-dir-symlink',
+    prefixable: true,
   },
 
-  coAuthorTrailer: 'Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>',
+  coAuthorTrailer: 'Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>',
   learningsMode: 'full',
-};
+});
 
 export default claude;

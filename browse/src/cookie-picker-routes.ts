@@ -19,7 +19,7 @@
 
 import * as crypto from 'crypto';
 import type { BrowserManager } from './browser-manager';
-import { findInstalledBrowsers, listProfiles, listDomains, importCookies, importCookiesWithV20Fallback, hasV20Cookies, CookieImportError, type PlaywrightCookie } from './cookie-import-browser';
+import { findInstalledBrowsers, listProfiles, listDomains, importCookies, importCookiesViaCdp, hasV20Cookies, CookieImportError, type PlaywrightCookie } from './cookie-import-browser';
 import { getCookiePickerHTML } from './cookie-picker-ui';
 
 // ─── Auth State ─────────────────────────────────────────────────
@@ -218,29 +218,6 @@ export async function handleCookiePickerRoute(
       }, { port });
     }
 
-    // GET /cookie-picker/preflight?browser=<name>&profile=<profile>
-    // Called by the UI before import. Reports whether v20 App-Bound
-    // Encryption is present so the UI can warn the user that import will
-    // launch Chrome headless against the real profile dir (theoretical
-    // profile-state corruption risk if Chrome is killed mid-launch).
-    if (pathname === '/cookie-picker/preflight' && req.method === 'GET') {
-      const browserName = url.searchParams.get('browser');
-      if (!browserName) {
-        return errorResponse("Missing 'browser' parameter", 'missing_param', { port });
-      }
-      const profile = url.searchParams.get('profile') || 'Default';
-      let v20 = false;
-      try {
-        v20 = hasV20Cookies(browserName, profile);
-      } catch {}
-      return jsonResponse({
-        v20Detected: v20,
-        warning: v20
-          ? `${browserName} uses App-Bound Encryption (v20) on this profile. Importing will briefly launch ${browserName} in headless mode against your real profile directory. Close ${browserName} first. If Chrome is force-killed mid-launch, profile state (Preferences, Local State) could be corrupted. Risk is low but non-zero.`
-          : null,
-      }, { port });
-    }
-
     // POST /cookie-picker/import — decrypt + import to Playwright session
     if (pathname === '/cookie-picker/import' && req.method === 'POST') {
       let body: any;
@@ -256,22 +233,25 @@ export async function handleCookiePickerRoute(
         return errorResponse("Missing or empty 'domains' array", 'missing_param', { port });
       }
 
-      // Decrypt cookies from the browser DB. importCookiesWithV20Fallback
-      // handles the v10→CDP fallback heuristic; if CDP decryption fails
-      // we surface a picker-specific error with UI-recoverable hints.
+      // Decrypt cookies from the browser DB
       const selectedProfile = profile || 'Default';
-      let result: Awaited<ReturnType<typeof importCookies>>;
-      try {
-        result = await importCookiesWithV20Fallback(browser, domains, selectedProfile);
-      } catch (cdpErr: any) {
-        console.log(`[cookie-picker] CDP fallback failed: ${cdpErr.message}`);
-        return jsonResponse({
-          imported: 0,
-          failed: 0,
-          domainCounts: {},
-          message: `Cookies use App-Bound Encryption (v20). Close ${browser}, retry, or use /connect-chrome to browse with your real browser directly.`,
-          code: 'v20_encryption',
-        }, { port });
+      let result = await importCookies(browser, domains, selectedProfile);
+
+      // If all cookies failed and v20 encryption is detected, try CDP extraction
+      if (result.cookies.length === 0 && result.failed > 0 && hasV20Cookies(browser, selectedProfile)) {
+        console.log(`[cookie-picker] v20 App-Bound Encryption detected, trying CDP extraction...`);
+        try {
+          result = await importCookiesViaCdp(browser, domains, selectedProfile);
+        } catch (cdpErr: any) {
+          console.log(`[cookie-picker] CDP fallback failed: ${cdpErr.message}`);
+          return jsonResponse({
+            imported: 0,
+            failed: result.failed,
+            domainCounts: {},
+            message: `Cookies use App-Bound Encryption (v20). Close ${browser}, retry, or use /connect-chrome to browse with your real browser directly.`,
+            code: 'v20_encryption',
+          }, { port });
+        }
       }
 
       if (result.cookies.length === 0) {

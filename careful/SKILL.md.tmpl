@@ -3,9 +3,14 @@ name: careful
 version: 0.1.0
 description: |
   Safety guardrails for destructive commands. Warns before rm -rf, DROP TABLE,
-  force-push, git reset --hard, kubectl delete, similar ops. User can override
-  each warning. Use when touching prod, debugging live, or shared env. Use when
-  asked to "be careful", "safety mode", "prod mode", or "careful mode". (cavestack)
+  force-push, git reset --hard, kubectl delete, and similar destructive operations.
+  User can override each warning. Use when touching prod, debugging live systems,
+  or working in a shared environment. Use when asked to "be careful", "safety mode",
+  "prod mode", or "careful mode". (cavestack)
+triggers:
+  - be careful
+  - warn before destructive
+  - safety mode
 allowed-tools:
   - Bash
   - Read
@@ -14,15 +19,16 @@ hooks:
     - matcher: "Bash"
       hooks:
         - type: command
-          command: "bash ${CLAUDE_SKILL_DIR}/bin/check-careful.sh"
+          command: "bash $HOME/.claude/skills/cavestack/careful/bin/check-careful.sh"
           statusMessage: "Checking for destructive commands..."
 sensitive: true
 ---
 
 # /careful — Destructive Command Guardrails
 
-Safety mode now **active**. Every bash command checked for destructive patterns
-before running. If destructive command detected, you get warned — can proceed or cancel.
+Safety mode is now **active**. Every bash command will be checked for destructive
+patterns before running. If a destructive command is detected, you'll be warned
+and can choose to proceed or cancel.
 
 ```bash
 mkdir -p ~/.cavestack/analytics
@@ -44,12 +50,33 @@ echo '{"skill":"careful","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(base
 
 ## Safe exceptions
 
-Allowed without warning:
+These patterns are allowed without warning:
 - `rm -rf node_modules` / `.next` / `dist` / `__pycache__` / `.cache` / `build` / `.turbo` / `coverage`
 
 ## How it works
 
-Hook reads command from tool input JSON, checks against patterns above, returns
-`permissionDecision: "ask"` with warning if match found. Can always override.
+The hook reads the command from the tool input JSON, checks it against the
+patterns above, and returns a `hookSpecificOutput` payload with
+`permissionDecision: "ask"` and a warning reason if a match is found (the
+decision must be nested under `hookSpecificOutput` — Claude Code ignores a
+top-level `permissionDecision`). You can always override a MEDIUM warning and
+proceed.
 
-To deactivate, end conversation or start new one. Hooks are session-scoped.
+## HIGH tier (hard deny)
+
+Two catastrophic shapes are **denied**, not asked: `rm -r`/`-R` of exactly
+`/`, `~`, or `$HOME`, and force-push to the repo's **default branch**. SIMPLE
+commands only (no `;`, `&&`, `||`, `|`, newline) — compound shapes fall
+through to the MEDIUM ask; `--force-with-lease` is never HIGH. A best-effort
+advisory hard-stop, not a policy boundary: the escape hatch is ending the
+opt-in, session-scoped /careful session.
+
+## Project patterns (additive only)
+
+Add warn rules — one POSIX ERE per line, `#` comments OK — in
+`~/.cavestack/careful-patterns.txt` (global) or
+`~/.cavestack/projects/<slug>/careful-patterns.txt` (per-project). Consulted
+after the built-in families, so config can only ADD rules, never suppress a
+baseline warning. Invalid regex lines are skipped.
+
+To deactivate, end the conversation or start a new one. Hooks are session-scoped.

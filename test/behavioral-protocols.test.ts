@@ -118,31 +118,31 @@ describe('density floor compliance', () => {
 });
 
 describe('composition order invariant', () => {
-  test('tier 2+ preamble composes 9 behavioral elements in canonical order', () => {
-    // Snapshot the canonical sequence. If composition in preamble.ts changes,
-    // either this test updates OR the change is wrong. Catches silent reorder.
-    const canonical = [
-      'generateContextRecovery',
-      'generateAskUserFormat',
-      'generateZeroShortcutsDirective',
-      'generateTryFirstDirective',
-      'generateMuskAlgorithmDirective',
-      'generateCaveProtocol',
-      'generateZeroTestDrift',
-      'generateResumeProtocol',
-      'generateBuildPhilosophyInjection',
-    ];
-
+  test('tier 2+ preamble composes AskUserFormat then context/completeness rails', () => {
+    // Two `tier >= 2` spreads: AskUserFormat before the model overlay, then
+    // the context/completeness block after voice. Snapshot both so a silent
+    // reorder cannot land.
     const preamblePath = path.join(ROOT, 'scripts', 'resolvers', 'preamble.ts');
     const src = fs.readFileSync(preamblePath, 'utf-8');
-    // Find the tier >= 2 composition spread — single-line array literal.
-    const match = src.match(/tier >= 2 \? \[([^\]]+)\]/);
-    expect(match).not.toBeNull();
-    const actualOrder = match![1]
-      .split(',')
-      .map(s => s.trim().replace(/\(.*$/, '')) // strip fn args
-      .filter(s => s.length > 0);
-    expect(actualOrder).toEqual(canonical);
+    const matches = [...src.matchAll(/tier >= 2 \? \[([^\]]+)\]/g)];
+    expect(matches.length).toBe(2);
+
+    const names = (raw: string) =>
+      raw.split(',')
+        .map(s => s.trim().replace(/\(.*$/, ''))
+        .filter(s => s.length > 0);
+
+    expect(names(matches[0][1])).toEqual(['generateAskUserFormat']);
+    expect(names(matches[1][1])).toEqual([
+      'generateContextRecovery',
+      'generateWritingStyle',
+      'generateCompletenessSection',
+      'generateConfusionProtocol',
+      'generateEvidenceDirective',
+      'generateContinuousCheckpoint',
+      'generateContextHealth',
+      'generateQuestionTuning',
+    ]);
   });
 });
 
