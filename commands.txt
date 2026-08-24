@@ -51,3 +51,8 @@ git checkout -b mechapip/env-setup-182d
 rg -n "SAFE_DIRECTORIES" browse/src/path-security.ts
 git add AGENTS.md commands.txt
 git commit -m "docs: correct browse output-path allowlist description"
+
+# Finalize
+git push   # push Bugbot fix
+git remote set-url origin https://github.com/JerkyJesse/cavestack.git   # fix moved-repo casing
+# PR #11 created (draft). Google Drive upload blocked: MCP needsAuth. Merge intentionally skipped (cloud safety).
