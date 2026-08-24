@@ -13,3 +13,46 @@ git remote -v
 git branch -vv
 git log -8 --oneline
 Get-ChildItem -Force | Select-Object Name, Mode | Format-Table -AutoSize
+
+# --- Cloud env setup session — 2026-08-24 (branch mechapip/env-setup-182d) ---
+# Discovery
+head -n 10 /home/ubuntu/.cursor/projects/workspace/terminals/*.txt; ls -la /workspace
+which bun; bun --version; which node; node --version
+git branch --show-current; git status --short
+ls -la .husky; ls .git/hooks; ls .github/workflows; ls scripts; ls browse browse/src browse/test
+
+# Toolchain + dependencies
+curl -fsSL https://bun.sh/install | bash
+export PATH="$HOME/.bun/bin:$PATH"
+bun install
+bunx playwright install chromium
+sudo -n bash -c 'PATH="/home/ubuntu/.bun/bin:$PATH" bunx playwright install-deps chromium'
+
+# Lint / tests (tier 1 — free)
+bun test browse/test/ test/ --ignore 'test/skill-e2e-*.test.ts' --ignore test/skill-llm-eval.test.ts --ignore test/skill-routing-e2e.test.ts
+# 1528 pass / 299 skip / 52 fail (all 52 = bin/* scripts committed mode 100644; chmod +x bin/* makes them pass)
+git ls-files -s bin/cavestack-slug   # confirmed 100644 in repo → pre-existing, not env-caused
+
+# Build (gen skill docs + compile Bun binaries)
+bun run build
+
+# Hello-world: drive headless Chromium via the browse CLI
+python3 -m http.server 8099   # serve local demo page (browse blocks file:// URLs)
+./browse/dist/browse goto "http://localhost:8099/hello.html"
+./browse/dist/browse text "#out"        # "not clicked yet"
+./browse/dist/browse click "#btn"
+./browse/dist/browse text "#out"        # "clicked: env works!"
+./browse/dist/browse screenshot /tmp/browse-hello.png   # paths restricted to /tmp,/workspace
+
+# Git
+git checkout -b mechapip/env-setup-182d
+
+# Bugbot fix: correct browse output-path allowlist wording in AGENTS.md
+rg -n "SAFE_DIRECTORIES" browse/src/path-security.ts
+git add AGENTS.md commands.txt
+git commit -m "docs: correct browse output-path allowlist description"
+
+# Finalize
+git push   # push Bugbot fix
+git remote set-url origin https://github.com/JerkyJesse/cavestack.git   # fix moved-repo casing
+# PR #11 created (draft). Google Drive upload blocked: MCP needsAuth. Merge intentionally skipped (cloud safety).
