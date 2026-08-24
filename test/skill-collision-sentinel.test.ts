@@ -82,6 +82,8 @@ const KNOWN_BUILTINS: Record<string, string[]> = {
 const KNOWN_COLLISIONS_TOLERATED: Record<string, string> = {
   // skill name → one-line justification + action plan
   'review': 'cavestack /review (pre-landing diff analysis) pre-dates the Claude Code built-in /review (Review a pull request). The cavestack skill is much richer (SQL safety, LLM trust boundary, specialist dispatch). Watch for user confusion reports and consider renaming to /diff-review or /pre-land if the collision bites. TODO: track user-reported incidents in TODOS.md.',
+  'checkpoint': 'CaveStack /checkpoint saves and resumes working state (git, decisions, remaining work). Claude Code /checkpoint is a /rewind alias. Distinct jobs. Prefix install surfaces /cavestack-checkpoint. Keep /context-save and /context-restore as dedicated skills. Watch for users who type /checkpoint expecting rewind.',
+  'help': 'CaveStack /help is the in-session skill catalog. Claude Code /help is host help. Prefix install surfaces /cavestack-help. Distinct jobs.',
 };
 
 // Generic-verb watchlist: skill names that are single common verbs, which
@@ -196,12 +198,13 @@ describe('skill-collision-sentinel', () => {
     }
   });
 
-  // Self-check: the /checkpoint rename actually landed. If someone reverts
-  // the rename by accident, this catches it.
-  test('the /checkpoint collision that started this file is actually resolved', () => {
+  // CaveStack keeps /checkpoint (save/resume) alongside context-save/restore.
+  // Collision with Claude Code /checkpoint (rewind alias) is documented in
+  // KNOWN_COLLISIONS_TOLERATED — prefix install uses /cavestack-checkpoint.
+  test('CaveStack keeps /checkpoint with a documented collision tolerance', () => {
     const names = new Set(skills.map(s => s.name));
-    expect(names.has('checkpoint')).toBe(false);
-    // And the replacements exist.
+    expect(names.has('checkpoint')).toBe(true);
+    expect(KNOWN_COLLISIONS_TOLERATED.checkpoint.length).toBeGreaterThan(20);
     expect(names.has('context-save')).toBe(true);
     expect(names.has('context-restore')).toBe(true);
   });

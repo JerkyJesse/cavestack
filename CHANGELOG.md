@@ -29,6 +29,7 @@ You can now install CaveStack on Cursor, Codex, Factory, OpenCode, Slate, OpenCl
 ### For contributors
 
 - Free tests shard via `bun run test:free` / `scripts/test-free-shards.ts`. CI adds `free-tests.yml`, Windows free tests, dependabot, OSV, and dependency-review. Voice/slop scripts are unchanged.
+- Locked parity baseline remains `test/fixtures/parity-baseline-v1.44.1.json`.
 - Caveman default stays `full`. Voice profiles live in `voices/`. Do not overwrite `hooks/caveman-*`.
 
 ## [2.0.0.0] - 2026-08-12 — Multi-Host + Feature Parity

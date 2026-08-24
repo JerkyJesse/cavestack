@@ -89,6 +89,13 @@ describe('normalize', () => {
     expect(r.stdout).toBe('gitlab.example.com/group/project');
   });
 
+  test('https userinfo with a colon (PAT / insteadOf token) still strips', () => {
+    // git `url.insteadOf` rewrites origin to https://x-access-token:TOKEN@host/...
+    // The colon must not be treated as "this @ is in the path".
+    const r = run(['normalize', 'https://x-access-token:deadbeef@github.com/foo/bar.git']);
+    expect(r.stdout).toBe('github.com/foo/bar');
+  });
+
   test('all variants collapse to a single key', () => {
     const forms = [
       'https://github.com/Foo/Bar.git',
@@ -96,6 +103,7 @@ describe('normalize', () => {
       'git@github.com:foo/bar.git',
       'ssh://git@github.com/foo/bar.git',
       'HTTPS://GITHUB.COM/FOO/BAR',
+      'https://x-access-token:deadbeef@github.com/foo/bar.git',
     ];
     const keys = forms.map((f) => run(['normalize', f]).stdout);
     expect(new Set(keys).size).toBe(1);

@@ -8,6 +8,7 @@
 import fs from "fs";
 import path from "path";
 import { requireApiKey } from "./auth";
+import { receiptedFetch } from "./receipted-fetch";
 
 export interface EvolveOptions {
   screenshot: string;  // Path to current site screenshot
@@ -55,7 +56,7 @@ export async function evolve(options: EvolveOptions): Promise<void> {
   const timeout = setTimeout(() => controller.abort(), 120_000);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await receiptedFetch("evolve-image-request", "https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -113,7 +114,7 @@ async function analyzeScreenshot(apiKey: string, imageBase64: string): Promise<s
   const timeout = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await receiptedFetch("evolve-screenshot-analysis-request", "https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,

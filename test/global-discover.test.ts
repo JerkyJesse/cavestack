@@ -43,7 +43,7 @@ describe("cavestack-global-discover", () => {
     });
 
     test("SSH and HTTPS for same repo normalize to same URL", () => {
-      const ssh = normalizeRemoteUrl("git@github.com:garrytan/cavestack.git");
+      const ssh = normalizeRemoteUrl("git@github.com:JerkyJesse/cavestack.git");
       const https = normalizeRemoteUrl("https://github.com/JerkyJesse/cavestack.git");
       const httpsNoDotGit = normalizeRemoteUrl("https://github.com/JerkyJesse/cavestack");
       expect(ssh).toBe(https);

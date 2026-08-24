@@ -288,7 +288,7 @@ describe("walk-up parity with bin/cavestack-slug (outermost project root)", () =
     fs.mkdirSync(repo, { recursive: true });
     spawnSync("git", ["init", "-q", repo]);
     spawnSync("git", ["-C", repo, "remote", "add", "origin", "https://github.com/JerkyJesse/cavestack"]);
-    expectBoth(repo, "garrytan-cavestack");
+    expectBoth(repo, "JerkyJesse-cavestack");
     expect(slugFromEnvironment(nativeHome(), repo)).not.toBe("strayhome");
   });
 
@@ -321,9 +321,9 @@ describe("walk-up parity with bin/cavestack-slug (outermost project root)", () =
     const cacheFile = path.join(cacheDir, toMsysPath(repo).replace(/\//g, "_"));
     fs.writeFileSync(cacheFile, "strayhome"); // the degraded value the old resolver cached
 
-    expect(slugFromEnvironment(nativeHome(), repo)).toBe("garrytan-cavestack");
+    expect(slugFromEnvironment(nativeHome(), repo)).toBe("JerkyJesse-cavestack");
     // The cache file itself must have been overwritten (self-healing).
-    expect(fs.readFileSync(cacheFile, "utf-8")).toBe("garrytan-cavestack");
+    expect(fs.readFileSync(cacheFile, "utf-8")).toBe("JerkyJesse-cavestack");
   });
 
   test("package.json wrapper root (no .git): sticky basename slug is PRESERVED — heal is stray-repo-shape only", () => {

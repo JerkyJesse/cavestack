@@ -170,6 +170,8 @@ lookup_default() {
     question_tuning) echo "false" ;;
     team_mode) echo "false" ;;
     transcript_ingest_mode) echo "off" ;;
+    test_scaffold_gate) echo "soft" ;; # off | soft | hard — PreToolUse Write/Edit gate
+    voice) echo "caveman-full" ;; # default CaveStack voice profile
     # repo_mode: EMPTY is load-bearing — cavestack-repo-mode treats any non-empty
     # answer as a user override and skips its own classification entirely, so
     # a synthesized "unknown" default turns the classifier into dead code.

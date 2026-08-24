@@ -129,6 +129,8 @@ const SCANNER_EXEMPT: Record<string, string> = {
     'user-directed page fetch — the browser command surface fetches what the user asked for',
   'browse/src/cli.ts':
     'health probe of the user\'s own pair-agent tunnel URL (reachability probe)',
+  'lib/error-codes.json':
+    'documentation strings (fix recipes mentioning curl); the JSON is not a network sink',
   'browse/src/commands.ts':
     'git pull appears only in an upgrade-hint message string',
   'browse/src/cookie-picker-ui.ts':

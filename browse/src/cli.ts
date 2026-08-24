@@ -1572,6 +1572,7 @@ Refs:           After 'snapshot', use @e1, @e2... as selectors:
       const serverEnv: Record<string, string> = {
         BROWSE_HEADED: '1',
         BROWSE_PORT: '34567',
+        BROWSE_SIDEBAR_CHAT: '1',
         // Disable parent-process watchdog: the user controls the headed browser
         // window lifecycle. The CLI exits immediately after connect, so watching
         // it would kill the server ~15s later. Cleanup happens via browser
@@ -1620,6 +1621,51 @@ Refs:           After 'snapshot', use @e1, @e2... as selectors:
       } catch (err: any) {
         // Non-fatal: chat still works without the terminal agent.
         console.error(`[browse] Terminal agent failed to start: ${err.message}`);
+      }
+
+      // Auto-start sidebar agent (non-compiled bun — compiled binaries cannot
+      // posix_spawn claude). CaveStack kept this path; gstack 1.68 ripped it.
+      try {
+        let agentScript = path.resolve(__dirname, 'sidebar-agent.ts');
+        if (!fs.existsSync(agentScript)) {
+          agentScript = path.resolve(path.dirname(process.execPath), '..', 'src', 'sidebar-agent.ts');
+        }
+        if (!fs.existsSync(agentScript)) {
+          throw new Error(`sidebar-agent.ts not found at ${agentScript}`);
+        }
+        const agentQueue = path.join(process.env.HOME || '/tmp', '.cavestack', 'sidebar-agent-queue.jsonl');
+        try {
+          fs.mkdirSync(path.dirname(agentQueue), { recursive: true, mode: 0o700 });
+          fs.writeFileSync(agentQueue, '', { mode: 0o600 });
+        } catch (err: any) {
+          if (err?.code !== 'EACCES') throw err;
+        }
+        let browseBin = path.resolve(__dirname, '..', 'dist', 'browse');
+        if (!fs.existsSync(browseBin)) {
+          browseBin = process.execPath;
+        }
+        try {
+          const { spawnSync } = require('child_process');
+          spawnSync('pkill', ['-f', 'sidebar-agent\\.ts'], { stdio: 'ignore', timeout: 3000, windowsHide: true });
+        } catch (err: any) {
+          if (err?.code !== 'ENOENT') throw err;
+        }
+        const agentProc = Bun.spawn(['bun', 'run', agentScript], {
+          cwd: config.projectDir,
+          env: {
+            ...process.env,
+            BROWSE_BIN: browseBin,
+            BROWSE_STATE_FILE: config.stateFile,
+            BROWSE_SERVER_PORT: String(newState.port),
+          },
+          stdio: ['ignore', 'ignore', 'ignore'],
+          windowsHide: true,
+        });
+        agentProc.unref();
+        console.log(`[browse] Sidebar agent started (PID: ${agentProc.pid})`);
+      } catch (err: any) {
+        console.error(`[browse] Sidebar agent failed to start: ${err.message}`);
+        console.error(`[browse] Run manually: bun run browse/src/sidebar-agent.ts`);
       }
     } catch (err: any) {
       console.error(`[browse] Connect failed: ${err.message}`);

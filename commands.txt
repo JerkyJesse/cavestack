@@ -57,3 +57,33 @@ gh pr list --head mechapip/cloud-agent-1787580158725-j7j21
 
 # 2026-08-24 — scan untracked files over 1MB before staging
 git status --porcelain -u | ... wc -c
+
+# 2026-08-24 — stage port (exclude dist binaries)
+git add -A -- . ":(exclude)browse/dist" ":(exclude)design/dist" ":(exclude)make-pdf/dist"
+git restore --staged browse/dist design/dist make-pdf/dist
+git diff --cached --stat
+
+# 2026-08-24 — commit port
+git commit -m "feat: port gstack 1.68.3 with multi-host factory and pairing fixes"
+git status -sb
+
+# 2026-08-24 — push branch
+git push -u origin mechapip/cloud-agent-1787580158725-j7j21
+
+# 2026-08-24 — count free-suite files
+bun run scripts/test-free-shards.ts --list
+
+# 2026-08-24 — full free suite after PR
+bun run test:free -- --wall-timeout 1200
+
+# 2026-08-24 — suite follow-up
+python3 /tmp/restore-sidebar.py
+python3 /tmp/wrap-settings-hook.py
+chmod +x cavestack-upgrade/migrations/*.sh
+git update-index --chmod=+x cavestack-upgrade/migrations/v0.15.2.0.sh cavestack-upgrade/migrations/v0.16.2.0.sh cavestack-upgrade/migrations/v1.0.0.0.sh cavestack-upgrade/migrations/v1.1.0.0.sh
+bun test browse/test/sidebar-agent.test.ts browse/test/sidebar-tabs.test.ts browse/test/config.test.ts test/cavestack-config-defaults.test.ts test/skill-collision-sentinel.test.ts test/setup-hook-canonical-paths.test.ts test/tracker-guard-wiring.test.ts test/egress-receipt-wiring.test.ts test/code-intelligence.test.ts test/parity-baseline-integrity.test.ts test/no-suicide-exit.test.ts test/e2e-tier-alignment.test.ts test/cavestack-memory-helpers.test.ts test/global-discover.test.ts
+bun test test/code-intelligence.test.ts test/gbrain-repo-policy.test.ts test/gbrain-repo-policy-client.test.ts test/parity-baseline-integrity.test.ts test/cavestack-slug-parity.test.ts test/bin-context-windows-slug.test.ts test/parity-suite.test.ts test/relink.test.ts test/upgrade-migration-v1.test.ts test/setup-hook-canonical-paths.test.ts
+bun test test/upgrade-migration-v1.test.ts test/code-intelligence.test.ts test/gbrain-repo-policy.test.ts
+bash -n bin/cavestack-settings-hook
+bash -n cavestack-upgrade/migrations/v1.0.0.0.sh
+bash -n bin/cavestack-gbrain-repo-policy

@@ -135,7 +135,6 @@ afterAll(() => {
   if (isWindows) return;
   try { server.stop(); } catch {}
   fs.rmSync(tmpDir, { recursive: true, force: true });
-  setTimeout(() => process.exit(0), 500);
 });
 
 // ─── The critical test: browser click → file on disk ─────────────

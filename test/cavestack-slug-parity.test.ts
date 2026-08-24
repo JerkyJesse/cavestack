@@ -128,7 +128,7 @@ describe('cavestack-slug ↔ remote-slug parity', () => {
 
   test('plain clone, https remote WITHOUT .git suffix (live-bug URL shape) — identical slug', () => {
     const repo = makeRepo(path.join(fixtures, 'proj'), 'https://github.com/JerkyJesse/cavestack');
-    expectParity(repo, tmpHome, 'garrytan-cavestack');
+    expectParity(repo, tmpHome, 'JerkyJesse-cavestack');
   });
 
   test('plain clone, scp-like ssh remote — identical owner-repo slug', () => {
@@ -143,7 +143,7 @@ describe('cavestack-slug ↔ remote-slug parity', () => {
     git(['-C', main, 'worktree', 'add', '-q', wt, '-b', 'feature-branch']);
     // Sanity: worktree roots carry a .git FILE, not a directory.
     expect(fs.statSync(path.join(wt, '.git')).isFile()).toBe(true);
-    expectParity(wt, tmpHome, 'garrytan-cavestack');
+    expectParity(wt, tmpHome, 'JerkyJesse-cavestack');
   });
 
   test('LIVE BUG SHAPE: stray empty .git on an ancestor "home" no longer degrades the slug', () => {
@@ -161,8 +161,8 @@ describe('cavestack-slug ↔ remote-slug parity', () => {
 
     // Both the plain clone and the worktree must resolve to owner-repo — the
     // pre-fix resolver emitted `strayhome` (the marker root's basename) here.
-    expectParity(main, tmpHome, 'garrytan-cavestack');
-    expectParity(wt, tmpHome, 'garrytan-cavestack');
+    expectParity(main, tmpHome, 'JerkyJesse-cavestack');
+    expectParity(wt, tmpHome, 'JerkyJesse-cavestack');
     expect(slugOf(runSlug(wt, tmpHome))).not.toBe('strayhome');
   });
 
@@ -214,9 +214,9 @@ describe('cavestack-slug ↔ remote-slug parity', () => {
 
     const cavestack = runSlug(repo, tmpHome);
     expect(cavestack.status).toBe(0);
-    expect(slugOf(cavestack)).toBe('garrytan-cavestack');
+    expect(slugOf(cavestack)).toBe('JerkyJesse-cavestack');
     // The cache file itself must have been overwritten (self-healing).
-    expect(fs.readFileSync(cacheFile, 'utf8').trim()).toBe('garrytan-cavestack');
+    expect(fs.readFileSync(cacheFile, 'utf8').trim()).toBe('JerkyJesse-cavestack');
   });
 
   test('hostile origin `url = ..` cannot become a ".." slug — basename fallback holds', () => {

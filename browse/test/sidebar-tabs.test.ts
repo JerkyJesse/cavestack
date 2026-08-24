@@ -171,64 +171,41 @@ describe('sidepanel-terminal.js: eager auto-connect + injection API', () => {
   });
 });
 
-describe('server.ts: chat / sidebar-agent endpoints are gone', () => {
+describe('server.ts: sidebar-agent HTTP routes stay (CaveStack keep)', () => {
   const SERVER_SRC = fs.readFileSync(path.join(import.meta.dir, '../src/server.ts'), 'utf-8');
 
-  test('No /sidebar-command, /sidebar-chat, /sidebar-agent/* routes', () => {
-    expect(SERVER_SRC).not.toMatch(/url\.pathname === ['"]\/sidebar-command['"]/);
-    expect(SERVER_SRC).not.toMatch(/url\.pathname === ['"]\/sidebar-chat['"]/);
-    expect(SERVER_SRC).not.toMatch(/url\.pathname\.startsWith\(['"]\/sidebar-agent\//);
-    expect(SERVER_SRC).not.toMatch(/url\.pathname === ['"]\/sidebar-agent\/event['"]/);
-    expect(SERVER_SRC).not.toMatch(/url\.pathname === ['"]\/sidebar-tabs['"]/);
-    expect(SERVER_SRC).not.toMatch(/url\.pathname === ['"]\/sidebar-session['"]/);
+  test('Sidebar command / chat / agent event routes exist', () => {
+    expect(SERVER_SRC).toMatch(/url\.pathname === ['"]\/sidebar-command['"]/);
+    expect(SERVER_SRC).toMatch(/url\.pathname === ['"]\/sidebar-chat['"]/);
+    expect(SERVER_SRC).toMatch(/url\.pathname === ['"]\/sidebar-agent\/event['"]/);
+    expect(SERVER_SRC).toMatch(/url\.pathname === ['"]\/sidebar-tabs['"]/);
+    expect(SERVER_SRC).toMatch(/url\.pathname === ['"]\/sidebar-session['"]/);
   });
 
-  test('No chat-related state declarations or helpers', () => {
-    // Allow the symbol names inside the rip-marker comments — but no
-    // `let`, `const`, `function`, or `interface` declarations of them.
-    expect(SERVER_SRC).not.toMatch(/^let agentProcess/m);
-    expect(SERVER_SRC).not.toMatch(/^let agentStatus/m);
-    expect(SERVER_SRC).not.toMatch(/^let messageQueue/m);
-    expect(SERVER_SRC).not.toMatch(/^let sidebarSession/m);
-    expect(SERVER_SRC).not.toMatch(/^const tabAgents/m);
-    expect(SERVER_SRC).not.toMatch(/^function pickSidebarModel/m);
-    expect(SERVER_SRC).not.toMatch(/^function processAgentEvent/m);
-    expect(SERVER_SRC).not.toMatch(/^function killAgent/m);
-    expect(SERVER_SRC).not.toMatch(/^function addChatEntry/m);
-    expect(SERVER_SRC).not.toMatch(/^interface ChatEntry/m);
-    expect(SERVER_SRC).not.toMatch(/^interface SidebarSession/m);
+  test('Per-tab agent state lives in server.ts', () => {
+    expect(SERVER_SRC).toMatch(/const tabAgents/);
+    expect(SERVER_SRC).toMatch(/function spawnClaude/);
+    expect(SERVER_SRC).toMatch(/function getTabAgent/);
   });
 
-  test('/health no longer surfaces agentStatus or messageQueue length', () => {
+  test('/health still does not leak AUTH_TOKEN', () => {
     const health = SERVER_SRC.slice(SERVER_SRC.indexOf("url.pathname === '/health'"));
-    const slice = health.slice(0, 2000);
-    expect(slice).not.toContain('agentStatus');
-    expect(slice).not.toContain('messageQueue');
-    expect(slice).not.toContain('agentStartTime');
-    // chatEnabled is gone entirely — the chat pane no longer exists in any
-    // extension build, so /health stopped advertising a chat mode.
-    expect(slice).not.toContain('chatEnabled');
-    // terminalPort survives.
+    const slice = health.slice(0, 2200);
+    expect(slice).not.toContain('AUTH_TOKEN');
+    expect(slice).not.toMatch(/\btoken:\s*AUTH_TOKEN\b/);
     expect(slice).toContain('terminalPort');
   });
 });
 
-describe('cli.ts: sidebar-agent is no longer spawned', () => {
+describe('cli.ts: sidebar-agent is still spawned on headed connect', () => {
   const CLI_SRC = fs.readFileSync(path.join(import.meta.dir, '../src/cli.ts'), 'utf-8');
 
-  test('No Bun.spawn of sidebar-agent.ts', () => {
-    expect(CLI_SRC).not.toMatch(/Bun\.spawn\(\s*\['bun',\s*'run',\s*\w*[Aa]gent[Ss]cript\][\s\S]{0,300}sidebar-agent/);
-    // The variable name `agentScript` was for sidebar-agent. After the
-    // rip there's only termAgentScript. Allow comments to mention the
-    // history but not active spawn calls.
-    expect(CLI_SRC).not.toMatch(/^\s*let agentScript = path\.resolve/m);
+  test('Bun.spawn of sidebar-agent.ts survives', () => {
+    expect(CLI_SRC).toContain('sidebar-agent.ts');
+    expect(CLI_SRC).toMatch(/Bun\.spawn\(\['bun',\s*'run',\s*agentScript\]/);
   });
 
   test('Terminal-agent spawn survives', () => {
-    // v1.44 moved the raw Bun.spawn into the shared spawnTerminalAgent
-    // helper (terminal-agent-control.ts) so cli.ts, the supervisor respawn
-    // loop, and the watchdog all share identity-based process control.
-    // cli.ts must still route through that helper.
     expect(CLI_SRC).toContain('spawnTerminalAgent');
     const CONTROL_SRC = fs.readFileSync(
       path.join(import.meta.dir, '../src/terminal-agent-control.ts'),
@@ -239,14 +216,14 @@ describe('cli.ts: sidebar-agent is no longer spawned', () => {
   });
 });
 
-describe('files: sidebar-agent.ts and its tests are deleted', () => {
-  test('browse/src/sidebar-agent.ts is gone', () => {
-    expect(fs.existsSync(path.join(import.meta.dir, '../src/sidebar-agent.ts'))).toBe(false);
+describe('files: sidebar-agent.ts and its tests stay', () => {
+  test('browse/src/sidebar-agent.ts exists', () => {
+    expect(fs.existsSync(path.join(import.meta.dir, '../src/sidebar-agent.ts'))).toBe(true);
   });
 
-  test('sidebar-agent test files are gone', () => {
-    expect(fs.existsSync(path.join(import.meta.dir, 'sidebar-agent.test.ts'))).toBe(false);
-    expect(fs.existsSync(path.join(import.meta.dir, 'sidebar-agent-roundtrip.test.ts'))).toBe(false);
+  test('sidebar-agent test files exist', () => {
+    expect(fs.existsSync(path.join(import.meta.dir, 'sidebar-agent.test.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(import.meta.dir, 'sidebar-agent-roundtrip.test.ts'))).toBe(true);
   });
 });
 

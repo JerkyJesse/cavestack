@@ -433,6 +433,26 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
     'test/skill-e2e-gbrain-roundtrip-local.test.ts',
   ],
 
+  // CaveStack sidebar agent (kept; gstack 1.68 ripped chat)
+  'sidebar-url-accuracy': [
+    'browse/src/server.ts',
+    'browse/src/sidebar-agent.ts',
+    'browse/src/cli.ts',
+    'test/skill-e2e-sidebar.test.ts',
+  ],
+  'sidebar-css-interaction': [
+    'browse/src/server.ts',
+    'browse/src/sidebar-agent.ts',
+    'browse/src/cli.ts',
+    'test/skill-e2e-sidebar.test.ts',
+  ],
+  'sidebar-navigate': [
+    'browse/src/server.ts',
+    'browse/src/sidebar-agent.ts',
+    'browse/src/cli.ts',
+    'test/skill-e2e-sidebar.test.ts',
+  ],
+
 };
 
 /**
@@ -495,6 +515,11 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   // GBrain CLI round-trip — periodic per Voyage embedding cost (~$0.001/run)
   // and external-API-dependency (skips cleanly if VOYAGE_API_KEY unset).
   'gbrain-roundtrip-local': 'periodic',
+  // CaveStack sidebar agent E2E — url-accuracy is deterministic (gate);
+  // css/navigate need a live Claude (periodic).
+  'sidebar-url-accuracy': 'gate',
+  'sidebar-css-interaction': 'periodic',
+  'sidebar-navigate': 'periodic',
   'office-hours-forcing-energy': 'periodic',   // D2a demotion 2026-08: posture score, periodic-grade signal (sibling precedent at office-hours-tone)
   // 'office-hours-builder-wildness' retiered to periodic in v1.32 contributor
   // wave: this is an LLM-judge creativity score (axis_a ≥4 on a "wildness"

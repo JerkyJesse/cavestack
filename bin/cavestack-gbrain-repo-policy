@@ -74,13 +74,15 @@ normalize() {
   [ -z "$url" ] && { echo ""; return 0; }
   # Strip protocol://
   url="${url#*://}"
-  # Strip userinfo (git@, user:password@, etc.) — everything up to and
-  # including the first @ iff an @ appears before the first / or :.
+  # Strip userinfo (git@, user:password@, x-access-token:tok@, etc.) —
+  # everything up to and including the first @ iff that @ appears before
+  # the first /. A colon in userinfo is normal (password / PAT) and must
+  # NOT keep the prefix; only a slash means the @ is in the path.
   case "$url" in
     *@*)
       local before_at="${url%%@*}"
       case "$before_at" in
-        */*|*:*) : ;;  # @ is in the path, not userinfo — leave it
+        */*) : ;;  # @ is in the path, not userinfo — leave it
         *) url="${url#*@}" ;;
       esac
       ;;

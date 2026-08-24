@@ -7,6 +7,7 @@
 import fs from "fs";
 import path from "path";
 import { requireApiKey } from "./auth";
+import { receiptedFetch } from "./receipted-fetch";
 import { parseBrief } from "./brief";
 
 export interface VariantsOptions {
@@ -54,7 +55,7 @@ async function generateVariant(
     const timeout = setTimeout(() => controller.abort(), 120_000);
 
     try {
-      const response = await fetch("https://api.openai.com/v1/responses", {
+      const response = await receiptedFetch("variants-image-request", "https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,

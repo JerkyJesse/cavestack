@@ -422,11 +422,11 @@ describe("consent unification — deny tier wins (R1)", () => {
       const env = { ...process.env, CAVESTACK_HOME: home };
       const repo = makeRepo(home, URL);
       setConsent(repo, true, env);
-      execFileSync(POLICY_BIN, ["set", URL, "deny"], { env, encoding: "utf-8" });
+      execFileSync("bash", [POLICY_BIN, "set", URL, "deny"], { env, encoding: "utf-8" });
       expect(hasConsent(repo, env)).toBe(false);
       // Flipping the tier back restores the recorded consent — the veto is
       // live policy, not a destructive rewrite of the consent store.
-      execFileSync(POLICY_BIN, ["set", URL, "read-write"], { env, encoding: "utf-8" });
+      execFileSync("bash", [POLICY_BIN, "set", URL, "read-write"], { env, encoding: "utf-8" });
       expect(hasConsent(repo, env)).toBe(true);
     } finally { fs.rmSync(home, { recursive: true, force: true }); }
   });
@@ -438,7 +438,7 @@ describe("consent unification — deny tier wins (R1)", () => {
       const env = { ...process.env, CAVESTACK_HOME: home };
       const repo = makeRepo(home, URL);
       setConsent(repo, true, env);
-      execFileSync(POLICY_BIN, ["set", URL, "read-write"], { env, encoding: "utf-8" });
+      execFileSync("bash", [POLICY_BIN, "set", URL, "read-write"], { env, encoding: "utf-8" });
       fs.chmodSync(path.join(home, "gbrain-repo-policy.json"), 0o000);
       try {
         expect(hasConsent(repo, env)).toBe(false);
@@ -459,7 +459,7 @@ describe("consent unification — deny tier wins (R1)", () => {
       const env = { ...process.env, CAVESTACK_HOME: home };
       const repo = makeRepo(home, URL);
       setConsent(repo, true, env);
-      execFileSync(POLICY_BIN, ["set", URL, "read-only"], { env, encoding: "utf-8" });
+      execFileSync("bash", [POLICY_BIN, "set", URL, "read-only"], { env, encoding: "utf-8" });
       // Default op class is write — a caller that doesn't say gets fail-closed.
       expect(hasConsent(repo, env)).toBe(false);
       expect(hasConsent(repo, env, "write")).toBe(false);
@@ -474,7 +474,7 @@ describe("consent unification — deny tier wins (R1)", () => {
       const env = { ...process.env, CAVESTACK_HOME: home };
       const repo = makeRepo(home, URL);
       setConsent(repo, true, env);
-      execFileSync(POLICY_BIN, ["set", URL, "deny"], { env, encoding: "utf-8" });
+      execFileSync("bash", [POLICY_BIN, "set", URL, "deny"], { env, encoding: "utf-8" });
       expect(hasConsent(repo, env, "write")).toBe(false);
       expect(hasConsent(repo, env, "read")).toBe(false);
     } finally { fs.rmSync(home, { recursive: true, force: true }); }
@@ -501,7 +501,7 @@ describe("read-only repo policy blocks write-class CLI index (R2)", () => {
       execFileSync("git", ["remote", "add", "origin", URL], { cwd: repo });
       setProvider("gbrain", env);
       setConsent(repo, true, env);
-      execFileSync(POLICY_BIN, ["set", URL, "read-only"], { env, encoding: "utf-8" });
+      execFileSync("bash", [POLICY_BIN, "set", URL, "read-only"], { env, encoding: "utf-8" });
       const res = spawnSync("bun", [CLI, "index", repo], {
         encoding: "utf-8",
         timeout: 30_000,
@@ -728,7 +728,7 @@ describe("CLI search consent gate (gbrain provider, honest refusal message)", ()
 
   test("deny repo trust policy → refused with the trust-policy explanation even with recorded consent", () => {
     setConsent(repo, true, env);
-    execFileSync(POLICY_BIN, ["set", URL, "deny"], { env, encoding: "utf-8" });
+    execFileSync("bash", [POLICY_BIN, "set", URL, "deny"], { env, encoding: "utf-8" });
     const res = runSearch();
     expect(res.status).not.toBe(0);
     expect(res.stderr).toContain("repo trust policy");

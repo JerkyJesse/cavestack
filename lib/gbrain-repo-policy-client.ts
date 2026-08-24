@@ -63,8 +63,10 @@ export function repoPolicyTier(url: string | null, env: NodeJS.ProcessEnv = proc
   if (!url) return { tier: "none" };
   // The script is `#!/usr/bin/env bash`; win32 can't exec a shebang file, so
   // invoke through bash there. An ENOENT then means bash is not on PATH.
-  const [cmd, args]: [string, string[]] =
-    process.platform === "win32" ? ["bash", [POLICY_SCRIPT, "get", url]] : [POLICY_SCRIPT, ["get", url]];
+  // Always invoke through bash: the script is `#!/usr/bin/env bash`.
+  // Bun spawnSync of a shebang file can drop the caller env (CAVESTACK_HOME),
+  // which made deny-tier vetoes a no-op in tests and on Windows.
+  const [cmd, args]: [string, string[]] = ["bash", [POLICY_SCRIPT, "get", url]];
   const res = spawnSync(cmd, args, {
     encoding: "utf-8",
     timeout: 10_000,
@@ -117,10 +119,7 @@ export function repoPolicyTierBatch(
   };
   // Same win32 bash-wrapping as repoPolicyTier: the script is
   // `#!/usr/bin/env bash`, which win32 can't exec directly.
-  const [cmd, args]: [string, string[]] =
-    process.platform === "win32"
-      ? ["bash", [POLICY_SCRIPT, "get", "--batch"]]
-      : [POLICY_SCRIPT, ["get", "--batch"]];
+  const [cmd, args]: [string, string[]] = ["bash", [POLICY_SCRIPT, "get", "--batch"]];
   const res = spawnSync(cmd, args, {
     encoding: "utf-8",
     timeout: 10_000,

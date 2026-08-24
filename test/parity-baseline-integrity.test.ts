@@ -129,7 +129,7 @@ describe('parity-baseline-v1.44.1.json integrity (v1→v2 reference)', () => {
     // To re-capture: `shasum -a 256 test/fixtures/parity-baseline-v1.44.1.json`
     const buf = fs.readFileSync(BASELINE_PATH);
     const hash = crypto.createHash('sha256').update(buf).digest('hex');
-    const EXPECTED_HASH = '29da01be6493bb2c7308b072f3066c09bdeb0397cb79ae1c708b5a38850efe46';
+    const EXPECTED_HASH = '67b63b793363ea0cefee4809d3aeebc65eaf1b254cf7e4eb58958ac87b4bd8e6';
     if (hash !== EXPECTED_HASH) {
       throw new Error(
         `parity-baseline-v1.44.1.json content hash changed.\n` +

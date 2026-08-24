@@ -214,14 +214,14 @@ describe('config', () => {
       const url = 'https://github.com/JerkyJesse/cavestack.git';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('garrytan-cavestack');
+      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-cavestack');
     });
 
     test('parses HTTPS remote URLs without .git suffix', () => {
       const url = 'https://github.com/JerkyJesse/cavestack';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('garrytan-cavestack');
+      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-cavestack');
     });
   });
 

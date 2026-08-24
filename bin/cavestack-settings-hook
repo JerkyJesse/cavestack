@@ -855,56 +855,58 @@ case "$ACTION" in
     mkdir -p "$(dirname "$SETTINGS_FILE")"
     [ -f "$SETTINGS_FILE" ] && cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup"
 
-    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" CAVESTACK_ACTIVATE="$ACTIVATE_HOOK" CAVESTACK_VOICE="$VOICE_HOOK" CAVESTACK_TRACKER="$TRACKER_HOOK" bun -e "
-      const fs = require('fs');
-      const path = require('path');
+    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" CAVESTACK_ACTIVATE="$ACTIVATE_HOOK" CAVESTACK_VOICE="$VOICE_HOOK" CAVESTACK_TRACKER="$TRACKER_HOOK" bun -e "$_HOOK_JS_PRELUDE"'gsMain(function () {
+      const fs = require("fs");
+      const path = require("path");
       const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
       const activateCmd = process.env.CAVESTACK_ACTIVATE;
       const voiceCmd = process.env.CAVESTACK_VOICE;
       const trackerCmd = process.env.CAVESTACK_TRACKER;
 
       let settings = {};
-      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch {}
+      try { settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")); } catch {}
 
       if (!settings.hooks) settings.hooks = {};
 
       // SessionStart: caveman-activate
       if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
       const activateExists = settings.hooks.SessionStart.some(entry =>
-        entry.hooks && entry.hooks.some(h => h.command && h.command.includes('caveman-activate'))
+        entry.hooks && entry.hooks.some(h => h.command && h.command.includes("caveman-activate"))
       );
       if (!activateExists) {
         settings.hooks.SessionStart.push({
-          hooks: [{ type: 'command', command: activateCmd, timeout: 5, statusMessage: 'Loading cavestack caveman mode...' }]
+          hooks: [{ type: "command", command: activateCmd, timeout: 5, statusMessage: "Loading cavestack caveman mode..." }]
         });
       }
 
       // SessionStart: caveman-voice-priority (belt-and-suspenders for voice profiles)
       const voiceExists = settings.hooks.SessionStart.some(entry =>
-        entry.hooks && entry.hooks.some(h => h.command && h.command.includes('caveman-voice-priority'))
+        entry.hooks && entry.hooks.some(h => h.command && h.command.includes("caveman-voice-priority"))
       );
       if (!voiceExists) {
         settings.hooks.SessionStart.push({
-          hooks: [{ type: 'command', command: voiceCmd, timeout: 5 }]
+          hooks: [{ type: "command", command: voiceCmd, timeout: 5 }]
         });
       }
 
       // UserPromptSubmit: caveman-mode-tracker
       if (!settings.hooks.UserPromptSubmit) settings.hooks.UserPromptSubmit = [];
       const trackerExists = settings.hooks.UserPromptSubmit.some(entry =>
-        entry.hooks && entry.hooks.some(h => h.command && h.command.includes('caveman-mode-tracker'))
+        entry.hooks && entry.hooks.some(h => h.command && h.command.includes("caveman-mode-tracker"))
       );
       if (!trackerExists) {
         settings.hooks.UserPromptSubmit.push({
-          hooks: [{ type: 'command', command: trackerCmd, timeout: 5 }]
+          hooks: [{ type: "command", command: trackerCmd, timeout: 5 }]
         });
       }
 
       fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-      const tmp = settingsPath + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
+      const tmp = settingsPath + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + "\n");
       fs.renameSync(tmp, settingsPath);
-    " 2>/dev/null
+    
+    });
+    ' 2>/dev/null
 
     # Bundle: install-caveman always also registers voice-verify Stop hook
     # (so enabling caveman → enabling closed-loop density enforcement are
@@ -917,12 +919,12 @@ case "$ACTION" in
   remove-caveman)
     [ -f "$SETTINGS_FILE" ] || exit 0
     cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup"
-    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" bun -e "
-      const fs = require('fs');
+    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" bun -e "$_HOOK_JS_PRELUDE"'gsMain(function () {
+      const fs = require("fs");
       const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
 
       let settings = {};
-      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch { process.exit(0); }
+      try { settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")); } catch { process.exit(0); }
 
       const drop = (arr, needle) => arr.filter(entry =>
         !(entry.hooks && entry.hooks.some(h => h.command && h.command.includes(needle)))
@@ -930,21 +932,23 @@ case "$ACTION" in
 
       if (settings.hooks) {
         if (settings.hooks.SessionStart) {
-          settings.hooks.SessionStart = drop(settings.hooks.SessionStart, 'caveman-activate');
-          settings.hooks.SessionStart = drop(settings.hooks.SessionStart, 'caveman-voice-priority');
+          settings.hooks.SessionStart = drop(settings.hooks.SessionStart, "caveman-activate");
+          settings.hooks.SessionStart = drop(settings.hooks.SessionStart, "caveman-voice-priority");
           if (settings.hooks.SessionStart.length === 0) delete settings.hooks.SessionStart;
         }
         if (settings.hooks.UserPromptSubmit) {
-          settings.hooks.UserPromptSubmit = drop(settings.hooks.UserPromptSubmit, 'caveman-mode-tracker');
+          settings.hooks.UserPromptSubmit = drop(settings.hooks.UserPromptSubmit, "caveman-mode-tracker");
           if (settings.hooks.UserPromptSubmit.length === 0) delete settings.hooks.UserPromptSubmit;
         }
         if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
       }
 
-      const tmp = settingsPath + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
+      const tmp = settingsPath + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + "\n");
       fs.renameSync(tmp, settingsPath);
-    " 2>/dev/null
+    
+    });
+    ' 2>/dev/null
 
     # Symmetric bundle: remove-caveman also removes voice-verify.
     "$0" remove-voice-verify 2>/dev/null || true
@@ -967,55 +971,59 @@ case "$ACTION" in
     mkdir -p "$(dirname "$SETTINGS_FILE")"
     [ -f "$SETTINGS_FILE" ] && cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup"
 
-    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" CAVESTACK_VERIFY_CMD="$VERIFY_HOOK" bun -e "
-      const fs = require('fs');
-      const path = require('path');
+    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" CAVESTACK_VERIFY_CMD="$VERIFY_HOOK" bun -e "$_HOOK_JS_PRELUDE"'gsMain(function () {
+      const fs = require("fs");
+      const path = require("path");
       const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
       const verifyCmd = process.env.CAVESTACK_VERIFY_CMD;
 
       let settings = {};
-      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch {}
+      try { settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")); } catch {}
 
       if (!settings.hooks) settings.hooks = {};
       if (!settings.hooks.Stop) settings.hooks.Stop = [];
 
       const exists = settings.hooks.Stop.some(entry =>
-        entry.hooks && entry.hooks.some(h => h.command && h.command.includes('caveman-voice-verify'))
+        entry.hooks && entry.hooks.some(h => h.command && h.command.includes("caveman-voice-verify"))
       );
       if (!exists) {
         settings.hooks.Stop.push({
-          hooks: [{ type: 'command', command: verifyCmd, timeout: 5 }]
+          hooks: [{ type: "command", command: verifyCmd, timeout: 5 }]
         });
       }
 
       fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-      const tmp = settingsPath + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
+      const tmp = settingsPath + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + "\n");
       fs.renameSync(tmp, settingsPath);
-    " 2>/dev/null
+    
+    });
+    ' 2>/dev/null
     ;;
   remove-voice-verify)
     [ -f "$SETTINGS_FILE" ] || exit 0
     cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup"
-    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" bun -e "
-      const fs = require('fs');
+    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" bun -e "$_HOOK_JS_PRELUDE"'gsMain(function () {
+      const fs = require("fs");
       const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
 
       let settings = {};
-      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch { process.exit(0); }
+      try { settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")); } catch { process.exit(0); }
 
       if (settings.hooks && settings.hooks.Stop) {
         settings.hooks.Stop = settings.hooks.Stop.filter(entry =>
-          !(entry.hooks && entry.hooks.some(h => h.command && h.command.includes('caveman-voice-verify')))
+          !(entry.hooks && entry.hooks.some(h => h.command && h.command.includes("caveman-voice-verify")))
         );
         if (settings.hooks.Stop.length === 0) delete settings.hooks.Stop;
         if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
       }
 
-      const tmp = settingsPath + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
+      const tmp = settingsPath + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + "\n");
       fs.renameSync(tmp, settingsPath);
-    " 2>/dev/null
+    
+    });
+    ' 2>/dev/null
     ;;
   install-test-scaffold-gate)
     CAVESTACK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -1035,56 +1043,60 @@ case "$ACTION" in
     mkdir -p "$(dirname "$SETTINGS_FILE")"
     [ -f "$SETTINGS_FILE" ] && cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup"
 
-    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" CAVESTACK_GATE_CMD="$GATE_HOOK" bun -e "
-      const fs = require('fs');
-      const path = require('path');
+    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" CAVESTACK_GATE_CMD="$GATE_HOOK" bun -e "$_HOOK_JS_PRELUDE"'gsMain(function () {
+      const fs = require("fs");
+      const path = require("path");
       const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
       const gateCmd = process.env.CAVESTACK_GATE_CMD;
 
       let settings = {};
-      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch {}
+      try { settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")); } catch {}
 
       if (!settings.hooks) settings.hooks = {};
       if (!settings.hooks.PreToolUse) settings.hooks.PreToolUse = [];
 
       const exists = settings.hooks.PreToolUse.some(entry =>
-        entry.hooks && entry.hooks.some(h => h.command && h.command.includes('test-scaffold-gate'))
+        entry.hooks && entry.hooks.some(h => h.command && h.command.includes("test-scaffold-gate"))
       );
       if (!exists) {
         settings.hooks.PreToolUse.push({
-          matcher: 'Write|Edit',
-          hooks: [{ type: 'command', command: gateCmd, timeout: 5 }]
+          matcher: "Write|Edit",
+          hooks: [{ type: "command", command: gateCmd, timeout: 5 }]
         });
       }
 
       fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-      const tmp = settingsPath + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
+      const tmp = settingsPath + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + "\n");
       fs.renameSync(tmp, settingsPath);
-    " 2>/dev/null
+    
+    });
+    ' 2>/dev/null
     ;;
   remove-test-scaffold-gate)
     [ -f "$SETTINGS_FILE" ] || exit 0
     cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup"
-    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" bun -e "
-      const fs = require('fs');
+    CAVESTACK_SETTINGS_PATH="$SETTINGS_FILE" bun -e "$_HOOK_JS_PRELUDE"'gsMain(function () {
+      const fs = require("fs");
       const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
 
       let settings = {};
-      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch { process.exit(0); }
+      try { settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")); } catch { process.exit(0); }
 
       if (settings.hooks && settings.hooks.PreToolUse) {
         settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter(entry =>
-          !(entry.hooks && entry.hooks.some(h => h.command && h.command.includes('test-scaffold-gate')))
+          !(entry.hooks && entry.hooks.some(h => h.command && h.command.includes("test-scaffold-gate")))
         );
         if (settings.hooks.PreToolUse.length === 0) delete settings.hooks.PreToolUse;
         if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
       }
 
-      const tmp = settingsPath + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
+      const tmp = settingsPath + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + "\n");
       fs.renameSync(tmp, settingsPath);
-    " 2>/dev/null
+    
+    });
+    ' 2>/dev/null
     ;;
   *)
     echo "Unknown action: $ACTION" >&2
