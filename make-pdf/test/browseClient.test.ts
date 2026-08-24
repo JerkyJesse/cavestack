@@ -155,6 +155,42 @@ describe("resolveBrowseBin", () => {
     const resolved = withEnv({ CAVESTACK_BROWSE_BIN: `"${REAL_EXE}"` }, () => resolveBrowseBin());
     expect(resolved).toBe(REAL_EXE);
   });
+
+  test("sibling lookup uses execPath, not argv[0] (compiled argv[0] can be '.')", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "mkpdf-execpath-"));
+    const binName = process.platform === "win32" ? "browse.exe" : "browse";
+    try {
+      const decoyDir = path.join(tmp, "decoy", "browse", "dist");
+      const realDir = path.join(tmp, "real", "browse", "dist");
+      fs.mkdirSync(decoyDir, { recursive: true });
+      fs.mkdirSync(realDir, { recursive: true });
+      const decoy = path.join(decoyDir, binName);
+      const real = path.join(realDir, binName);
+      fs.writeFileSync(decoy, "decoy");
+      fs.writeFileSync(real, "real");
+      if (process.platform !== "win32") {
+        fs.chmodSync(decoy, 0o755);
+        fs.chmodSync(real, 0o755);
+      }
+      const execPath = path.join(tmp, "real", "make-pdf", "make-pdf");
+      fs.mkdirSync(path.dirname(execPath), { recursive: true });
+      fs.writeFileSync(execPath, "fake-pdf");
+
+      const resolved = withEnv(
+        {
+          CAVESTACK_BROWSE_BIN: undefined,
+          BROWSE_BIN: undefined,
+          PATH: "",
+          Path: "",
+        },
+        () => resolveBrowseBin(process.env, execPath),
+      );
+      expect(resolved).toBe(real);
+      expect(resolved).not.toBe(decoy);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("BrowseClientError", () => {

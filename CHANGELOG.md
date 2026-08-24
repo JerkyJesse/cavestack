@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.2.0.0] - 2026-08-24 — Cursor install that actually works
+
+Cursor install is first-class: `./setup --host cursor --prefix` writes `~/.cursor/skills/cavestack-*` with YAML `name:` matching the folder (Cursor drops a skill when they differ). Descriptions over 1024 chars truncate instead of vanishing. Pairing `--local cursor` is credentials only — not a skill install.
+
+### Added
+
+- **Cursor prefix + 1024-char truncate** — `hosts/cursor.ts` is prefixable. Generator writes `cavestack-qa` folders and matching `name:` fields. Overlong descriptions shorten at a word boundary.
+- **`mkdirpSync`** — bun-on-Windows EEXIST-safe `mkdir -p`, used by redact / evidence / decision-log / prepush skip-log.
+
+### Fixed
+
+- **`./setup --host slate` (and openclaw/hermes/gbrain) explain themselves** instead of exiting 0 after installing nothing. Accepted hosts with no install arm fail closed.
+- **Orphan Cursor skill dirs** — cleanup scans `~/.cursor/skills`, not the generated payload, so removed skills actually disappear.
+- **make-pdf sibling browse** — compiled binaries resolve browse via `process.execPath` (argv[0] can be `.`).
+- **Bash 5.2 heredoc deadlock** — `BASH_COMPAT=50` on bash 5+ so large setup heredocs don't hang Git/Homebrew bash.
+- **Sidebar docs** — `GET /health` is liveness only; token bootstrap is `POST /extension-token`.
+- **Windows `./setup` head lock** — `browse/scripts/build-node-server.ts` runs `Bun.build` in memory then writes once. Git Bash `head`/`perl` (and even a second bun open) hit `Permission denied` on bun's outfile because Windows Defender locks the freshly written bundle. That aborted Cursor install.
+
+### For contributors
+
+- Regression tests: description truncate, mkdirp EEXIST, setup host dispatch, make-pdf execPath, Cursor name===folder, Windows node-bundle inject (no Git Bash `head`).
+- Caveman stays locked `full`. Voices, `cavestack-*` / `cs-*`, `~/.cavestack` unchanged.
+
 ## [2.1.0.0] - 2026-08-24 — Hosts, pairing truth, GBrain
 
 You can now install CaveStack on Cursor, Codex, Factory, OpenCode, Slate, OpenClaw, Hermes, and GBrain — not just Claude Code and Kiro. Pairing a browser agent actually revokes when you tell it to. `/health` no longer hands out the browse token. Freeze and careful hooks actually block. Windows setup stops flashing consoles and bricking the state dir.

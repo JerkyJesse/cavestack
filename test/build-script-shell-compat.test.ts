@@ -52,3 +52,17 @@ describe('package.json build scripts — POSIX shell compat (D-1460)', () => {
     expect(BUILD_SCRIPT).toContain('bash scripts/write-version-files.sh');
   });
 });
+
+describe('browse/scripts/build-node-server.sh — Windows head lock', () => {
+  const SCRIPT = fs.readFileSync(
+    path.join(ROOT, 'browse', 'scripts', 'build-node-server.sh'),
+    'utf-8',
+  );
+
+  test('builds in-memory via bun; never Git Bash head/perl on a bun outfile', () => {
+    expect(SCRIPT).toContain('build-node-server.ts');
+    expect(SCRIPT).not.toMatch(/\bhead -1\b/);
+    expect(SCRIPT).not.toMatch(/perl -pi/);
+    expect(SCRIPT).not.toContain('--outfile');
+  });
+});

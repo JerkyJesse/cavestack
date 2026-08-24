@@ -101,14 +101,18 @@ export function findExecutable(base: string): string | null {
  * Locate the browse binary. Throws a BrowseClientError with a
  * canonical setup message if not found. See header for resolution order.
  */
-export function resolveBrowseBin(env: NodeJS.ProcessEnv = process.env): string {
+export function resolveBrowseBin(
+  env: NodeJS.ProcessEnv = process.env,
+  execPath: string = process.execPath,
+): string {
   // 1 + 2: env overrides (CAVESTACK_BROWSE_BIN preferred, BROWSE_BIN back-compat).
   const overrideRaw = env.CAVESTACK_BROWSE_BIN ?? env.BROWSE_BIN;
   const override = resolveOverride(overrideRaw, env);
   if (override) return override;
 
   // 3: sibling — make-pdf and browse co-located in dist/.
-  const selfDir = path.dirname(process.argv[0]);
+  // Compiled binaries: argv[0] can be "." (cwd). process.execPath is the real binary.
+  const selfDir = path.dirname(execPath);
   const siblingCandidates = [
     path.resolve(selfDir, "../browse/dist/browse"),
     path.resolve(selfDir, "../../browse/dist/browse"),

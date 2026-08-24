@@ -29,6 +29,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { spawnSync } from "child_process";
+import { mkdirpSync } from "../lib/mkdirp";
 import {
   scan,
   applyRedactions,
@@ -55,7 +56,7 @@ function hooksPath(): string {
 
 function installPrepushHook(): void {
   const dir = hooksPath();
-  fs.mkdirSync(dir, { recursive: true });
+  mkdirpSync(dir);
   const hookPath = path.join(dir, "pre-push");
   const prepushBin = path.join(import.meta.dir, "cavestack-redact-prepush");
 

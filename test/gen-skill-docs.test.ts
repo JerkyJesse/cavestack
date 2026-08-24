@@ -2630,6 +2630,19 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('[ "$IS_WINDOWS" -eq 1 ] || [ -L "$target" ] || [ ! -e "$target" ]');
   });
 
+  test('link_cursor_skill_dirs reaps orphan dest dirs by scanning destination not payload', () => {
+    const fnStart = setupContent.indexOf('link_cursor_skill_dirs()');
+    const fnBody = setupContent.slice(fnStart, fnStart + 5000);
+    expect(fnBody).toContain('removed orphan skill dir');
+    expect(fnBody).toContain('"$skills_dir"/cavestack-*/');
+    expect(fnBody).toContain('_owned_for_windows_refresh');
+  });
+
+  test('setup sets BASH_COMPAT=50 on bash 5+ (heredoc deadlock guard)', () => {
+    expect(setupContent).toContain('BASH_COMPAT=50');
+    expect(setupContent).toContain('BASH_VERSINFO[0]');
+  });
+
   // #2142 deleted existing ~/.cursor/skills/<name> dirs with `rm -rf "$target"`
   // before relinking. That can wipe unowned Cursor skills. Only replace a
   // symlink or a missing path; never the whole skills directory.

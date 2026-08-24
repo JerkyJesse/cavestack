@@ -51,7 +51,7 @@ export interface HostConfig {
     /** Max chars for description field. null = no limit. */
     descriptionLimit?: number | null;
     /** What to do when description exceeds limit. Default: 'error'. */
-    descriptionLimitBehavior?: 'error' | 'truncate' | 'warn';
+    descriptionLimitBehavior?: 'error' | 'truncate' | 'warn' | 'truncate';
     /** Additional frontmatter fields to inject (host-wide). */
     extraFields?: Record<string, unknown>;
     /** Rename fields from template (e.g., { 'voice-triggers': 'triggers' }). */
@@ -87,10 +87,10 @@ export interface HostConfig {
   };
   // --- Install Behavior ---
   install: {
-    /** Whether cavestack-config skill_prefix applies (Claude only). */
+    /** Whether cavestack-config skill_prefix applies. */
     prefixable?: boolean;
     /** How skills are linked into the host dir. */
-    linkingStrategy: 'real-dir-symlink' | 'symlink-generated';
+    linkingStrategy: 'real-dir-symlink' | 'symlink-generated' | 'real-dir-symlink' | 'symlink-generated';
   };
 
   // --- Host-Specific Behavioral Config ---
@@ -143,7 +143,7 @@ export function validateHostConfig(config: HostConfig, validResolverNames?: Read
   if (!['allowlist', 'denylist'].includes(config.frontmatter.mode)) {
     errors.push(`frontmatter.mode must be 'allowlist' or 'denylist'`);
   }
-  if (!['real-dir-symlink', 'symlink-generated'].includes(config.install.linkingStrategy)) {
+  if (!['real-dir-symlink', 'symlink-generated', 'real-dir-symlink', 'symlink-generated'].includes(config.install.linkingStrategy)) {
     errors.push(`install.linkingStrategy must be 'real-dir-symlink' or 'symlink-generated'`);
   }
 

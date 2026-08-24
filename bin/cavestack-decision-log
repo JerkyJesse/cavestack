@@ -14,7 +14,7 @@
  * validateDecide; a rejected decision exits 1 with a message, nothing persisted.
  */
 
-import { mkdirSync } from "fs";
+import { mkdirpSync } from "../lib/mkdirp";
 import { dirname } from "path";
 import { spawnSync } from "child_process";
 import {
@@ -33,7 +33,7 @@ const HERE = import.meta.dir;
 const args = process.argv.slice(2);
 const slug = resolveSlug(`${HERE}/cavestack-slug`);
 const paths = decisionPaths(slug);
-mkdirSync(dirname(paths.log), { recursive: true });
+mkdirpSync(dirname(paths.log));
 
 function enqueue(): void {
   // Fire-and-forget cross-machine sync (no-op when artifacts_sync is off).

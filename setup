@@ -3,6 +3,12 @@
 set -e
 umask 077  # Restrict new files to owner-only (0o600 files, 0o700 dirs)
 
+# Homebrew bash 5.2+ deadlocks on heredocs ≥512B (macOS 512-byte pipe buffer).
+# BASH_COMPAT=50 forces the bash 5.0 path. Git Bash 4.x never took that path.
+if [ "${BASH_VERSINFO[0]:-0}" -ge 5 ]; then
+  BASH_COMPAT=50
+fi
+
 usage() {
   cat <<'EOF'
 cavestack setup — install cavestack skills + build browse binary
@@ -10,8 +16,9 @@ cavestack setup — install cavestack skills + build browse binary
 Usage: ./setup [options]
 
 Options:
-  --host <name>     Install for a specific host (claude, codex, kiro, factory,
-                    opencode, openclaw, hermes, gbrain, auto). Default: claude.
+  --host <name>     Install for a specific host (claude, cursor, kiro, codex,
+                    factory, opencode, slate, openclaw, hermes, gbrain, auto).
+                    Default: claude.
   --model <id>      Codex model profile override. Otherwise reads Codex config.
   --prefix          Install skills with the cavestack- prefix (e.g. /cavestack-review).
   --no-prefix       Install skills with short names (e.g. /review). Default.
@@ -24,6 +31,7 @@ Options:
 
 Examples:
   ./setup                          # solo install for Claude Code
+  ./setup --host cursor --prefix   # Cursor: ~/.cursor/skills/cavestack-*
   ./setup --host codex             # install for OpenAI Codex CLI
   ./setup --host codex --model gpt-5.6-sol
   ./setup --team                   # team mode for a shared repo
@@ -202,7 +210,15 @@ done
 
 case "$HOST" in
   claude|auto) ;;
-  kiro|factory|opencode|cursor|slate|codex) CAVEMAN_INSTALL=0 ;;
+  kiro|factory|opencode|cursor|codex) CAVEMAN_INSTALL=0 ;;
+  slate)
+    echo ""
+    echo "Slate reads Claude Code skills (~/.claude/skills) as a compatibility fallback."
+    echo "There is no separate Slate skill install. Use Claude:"
+    echo ""
+    echo "  ./setup --host claude"
+    echo ""
+    exit 0 ;;
   openclaw)
     echo ""
     echo "OpenClaw integration uses a different model — OpenClaw spawns Claude Code"
@@ -332,6 +348,14 @@ fi
 
 if [ "$MODEL_OVERRIDE_SET" -eq 1 ] && [ "$INSTALL_CODEX" -eq 0 ]; then
   echo "Error: --model is supported only when Codex is selected (--host codex or --host auto with Codex installed)." >&2
+  exit 1
+fi
+
+# Fail closed: an accepted --host with no install arm used to exit 0 after
+# installing nothing (gstack 1.69 silent-success). Informational hosts
+# (slate, openclaw, hermes, gbrain) exit 0 above before this check.
+if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ] && [ "$INSTALL_KIRO" -eq 0 ] && [ "$INSTALL_FACTORY" -eq 0 ] && [ "$INSTALL_OPENCODE" -eq 0 ] && [ "$INSTALL_CURSOR" -eq 0 ]; then
+  echo "Error: --host '$HOST' is accepted but has no install arm. Valid install targets: claude, cursor, kiro, codex, factory, opencode, auto." >&2
   exit 1
 fi
 
@@ -1591,12 +1615,25 @@ link_cursor_skill_dirs() {
       fi
     fi
   done
+  # 1.69: reap destination dirs whose generated payload is gone. Scan the
+  # DESTINATION (~/.cursor/skills), not the payload — a payload-only scan
+  # cannot see orphans after the skill left the tree.
+  if [ -d "$skills_dir" ]; then
+    for dest in "$skills_dir"/cavestack-*/; do
+      [ -e "$dest" ] || [ -L "$dest" ] || continue
+      skill_name="$(basename "$dest")"
+      [ "$skill_name" = "cavestack" ] && continue
+      payload="$cursor_dir/$skill_name"
+      if [ ! -d "$payload" ] && _owned_for_windows_refresh "$dest"; then
+        rm -rf "$dest"
+        echo "  removed orphan skill dir: $skill_name"
+      fi
+    done
+  fi
   if [ ${#linked[@]} -gt 0 ]; then
     echo "  linked skills: ${linked[*]}"
   fi
 }
-
-# 4. Install for Claude (default)
 SKILLS_BASENAME="$(basename "$INSTALL_SKILLS_DIR")"
 SKILLS_PARENT_BASENAME="$(basename "$(dirname "$INSTALL_SKILLS_DIR")")"
 CODEX_REPO_LOCAL=0
