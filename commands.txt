@@ -87,3 +87,18 @@ bun test test/upgrade-migration-v1.test.ts test/code-intelligence.test.ts test/g
 bash -n bin/cavestack-settings-hook
 bash -n cavestack-upgrade/migrations/v1.0.0.0.sh
 bash -n bin/cavestack-gbrain-repo-policy
+bun run test:free -- --wall-timeout 1200
+
+# 2026-08-24 — move sidebar HTTP routes after /refs
+python3 << PY  # rewrite browse/src/server.ts route order
+
+# 2026-08-24 — suite-green follow-ups
+python3  # move sidebar routes after /refs
+# StrReplace: windowsHide, killAgent tab reset, pkill removal, path-security dangling symlink,
+# gbrain root-ancestor, detectBaseBranch show-ref, artifacts originUrl, uninstall caveman gate,
+# CLAUDE.md gbrain-refresh, playwright patch marker, golden web_search flag, feedback-roundtrip session,
+# diff-scope GIT_ENV
+rm -rf node_modules/playwright-core && bun install
+cd lib/diagram-render && bun install && bun run build
+
+bun test browse/test/server-auth.test.ts browse/test/security-audit-r2.test.ts browse/test/windows-spawn-hide.test.ts browse/test/playwright-core-patch.test.ts browse/test/terminal-agent-pid-identity.test.ts browse/test/sidebar-integration.test.ts browse/test/path-validation.test.ts test/cavestack-artifacts-init.test.ts test/cavestack-gbrain-detect-mcp-mode.test.ts test/codex-web-search-flag.test.ts test/diagram-render-drift.test.ts test/diff-scope.test.ts test/gbrain-local-status.test.ts test/gbrain-refresh-install-render.test.ts test/setup-claude-skill-assets.test.ts test/touchfiles.test.ts test/uninstall.test.ts design/test/feedback-roundtrip.test.ts --timeout 30000

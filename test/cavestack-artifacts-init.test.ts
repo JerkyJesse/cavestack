@@ -165,6 +165,14 @@ function run(argv: string[], opts: { env?: Record<string, string>; input?: strin
   };
 }
 
+function originUrl(dir: string): string {
+  // `git remote get-url` applies url.insteadOf (cloud agents inject
+  // x-access-token). Read the stored config value instead.
+  return spawnSync('git', ['-C', dir, 'config', '--get', 'remote.origin.url'], {
+    encoding: 'utf-8',
+  }).stdout.trim();
+}
+
 function readCalls(file: string): string[] {
   if (!fs.existsSync(file)) return [];
   return fs.readFileSync(file, 'utf-8').trim().split('\n').filter(Boolean);
@@ -277,7 +285,7 @@ describe('cavestack-artifacts-init canonical URL storage (codex Finding #10)', (
     makeFakeGh({ webUrl: 'https://github.com/testuser/cavestack-artifacts-testuser' });
     const r = run(['--host', 'github']);
     expect(r.status).toBe(0);
-    const remote = spawnSync('git', ['-C', tmpHome, 'remote', 'get-url', 'origin'], { encoding: 'utf-8' });
+    const remote = { stdout: originUrl(tmpHome) + '\n' };
     expect(remote.stdout.trim()).toBe('https://github.com/testuser/cavestack-artifacts-testuser');
   });
 
@@ -288,7 +296,7 @@ describe('cavestack-artifacts-init canonical URL storage (codex Finding #10)', (
     });
     const r = run(['--host', 'github']);
     expect(r.status).toBe(0);
-    const remote = spawnSync('git', ['-C', tmpHome, 'remote', 'get-url', 'origin'], { encoding: 'utf-8' });
+    const remote = { stdout: originUrl(tmpHome) + '\n' };
     expect(remote.stdout.trim()).toBe('git@github.com:testuser/cavestack-artifacts-testuser.git');
   });
 
@@ -296,7 +304,7 @@ describe('cavestack-artifacts-init canonical URL storage (codex Finding #10)', (
     makeFakeGh({ gitProtocol: 'unset' });
     const r = run(['--host', 'github']);
     expect(r.status).toBe(0);
-    const remote = spawnSync('git', ['-C', tmpHome, 'remote', 'get-url', 'origin'], { encoding: 'utf-8' });
+    const remote = { stdout: originUrl(tmpHome) + '\n' };
     expect(remote.stdout.trim()).toBe('https://github.com/testuser/cavestack-artifacts-testuser');
   });
 
@@ -304,7 +312,7 @@ describe('cavestack-artifacts-init canonical URL storage (codex Finding #10)', (
     makeFakeGlab({ gitProtocol: 'ssh' });
     const r = run(['--host', 'gitlab']);
     expect(r.status).toBe(0);
-    const remote = spawnSync('git', ['-C', tmpHome, 'remote', 'get-url', 'origin'], { encoding: 'utf-8' });
+    const remote = { stdout: originUrl(tmpHome) + '\n' };
     expect(remote.stdout.trim()).toBe('git@gitlab.com:testuser/cavestack-artifacts-testuser.git');
   });
 });
@@ -359,7 +367,7 @@ describe('cavestack-artifacts-init idempotency', () => {
     makeFakeGh({ gitProtocol: 'ssh' });
     const r = run(['--remote', 'https://github.com/testuser/cavestack-artifacts-testuser']);
     expect(r.status).toBe(0);
-    const remote = spawnSync('git', ['-C', tmpHome, 'remote', 'get-url', 'origin'], { encoding: 'utf-8' });
+    const remote = { stdout: originUrl(tmpHome) + '\n' };
     expect(remote.stdout.trim()).toBe('https://github.com/testuser/cavestack-artifacts-testuser');
   });
 
@@ -372,7 +380,7 @@ describe('cavestack-artifacts-init idempotency', () => {
       'ssh',
     ]);
     expect(r.status).toBe(0);
-    const remote = spawnSync('git', ['-C', tmpHome, 'remote', 'get-url', 'origin'], { encoding: 'utf-8' });
+    const remote = { stdout: originUrl(tmpHome) + '\n' };
     expect(remote.stdout.trim()).toBe('git@github.com:testuser/cavestack-artifacts-testuser.git');
   });
 

@@ -63,11 +63,25 @@ export function matchGlob(file: string, pattern: string): boolean {
  * Returns the first valid ref, or null if none found.
  */
 export function detectBaseBranch(cwd: string): string | null {
-  for (const ref of ['origin/main', 'origin/master', 'main', 'master']) {
-    const result = spawnSync('git', ['rev-parse', '--verify', ref], {
-      cwd, stdio: 'pipe', timeout: 3000,
+  const gitEnv = {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_ASKPASS: 'true',
+    GCM_INTERACTIVE: 'never',
+  };
+  // show-ref is local-only (no insteadOf / credential helper). Prefer origin
+  // when the remote-tracking ref exists; fall back to local heads.
+  const candidates: Array<[string, string]> = [
+    ['origin/main', 'refs/remotes/origin/main'],
+    ['origin/master', 'refs/remotes/origin/master'],
+    ['main', 'refs/heads/main'],
+    ['master', 'refs/heads/master'],
+  ];
+  for (const [name, ref] of candidates) {
+    const result = spawnSync('git', ['show-ref', '--verify', '--quiet', ref], {
+      cwd, stdio: 'pipe', timeout: 1000, env: gitEnv,
     });
-    if (result.status === 0) return ref;
+    if (result.status === 0) return name;
   }
   return null;
 }

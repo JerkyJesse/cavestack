@@ -316,6 +316,9 @@ describe('schema regression', () => {
     expect(r.code).toBe(0);
     const keys = Object.keys(r.json).sort();
     expect(keys).toEqual([
+      'cavestack_artifacts_remote',
+      'cavestack_brain_git',
+      'cavestack_brain_sync_mode',
       'gbrain_config_exists',
       'gbrain_doctor_ok',
       'gbrain_engine',
@@ -327,9 +330,6 @@ describe('schema regression', () => {
       // keys so adding here is forward-compat.
       'gbrain_pooler_mode',
       'gbrain_version',
-      'cavestack_artifacts_remote',
-      'cavestack_brain_git',
-      'cavestack_brain_sync_mode',
     ]);
   });
 });

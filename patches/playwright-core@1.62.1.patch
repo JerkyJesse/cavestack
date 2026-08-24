@@ -6,7 +6,7 @@ index d9041dd0f009072511a7d808dec83121ff29e127..e5c72c452c98f1c64038c5f24ac5805f
      env: options.env,
      cwd: options.cwd,
      shell: options.shell,
-+    // gstack patch (#2160/#1989): Node defaults windowsHide to false for
++    // cavestack patch (#2160/#1989): Node defaults windowsHide to false for
 +    // child_process.spawn, so browser children could flash a console window
 +    // on Windows. Playwright never needs the child's window shown.
 +    windowsHide: true,
