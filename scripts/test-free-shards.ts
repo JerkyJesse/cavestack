@@ -239,6 +239,30 @@ export const KNOWN_WINDOWS_INCOMPATIBLE: Array<{ file: string; reason: string }>
     reason: 'bash migration script (bunx re-fetch, .done markers) is the subject under test',
   },
   {
+    file: 'test/tasks-section-jq.test.ts',
+    reason: 'execFileSync("jq") — jq is not on PATH on windows-latest or local Windows (Git Bash has no jq)',
+  },
+  {
+    file: 'test/migration-checkpoint-ownership.test.ts',
+    reason: 'creates directory/file symlinks; EPERM without Developer Mode (same class as skill-census)',
+  },
+  {
+    file: 'test/hermetic-wiring.test.ts',
+    reason: 'seeds skills via symlink into a temp tree; EPERM without Developer Mode',
+  },
+  {
+    file: 'make-pdf/test/diagram-prepass.test.ts',
+    reason: 'asserts symlink-escape via fs.symlink; EPERM without Developer Mode',
+  },
+  {
+    file: 'test/hermetic-skills-seeding.test.ts',
+    reason: 'hermeticSkillsConfigDir() seeds SKILL.md via symlink at module load; EPERM without Developer Mode',
+  },
+  {
+    file: 'test/setup-alias-name-uniqueness.test.ts',
+    reason: 'forces IS_WINDOWS=0 and link_claude_skill_dirs (ln -snf); hangs/fails without POSIX symlinks',
+  },
+  {
     file: 'test/question-preference-hook.test.ts',
     reason: 'spawns the PreToolUse preference hook (shebang script) directly; Windows spawn cannot exec it',
   },
