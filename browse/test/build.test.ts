@@ -22,8 +22,15 @@ function readBundleWithRetry(file: string, attempts = 10): string {
 }
 
 function isQuarantined(err: unknown): boolean {
-  const code = (err as NodeJS.ErrnoException).code;
-  return code === 'EUNKNOWN' || code === 'EBUSY' || code === 'EPERM' || code === 'ENOENT';
+  const e = err as NodeJS.ErrnoException & { stderr?: Buffer | string };
+  const code = e.code;
+  if (code === 'EUNKNOWN' || code === 'EBUSY' || code === 'EPERM' || code === 'ENOENT') return true;
+  const msg = `${e.message ?? ''} ${e.stderr ?? ''}`;
+  if (/EUNKNOWN|ENOENT|not found/i.test(msg)) return true;
+  // Defender often deletes the file during node --check; execFileSync then
+  // throws status/stderr, not ENOENT.
+  if (!fs.existsSync(SERVER_NODE)) return true;
+  return false;
 }
 
 describe('build: server-node.mjs', () => {
