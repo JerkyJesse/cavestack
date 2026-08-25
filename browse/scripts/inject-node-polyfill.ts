@@ -8,6 +8,8 @@ import { copyFileSync, unlinkSync } from "fs";
 
 const HEADER = [
   "// ── Windows Node.js compatibility (auto-generated) ──",
+  "// CaveStack browse server for Node on Windows. Not an npm package tarball.",
+  "// Source: https://github.com/JerkyJesse/cavestack  browse/scripts/build-node-server.ts",
   'import { fileURLToPath as _ftp } from "node:url";',
   'import { dirname as _dn } from "node:path";',
   'const __browseNodeSrcDir = _dn(_dn(_ftp(import.meta.url))) + "/src";',

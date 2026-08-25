@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.2.1.0] - 2026-08-24 — Windows Defender false positive is named, not silent
+
+Windows Defender can quarantine `browse/dist/server-node.mjs` as `Trojan:NPM/Stealer!AMTB`. That is a false positive on CaveStack's Node browse bundle. You now get **CS403** with the exclusion command instead of a vanishing file. `skill:check` no longer fails because the `/claude` skill has no generated SKILL.md. Importing browse CLI helpers no longer throws just because the bundle is missing.
+
+### Fixed
+
+- **CS403** — After writing the Windows Node bundle, setup waits and re-reads it. If Defender already ate the file, you get the threat name and `Add-MpPreference -ExclusionPath '<repo>\browse\dist'`.
+- **`skill:check`** — Skills the Claude host skips (`claude/SKILL.md.tmpl` with no `claude/SKILL.md`) are OK, not missing generated output.
+- **Browse CLI import** — `server-node.mjs` is required when the Windows daemon starts, not when a test file imports `cli.ts`.
+- **Windows-free tests** — Drop jq, symlink, and `IS_WINDOWS=0` alias-install files that cannot run without Developer Mode or extra POSIX tools.
+
+### For contributors
+
+- `lib/error-codes.json` CS403. `assertBundleNotQuarantined()` in `browse/scripts/build-node-server.ts`.
+
 ## [2.2.0.0] - 2026-08-24 — Cursor install that actually works
 
 Cursor install is first-class: `./setup --host cursor --prefix` writes `~/.cursor/skills/cavestack-*` with YAML `name:` matching the folder (Cursor drops a skill when they differ). Descriptions over 1024 chars truncate instead of vanishing. Pairing `--local cursor` is credentials only — not a skill install.

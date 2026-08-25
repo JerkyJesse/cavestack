@@ -187,3 +187,46 @@ git push -u origin HEAD
 gh pr create
 gh pr merge
 git checkout main
+
+# 2026-08-24 ? explore HOW confirm CaveStack fully works on Windows
+# Read: package.json scripts, VERSION, scripts/test-free-shards.ts, setup, skill-check.ts
+# Read: .github/workflows/windows-free-tests.yml, windows-setup-e2e.yml
+# Read: CLAUDE.md (no Health Stack), AGENTS.md platform support, README.md Windows
+# Read: browse/src/cli.ts Windows Node fallback, browse/scripts/build-node-server.sh
+# Read: bin/cavestack-update-check, bin/cavestack-verify-gate, bin/cavestack-platform-detect
+# Grep: test:windows, windows-free-tests, Health Stack, skill:check, doctor, smoke
+
+# 2026-08-24 — Windows-local CaveStack verify
+bun --version
+node --version
+git --version
+bash --version
+where.exe git
+where.exe bash
+& "C:\Program Files\Git\bin\bash.exe" --version
+Get-Content VERSION
+Get-Content $env:USERPROFILE\.cursor\skills\cavestack\VERSION
+Get-ChildItem $env:USERPROFILE\.cursor\skills -Directory -Filter cavestack-*
+Test-Path node_modules
+Test-Path bun.lock
+Get-ChildItem $env:USERPROFILE\.cursor\skills\cavestack
+Test-Path browse\dist\server-node.mjs
+Test-Path browse\dist\browse.exe
+Test-Path design\dist\design.exe
+bash browse/scripts/build-node-server.sh
+bun run gen:skill-docs --host all
+bun run skill:check
+bun run test:windows
+$git = "C:\Program Files\Git"
+$env:PATH = "$git\bin;$git\usr\bin;$git\cmd;" + $env:PATH
+bash browse/scripts/build-node-server.sh
+bun run skill:check
+bun test test/skill-check.test.ts
+bun run test:windows
+browse\dist\browse.exe --help
+design\dist\design.exe --help
+bin/cavestack-paths
+# 2026-08-24 — CS403 Defender quarantine of server-node.mjs
+# Get-MpThreatDetection: Trojan:NPM/Stealer!AMTB on browse/dist/server-node.mjs
+# Add-MpPreference failed: not enough permissions (need elevated PowerShell)
+bun test test/skill-check.test.ts test/test-free-shards.test.ts browse/test/inject-node-polyfill.test.ts browse/test/config.test.ts browse/test/build.test.ts

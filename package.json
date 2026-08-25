@@ -1,6 +1,6 @@
 {
   "name": "cavestack",
-  "version": "2.2.0.0",
+  "version": "2.2.1.0",
   "description": "CaveStack — AI builder framework with caveman mode baked in. Multi-host skills (Claude Code, Cursor, Kiro, Codex, and more) + fast headless browser + 50+ workflow skills.",
   "license": "MIT",
   "type": "module",

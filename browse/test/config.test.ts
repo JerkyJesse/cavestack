@@ -284,6 +284,10 @@ describe('resolveNodeServerScript', () => {
     expect(result).toBeNull();
   });
 
+  test('loading cli.ts does not throw when the Windows bundle is absent', () => {
+    expect(() => require('../src/cli')).not.toThrow();
+  });
+
   test('finds server-node.mjs adjacent to compiled binary', () => {
     const distDir = path.resolve(__dirname, '../dist');
     const distFile = path.join(distDir, 'server-node.mjs');
