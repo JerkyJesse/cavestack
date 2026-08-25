@@ -69,6 +69,11 @@
     "fix": "Run: design setup — or set OPENAI_API_KEY in environment",
     "docs": "https://cavestack.jerkyjesse.com/docs/errors/CS402"
   },
+  "CS403": {
+    "message": "Windows Defender quarantined the browse Node server bundle",
+    "fix": "False positive (Trojan:NPM/Stealer!AMTB). In an elevated PowerShell: Add-MpPreference -ExclusionPath '<repo>\\browse\\dist' then re-run: bash browse/scripts/build-node-server.sh",
+    "docs": "https://cavestack.jerkyjesse.com/docs/errors/CS403"
+  },
   "CS600": {
     "message": "cavestack run could not intercept Claude Code session",
     "fix": "Update Claude Code to latest. Check: claude --version",

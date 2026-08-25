@@ -46,12 +46,32 @@ export async function writeWithRetry(file: string, contents: string, attempts = 
   }
 }
 
+/** Defender's Trojan:NPM/Stealer!AMTB heuristic deletes the bundle seconds after write. */
+export async function assertBundleNotQuarantined(file: string, settleMs = 1500): Promise<void> {
+  if (process.platform !== "win32") return;
+  await Bun.sleep(settleMs);
+  try {
+    const text = await Bun.file(file).text();
+    if (text.length < 100) {
+      throw new Error("bundle too small");
+    }
+  } catch {
+    throw new Error(
+      `CS403: Windows Defender quarantined ${file} as Trojan:NPM/Stealer!AMTB ` +
+        `(false positive on the CaveStack Node browse bundle). Allow it, then rebuild:\n` +
+        `  Add-MpPreference -ExclusionPath '${DIST}'\n` +
+        `  bash browse/scripts/build-node-server.sh`,
+    );
+  }
+}
+
 export async function buildNodeServer(): Promise<void> {
   mkdirpSync(DIST);
   const result = await Bun.build({
     entrypoints: [ENTRY],
     target: "node",
     format: "esm",
+    minify: false,
     external: ["playwright", "playwright-core", "diff", "bun:sqlite", "@ngrok/ngrok"],
   });
   if (!result.success) {
@@ -63,6 +83,7 @@ export async function buildNodeServer(): Promise<void> {
   const source = await artifact.text();
   await writeWithRetry(DST, splicePolyfill(source));
   copyFileSync(POLYFILL_SRC, POLYFILL_DST);
+  await assertBundleNotQuarantined(DST);
 }
 
 if (import.meta.main) {

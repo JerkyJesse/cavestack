@@ -212,7 +212,7 @@ cavestack-settings-hook install-caveman  # re-enable
 
 **Caveman not fire on new session?** Check `~/.claude/settings.json` has `hooks.SessionStart` pointing at `caveman-activate.js` and `hooks.UserPromptSubmit` pointing at `caveman-mode-tracker.js`. Re-register: `cavestack-settings-hook install-caveman`. Need Node.js on PATH — hooks run under Node, not Bun. (Claude only — Kiro doesn't use caveman hooks.)
 
-**Windows?** Works on Windows 10/11 via Git Bash or WSL. Both `bun` and `node` on PATH. Bun has known Playwright pipe issue ([bun#4253](https://github.com/oven-sh/bun/issues/4253)), `browse` falls back to Node for server.
+**Windows?** Works on Windows 10/11 via Git Bash or WSL. Both `bun` and `node` on PATH. Bun has known Playwright pipe issue ([bun#4253](https://github.com/oven-sh/bun/issues/4253)), `browse` falls back to Node for server. Windows Defender may quarantine `browse/dist/server-node.mjs` as `Trojan:NPM/Stealer!AMTB` (false positive, CS403). Allow the generated bundle: `Add-MpPreference -ExclusionPath '<repo>\browse\dist'` then `bash browse/scripts/build-node-server.sh`.
 
 **Claude can't see skills?** Add cavestack section to project's `CLAUDE.md`. `/office-hours` does this automatically on first run.
 
